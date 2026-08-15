@@ -2,6 +2,7 @@
   "name": "saigai-map-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
+  "account_id": "4fd60082e9694608803127c49873174e",
   "containers": [
     {
       "class_name": "FastAPIContainer",
