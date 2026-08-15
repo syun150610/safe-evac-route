@@ -1,0 +1,26 @@
+{
+  "name": "saigai-map-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "containers": [
+    {
+      "class_name": "FastAPIContainer",
+      "image": "../backend/Dockerfile",
+      "max_instances": 3
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "FASTAPI_CONTAINER",
+        "class_name": "FastAPIContainer"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["FastAPIContainer"]
+    }
+  ]
+}
