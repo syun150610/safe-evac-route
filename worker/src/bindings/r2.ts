@@ -11,7 +11,7 @@ export async function handleR2Request(request: Request, env: Env): Promise<Respo
   }
 
   try {
-    const listed = await env.R2.list({ limit: 1 })
+    const listed = await env.STORAGE.list({ limit: 1 })
     return Response.json({ status: 'ok', object_count: listed.objects.length })
   } catch {
     return Response.json({ detail: 'R2 is unavailable' }, { status: 503 })

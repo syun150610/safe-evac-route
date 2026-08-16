@@ -10,12 +10,15 @@
   },
   "d1_databases": [
     {
-      "binding": "DB"
+      "binding": "DATABASE",
+      "database_name": "safe-evac-route-db",
+      "database_id": "3b767e82-d3c6-47f3-b2b8-d9faa2dcbe2b"
     }
   ],
   "r2_buckets": [
     {
-      "binding": "R2"
+      "binding": "STORAGE",
+      "bucket_name": "safe-evac-route-storage"
     }
   ],
   "containers": [
