@@ -2,6 +2,17 @@
   "name": "saigai-map-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
+  "assets": {
+    "directory": "../frontend/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/health"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB"
+    }
+  ],
   "containers": [
     {
       "class_name": "FastAPIContainer",
