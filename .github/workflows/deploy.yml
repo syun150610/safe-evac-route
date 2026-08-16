@@ -1,0 +1,59 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - backend/**
+      - frontend/**
+      - worker/**
+      - .node-version
+      - .github/workflows/deploy.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Production
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            worker/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Install Worker dependencies
+        run: npm ci
+        working-directory: worker
+
+      - name: Apply D1 migrations
+        run: npm run db:migrate:remote
+        working-directory: worker
+
+      - name: Deploy to Cloudflare
+        run: npm run deploy
+        working-directory: worker

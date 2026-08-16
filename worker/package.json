@@ -11,6 +11,7 @@
     "dev": "wrangler dev",
     "predeploy": "npm run assets:build",
     "deploy": "wrangler deploy",
+    "db:migrate:remote": "wrangler d1 migrations apply safe-evac-route-db --remote",
     "typegen": "wrangler types",
     "typecheck": "tsc --noEmit"
   },
