@@ -47,6 +47,7 @@ npm run check
 - React SPA: `http://localhost:8787/`
 - FastAPI: `http://localhost:8787/api/health`
 - D1疎通: `http://localhost:8787/api/health/d1`
+- R2疎通: `http://localhost:8787/api/health/r2`
 - Vite開発サーバー: `http://localhost:5173/`
 
 ## バックエンド単体開発
@@ -59,7 +60,7 @@ uv run ruff format --check .
 uv run pytest
 ```
 
-FastAPI単体起動ではCloudflare Bindingsが存在しないため、D1疎通APIは利用できません。
+FastAPI単体起動ではCloudflare Bindingsが存在しないため、D1・R2疎通APIは利用できません。
 環境変数は `.env.example` をコピーして使用します。
 
 ```bash

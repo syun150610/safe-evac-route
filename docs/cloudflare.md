@@ -11,12 +11,11 @@ Cloudflare Worker
    └── その他  ── React Static Assets
 
 FastAPI Container
-   │ HTTP（d1.internal）
+   │ HTTP（d1.internal / r2.internal）
    ▼
 Container outbound handler
-   │ D1 Binding API
-   ▼
-D1
+   ├── D1 Binding API
+   └── R2 Binding API
 ```
 
 Workerの設定は `worker/wrangler.jsonc` を正とします。フロントエンド、API、
@@ -40,7 +39,7 @@ FastAPI Containerを起動し、ローカルD1を `.wrangler/` に作成しま�
 ReactのHMRが必要な場合は、別ターミナルで `cd frontend && npm run dev` を実行します。
 Viteは `/api` を `http://localhost:8787` へプロキシします。
 
-## D1疎通
+## Bindings疎通
 
 現段階では業務テーブルを作成しません。次のAPIだけが、Containerのoutbound handlerと
 D1 Binding APIを通して `SELECT 1` を実行します。
@@ -50,11 +49,18 @@ curl http://localhost:8787/api/health/d1
 # {"status":"ok"}
 ```
 
+R2も保存用途はまだ決めず、ローカルbucketの一覧取得による疎通だけを確認します。
+
+```bash
+curl http://localhost:8787/api/health/r2
+# {"status":"ok"}
+```
+
 `worker/migrations/` は将来のD1 migration用です。
 
 ## デプロイについて
 
-この段階では本番D1を作成・接続しません。Wrangler設定のD1 Bindingは自動
+この段階では本番D1・R2を作成・接続しません。Wrangler設定のBindingsは自動
 プロビジョニング形式のため、将来初めてdeployする際にはCloudflare上のリソース作成を
 確認したうえで実行してください。
 

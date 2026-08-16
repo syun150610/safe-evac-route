@@ -1,5 +1,8 @@
 import { Container, getContainer } from "@cloudflare/containers";
 
+import { handleD1Request } from "./bindings/d1";
+import { handleR2Request } from "./bindings/r2";
+
 export { ContainerProxy } from "@cloudflare/containers";
 
 /** Cloudflare Containersで管理するFastAPIアプリケーション。 */
@@ -11,29 +14,9 @@ export class FastAPIContainer extends Container {
 FastAPIContainer.outboundByHost = {
   // この仮想ホストはContainer内からのみ到達できる。Cloudflareの認証情報と
   // D1 BindingをPythonアプリケーションへ渡さず、Worker側に閉じ込める。
-  "d1.internal": async (request: Request, env: Env): Promise<Response> => {
-    const url = new URL(request.url);
-
-    if (request.method !== "GET") {
-      return Response.json({ detail: "Method not allowed" }, { status: 405 });
-    }
-
-    if (url.pathname !== "/health") {
-      return Response.json({ detail: "Not found" }, { status: 404 });
-    }
-
-    try {
-      const row = await env.DB.prepare("SELECT 1 AS ok").first<{ ok: number }>();
-
-      if (row?.ok !== 1) {
-        return Response.json({ detail: "D1 is unavailable" }, { status: 503 });
-      }
-
-      return Response.json({ status: "ok", result: row.ok });
-    } catch {
-      return Response.json({ detail: "D1 is unavailable" }, { status: 503 });
-    }
-  },
+  "d1.internal": handleD1Request,
+  // R2もD1と同様に、認証情報をContainerへ渡さずBinding APIで操作する。
+  "r2.internal": handleR2Request,
 };
 
 export default {

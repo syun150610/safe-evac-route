@@ -18,6 +18,7 @@
 - **バックエンド**: FastAPI（Python、uv）をCloudflare Containerで実行
 - **配信/API入口**: Cloudflare Worker（Static Assets + Container proxy）
 - **DB**: Cloudflare D1（Worker Binding API経由。業務スキーマは未実装）
+- **オブジェクトストレージ**: Cloudflare R2（Worker Binding API経由。用途は未定）
 - **地図/ルーティング**: 別途統合予定（Google Maps API / GraphHopperなど。この段階では未実装でよい）
 
 ## ディレクトリ構成（想定）

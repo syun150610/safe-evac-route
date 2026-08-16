@@ -14,6 +14,7 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     d1_gateway_url: AnyHttpUrl = AnyHttpUrl("http://d1.internal")
+    r2_gateway_url: AnyHttpUrl = AnyHttpUrl("http://r2.internal")
     request_timeout_seconds: float = 10.0
 
     model_config = SettingsConfigDict(
