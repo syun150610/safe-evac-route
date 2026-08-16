@@ -5,9 +5,9 @@ Cloudflareへ自動デプロイする。
 
 ## CI
 
-`.github/workflows/ci.yml` は、すべてのpushとPull Requestで実行される。
-変更されたパスに応じて必要なジョブだけを実行し、最後に `CI Success` で結果を
-集約する。
+`.github/workflows/ci.yml` は、main以外へのpushとPull Requestで実行される。
+mainへのマージ後はCDだけを実行し、CIは重複して実行しない。変更されたパスに
+応じて必要なジョブだけを実行し、最後に `CI Success` で結果を集約する。
 
 | 変更パス | 実行するジョブ |
 |---|---|
