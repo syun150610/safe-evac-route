@@ -28,6 +28,7 @@ dist/
 # Node.js / React
 node_modules/
 .vite/
+.wrangler/
 .cache/
 .eslintcache
 .next/
@@ -48,7 +49,6 @@ tmp/
 temp/
 
 # Editors and operating systems
-.vscode/
 .idea/
 *.swp
 *.swo

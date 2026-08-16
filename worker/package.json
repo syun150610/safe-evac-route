@@ -3,12 +3,17 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "assets:build": "npm --prefix ../frontend run build",
+    "predev": "npm run assets:build",
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "predeploy": "npm run assets:build",
+    "deploy": "wrangler deploy",
+    "typegen": "wrangler types",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "wrangler": "4.123.0",
-    "@cloudflare/workers-types": "5.20260815.1"
+    "typescript": "^7.0.2",
+    "wrangler": "4.123.0"
   },
   "dependencies": {
     "@cloudflare/containers": "0.3.7"

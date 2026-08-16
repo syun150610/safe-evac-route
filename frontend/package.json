@@ -7,7 +7,11 @@
     "dev": "vite",
     "typecheck": "tsc --noEmit",
     "build": "vite build",
-    "lint": "oxlint",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "check": "biome check .",
+    "check:write": "biome check --write .",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -17,10 +21,10 @@
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.8",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.4",
-    "oxlint": "^1.75.0",
     "typescript": "^7.0.2",
     "vite": "^8.2.0"
   }
