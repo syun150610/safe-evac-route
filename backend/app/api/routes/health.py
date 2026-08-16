@@ -18,7 +18,6 @@ class HealthResponse(BaseModel):
 router = APIRouter(tags=["health"])
 
 
-@router.get("/health", response_model=HealthResponse, include_in_schema=False)
 @router.get("/api/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     """FastAPIプロセスがリクエストを受け付けられることを返す。"""

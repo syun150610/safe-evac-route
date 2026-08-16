@@ -42,7 +42,7 @@ export default {
 
     // /api配下はすべてFastAPIへ転送するため、バックエンドにエンドポイントを
     // 追加してもWorker側のルーティングを追記する必要はない。
-    if (pathname === "/health" || pathname.startsWith("/api/")) {
+    if (pathname.startsWith("/api/")) {
       const container = getContainer(env.FASTAPI_CONTAINER);
       return container.fetch(request);
     }

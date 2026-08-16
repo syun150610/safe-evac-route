@@ -50,14 +50,6 @@ async def test_health(client: httpx.AsyncClient) -> None:
 
 
 @pytest.mark.anyio
-async def test_legacy_health(client: httpx.AsyncClient) -> None:
-    response = await client.get("/health")
-
-    assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
-
-
-@pytest.mark.anyio
 async def test_d1_health(client: httpx.AsyncClient) -> None:
     app.dependency_overrides[get_d1_client] = get_healthy_d1_client
     try:

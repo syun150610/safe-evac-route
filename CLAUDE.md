@@ -60,7 +60,7 @@ uv sync
 uv run uvicorn app.main:app --reload  # http://localhost:8000
 ```
 
-`app/main.py` は起動確認用に `GET /health` を返すだけのエンドポイントから始める。
+`app/main.py` は起動確認用に `GET /api/health` を返すエンドポイントから始める。
 
 ### フロントエンド（React）
 
@@ -122,7 +122,7 @@ npm run dev                    # http://localhost:8787
 ## このフェーズのTODO
 
 - [ ] `frontend/` `backend/` `data/` のディレクトリ作成
-- [ ] FastAPI起動確認（`/health` エンドポイント）
+- [x] FastAPI起動確認（`/api/health` エンドポイント）
 - [ ] React起動確認（Viteデフォルト画面表示）
 - [x] ローカルD1へのBinding API疎通確認
 - [ ] `.gitignore` 整備（`venv/`, `node_modules/`, `*.db`, `.env`, `data/raw/`）
