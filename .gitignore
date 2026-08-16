@@ -38,6 +38,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Raw geodata (large files, not versioned)
+data/raw/
+
 # Logs and temporary files
 *.log
 logs/
