@@ -15,8 +15,9 @@
 ## 技術スタック
 
 - **フロントエンド**: React（Vite）
-- **バックエンド**: FastAPI（Python）
-- **DB**: SQLite（SQLAlchemy経由）
+- **バックエンド**: FastAPI（Python、uv）をCloudflare Containerで実行
+- **配信/API入口**: Cloudflare Worker（Static Assets + Container proxy）
+- **DB**: Cloudflare D1（Worker Binding API経由。業務スキーマは未実装）
 - **地図/ルーティング**: 別途統合予定（Google Maps API / GraphHopperなど。この段階では未実装でよい）
 
 ## ディレクトリ構成（想定）
@@ -34,13 +35,15 @@ saigai_map/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py       # FastAPIエントリポイント
-│   │   ├── routers/      # エンドポイント定義
-│   │   ├── models/       # SQLAlchemyモデル
+│   │   ├── api/          # エンドポイント定義
+│   │   ├── clients/      # Worker Bindingsへのクライアント
+│   │   ├── core/         # 環境変数などの共通設定
 │   │   ├── schemas/      # Pydanticスキーマ
-│   │   ├── services/     # ビジネスロジック（経路計算等）
-│   │   └── db/           # DB接続・セッション管理
-│   ├── requirements.txt
+│   │   └── services/     # ビジネスロジック（経路計算等）
+│   ├── pyproject.toml
+│   ├── uv.lock
 │   └── .env.example
+├── worker/                # Static Assets、Container、D1 Binding
 ├── data/
 │   ├── raw/               # ダウンロードした生データ（shp, csv等、gitignore対象）
 │   └── processed/         # 変換済みデータ（geojson等）
@@ -53,11 +56,8 @@ saigai_map/
 
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate       # Windowsは venv\Scripts\activate
-pip install fastapi uvicorn sqlalchemy python-dotenv
-pip freeze > requirements.txt
-uvicorn app.main:app --reload  # http://localhost:8000
+uv sync
+uv run uvicorn app.main:app --reload  # http://localhost:8000
 ```
 
 `app/main.py` は起動確認用に `GET /health` を返すだけのエンドポイントから始める。
@@ -71,19 +71,26 @@ npm install
 npm run dev                    # http://localhost:5173
 ```
 
-### DB（SQLite）
+### Cloudflare Worker + D1
 
-- 開発中は `backend/app.db` をローカルファイルとして使用
-- SQLAlchemyのモデル1つ（例: ユーザー投稿テーブル）を作り、マイグレーション運用（Alembic導入は後回しでよい、まずは `Base.metadata.create_all()` で十分）
+```bash
+cd worker
+npm install
+npm run dev                    # http://localhost:8787
+```
+
+- D1はContainerからWorkerのoutbound handlerを通してBinding APIで操作する
+- ローカルD1はWranglerが管理し、SQL migrationは `worker/migrations/` に置く
+- SQLAlchemyとAlembicは使用しない
 
 ### 環境変数
 
 - `backend/.env`（gitignore対象）にAPIキー等を管理
-- `backend/.env.example` に必要なキー名だけコミットしておく（例: `GOOGLE_MAPS_API_KEY=`）
+- `backend/.env.example` に必要なキー名だけコミットしておく
 
 ## コーディング規約
 
-- **Python**: PEP8準拠、型ヒント必須、フォーマッタは `black` / リンタは `ruff` 推奨
+- **Python**: PEP8準拠、型ヒント必須、lint・formatはRuffに統一
 - **React**: 関数コンポーネント + hooks（クラスコンポーネント不使用）
 - **命名**: ファイル名はkebab-caseまたはPascalCase（コンポーネント）で統一し、混在させない
 
@@ -117,7 +124,7 @@ npm run dev                    # http://localhost:5173
 - [ ] `frontend/` `backend/` `data/` のディレクトリ作成
 - [ ] FastAPI起動確認（`/health` エンドポイント）
 - [ ] React起動確認（Viteデフォルト画面表示）
-- [ ] SQLiteモデル1つ作成し、接続確認
+- [x] ローカルD1へのBinding API疎通確認
 - [ ] `.gitignore` 整備（`venv/`, `node_modules/`, `*.db`, `.env`, `data/raw/`）
 - [ ] `.env.example` 作成
 - [ ] `setup/init-project` ブランチを切って上記の変更を行い、PRを作成する（マージは人間が行うため実行しない）
