@@ -92,7 +92,7 @@ npm run dev                    # http://localhost:8787
 ## コーディング規約
 
 - **Python**: PEP8準拠、型ヒント必須、lint・formatはRuffに統一
-- **React**: 関数コンポーネント + hooks（クラスコンポーネント不使用）
+- **React**: 関数コンポーネント + hooks（クラスコンポーネント不使用）、lint・formatはBiomeに統一
 - **命名**: ファイル名はkebab-caseまたはPascalCase（コンポーネント）で統一し、混在させない
 
 ## データの扱いに関する前提（後続タスクの参照用）

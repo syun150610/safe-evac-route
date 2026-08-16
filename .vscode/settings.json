@@ -7,6 +7,14 @@
       "source.organizeImports.ruff": "explicit"
     }
   },
+  "[javascript][javascriptreact][typescript][typescriptreact][json][jsonc][css]": {
+    "editor.defaultFormatter": "biomejs.biome",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.biome": "explicit",
+      "source.organizeImports.biome": "explicit"
+    }
+  },
   "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
   "ruff.configuration": "${workspaceFolder}/backend/pyproject.toml"
 }

@@ -37,6 +37,9 @@ Reactをホットリロードしながら開発する場合は、別ターミナ
 ```bash
 cd frontend
 npm run dev
+npm run lint
+npm run format
+npm run check
 ```
 
 確認先:

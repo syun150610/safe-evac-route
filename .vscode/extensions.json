@@ -1,5 +1,6 @@
 {
   "recommendations": [
+    "biomejs.biome",
     "charliermarsh.ruff",
     "ms-python.python",
     "ms-python.vscode-pylance"
