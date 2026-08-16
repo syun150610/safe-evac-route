@@ -2,6 +2,9 @@
   "name": "saigai-map-worker",
   "version": "0.0.1",
   "private": true,
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "assets:build": "npm --prefix ../frontend run build",
     "predev": "npm run assets:build",
