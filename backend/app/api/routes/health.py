@@ -6,7 +6,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ValidationError
 
-from app.clients.d1 import D1Client, get_d1_client
+from app.repositories.health import HealthRepository, get_health_repository
 
 
 class HealthResponse(BaseModel):
@@ -27,12 +27,12 @@ async def health() -> HealthResponse:
 
 @router.get("/api/health/d1", response_model=HealthResponse)
 async def d1_health(
-    client: Annotated[D1Client, Depends(get_d1_client)],
+    repository: Annotated[HealthRepository, Depends(get_health_repository)],
 ) -> HealthResponse:
     """Worker Binding経由でD1へ接続できるかを返す。"""
 
     try:
-        result = await client.health()
+        result = await repository.get_d1_health()
     except (httpx.HTTPError, ValidationError) as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

@@ -1,35 +1,26 @@
 """Workerのoutbound handlerが提供するD1操作用HTTPクライアント。"""
 
-from typing import Literal
-
 import httpx
-from pydantic import BaseModel
 
 from app.core.config import Settings, get_settings
 
 
-class D1HealthResult(BaseModel):
-    """WorkerからD1への疎通確認結果。"""
-
-    status: Literal["ok"]
-    result: int
-
-
 class D1Client:
-    """Container内部のWorkerゲートウェイを通してD1を呼び出す。"""
+    """Container内部のWorkerゲートウェイへHTTPリクエストを送る。"""
 
     def __init__(self, gateway_url: str, timeout_seconds: float) -> None:
         self._gateway_url = gateway_url.rstrip("/")
         self._timeout_seconds = timeout_seconds
 
-    async def health(self) -> D1HealthResult:
-        """WorkerがD1に対してクエリを実行できることを確認する。"""
+    async def get(self, path: str) -> httpx.Response:
+        """D1ゲートウェイの指定パスへGETリクエストを送る。"""
 
+        normalized_path = path if path.startswith("/") else f"/{path}"
         async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
-            response = await client.get(f"{self._gateway_url}/health")
+            response = await client.get(f"{self._gateway_url}{normalized_path}")
             response.raise_for_status()
 
-        return D1HealthResult.model_validate(response.json())
+        return response
 
 
 async def get_d1_client() -> D1Client:

@@ -38,6 +38,7 @@ saigai_map/
 │   │   ├── api/          # エンドポイント定義
 │   │   ├── clients/      # Worker Bindingsへのクライアント
 │   │   ├── core/         # 環境変数などの共通設定
+│   │   ├── repositories/ # データ操作
 │   │   ├── schemas/      # Pydanticスキーマ
 │   │   └── services/     # ビジネスロジック（経路計算等）
 │   ├── pyproject.toml
