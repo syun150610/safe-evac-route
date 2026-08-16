@@ -11,7 +11,7 @@ export async function handleD1Request(request: Request, env: Env): Promise<Respo
   }
 
   try {
-    const row = await env.DB.prepare('SELECT 1 AS ok').first<{ ok: number }>()
+    const row = await env.DATABASE.prepare('SELECT 1 AS ok').first<{ ok: number }>()
 
     if (row?.ok !== 1) {
       return Response.json({ detail: 'D1 is unavailable' }, { status: 503 })
