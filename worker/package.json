@@ -7,10 +7,10 @@
     "deploy": "wrangler deploy"
   },
   "devDependencies": {
-    "wrangler": "latest",
-    "@cloudflare/workers-types": "latest"
+    "wrangler": "4.123.0",
+    "@cloudflare/workers-types": "5.20260815.1"
   },
   "dependencies": {
-    "@cloudflare/containers": "latest"
+    "@cloudflare/containers": "0.3.7"
   }
 }

@@ -9,7 +9,10 @@ app = FastAPI(title="saigai_map API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "https://saigai-map.pages.dev",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
