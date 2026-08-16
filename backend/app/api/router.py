@@ -1,3 +1,5 @@
+"""FastAPIの各ルートモジュールをまとめる。"""
+
 from fastapi import APIRouter
 
 from app.api.routes import health

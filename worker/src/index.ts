@@ -2,12 +2,15 @@ import { Container, getContainer } from "@cloudflare/containers";
 
 export { ContainerProxy } from "@cloudflare/containers";
 
+/** Cloudflare Containersで管理するFastAPIアプリケーション。 */
 export class FastAPIContainer extends Container {
   defaultPort = 8000;
   sleepAfter = "5m";
 }
 
 FastAPIContainer.outboundByHost = {
+  // この仮想ホストはContainer内からのみ到達できる。Cloudflareの認証情報と
+  // D1 BindingをPythonアプリケーションへ渡さず、Worker側に閉じ込める。
   "d1.internal": async (request: Request, env: Env): Promise<Response> => {
     const url = new URL(request.url);
 
@@ -37,6 +40,8 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const pathname = new URL(request.url).pathname;
 
+    // /api配下はすべてFastAPIへ転送するため、バックエンドにエンドポイントを
+    // 追加してもWorker側のルーティングを追記する必要はない。
     if (pathname === "/health" || pathname.startsWith("/api/")) {
       const container = getContainer(env.FASTAPI_CONTAINER);
       return container.fetch(request);

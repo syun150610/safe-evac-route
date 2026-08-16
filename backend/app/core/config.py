@@ -1,3 +1,5 @@
+"""環境変数からバックエンド設定を読み込み、検証する。"""
+
 from functools import lru_cache
 from pathlib import Path
 
@@ -8,6 +10,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
+    """ローカル環境またはContainerから渡される実行時設定。"""
+
     app_env: str = "development"
     d1_gateway_url: AnyHttpUrl = AnyHttpUrl("http://d1.internal")
     request_timeout_seconds: float = 10.0
@@ -21,4 +25,6 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    """検証済みの設定をシングルトンとして返す。"""
+
     return Settings()
