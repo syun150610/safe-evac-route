@@ -62,6 +62,18 @@ CACHE_DIR = str(CACHE_DIR_PATH)
 SAMPLE_M = 10.0        # エッジ上のサンプル間隔(m)（SPEC 5 タスクA-2）
 MAX_SAMPLES_PER_EDGE = 500   # 異常に長いエッジの保険
 
+# 北千住↔上野 区間の浸水深分布（隅田川CSV単体の実測値）。main() の末尾で
+# CSVから再計算して突き合わせ、ズレたら「データが更新された可能性」として報告する。
+# ⚠️ render.py の HATCH_* と同じく、2026-08-16 の切り出しで**落ちていた**。
+#    --skip-spec-check を付けずに基準CSVで焼いたときだけ NameError になるので、
+#    グラフを焼き直すまで露見しない。値は元の build_graph.py のまま
+SPEC_STATS_BBOX = (35.705, 35.760, 139.770, 139.812)  # lat0, lat1, lon0, lon1
+SPEC_STATS_EXPECTED = {
+    "n_points": 181613,
+    ">0.0": 75.2, ">0.2": 53.0, ">0.3": 45.1,
+    ">0.5": 31.6, ">1.0": 3.6, ">2.0": 0.1,
+}
+
 
 # ---------------- OSM グラフ取得 ----------------
 
@@ -335,7 +347,6 @@ def verify_spec_stats(csv_path):
     ズレたら「データが更新された可能性」なので報告対象（SPEC 8「報告してほしいこと」）。
     グリッド化前の生の点で数える（SPECの数値がそうなので）。
     """
-    import pandas as pd
     la0, la1, lo0, lo1 = SPEC_STATS_BBOX
     df = pd.read_csv(csv_path, encoding="utf-8-sig",
                      usecols=["浸水深", "緯度", "経度"])
