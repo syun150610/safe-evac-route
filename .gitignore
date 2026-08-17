@@ -39,8 +39,12 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Raw geodata (large files, not versioned)
+# Geodata. **全部 gitignore。** raw は配布元から取り直せ、processed は
+# backend/prep で再生成できる（backend/prep/paths.py に置き場の一覧）。
+# ⚠️ processed を無視し忘れると、浸水タイル 2,491枚が commit 対象になる
 data/raw/
+data/processed/
+data/cache/
 
 # Logs and temporary files
 *.log

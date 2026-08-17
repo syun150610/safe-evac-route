@@ -15,6 +15,23 @@ dev = [
     "pytest>=9.0.2,<10",
     "ruff>=0.15.1,<1",
 ]
+# ⚠️ **非デフォルトのグループ。** `uv sync` にも `uv sync --no-dev` にも入らない。
+#    Dockerfile は `uv sync --locked --no-dev` なので **APIのイメージには入らない**。
+#
+#    ここは `backend/prep/`（ハザードの前処理・グラフ焼き込み・タイル生成）だけが使う。
+#    osmnx と geopandas は重く、APIの実行時には**1行も要らない**。
+#    混ざっていないことは tests/test_layering.py が機械で確認する。
+#
+#    グラフやタイルを焼く人だけが入れる:
+#        uv sync --group prep
+prep = [
+    "osmnx==2.1.1",
+    "geopandas==1.1.4",
+    "scipy>=1.18,<2",
+    "pandas>=3,<4",
+    "pillow>=12,<13",
+    "requests>=2.32,<3",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -28,7 +45,13 @@ line-length = 88
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["app"]
+known-first-party = ["app", "prep"]
+
+[tool.ruff.lint.per-file-ignores]
+# ⚠️ 暫定。前処理は日本語のコメントが長く、E501 は `ruff format` では消せない
+#    （フォーマッタはコメントを折り返さないため）。行を手で折ると、
+#    数式や閾値の並びが読みにくくなる箇所がある。機能追加が落ち着いたら潰す
+"prep/**" = ["E501"]
 
 [tool.ruff.format]
 quote-style = "double"
