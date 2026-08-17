@@ -1,0 +1,113 @@
+"""APIが静的JSONと**同一のバイト列**を返すことの確認。
+
+静的配信からAPI経由に切り替えても表示が変わらないことを担保する
+（05_チーム移行案 段5の完了条件）。out/demo が無ければスキップする。
+
+    cd backend && python3 tests/test_api.py
+"""
+
+import json
+import os
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from app.core.config import get_settings  # noqa: E402
+from app.main import app  # noqa: E402
+
+client = TestClient(app)
+
+
+def _skip():
+    if not os.path.exists(os.path.join(get_settings().bundles_dir, "index.json")):
+        print(
+            "skip: backend/prep/out/demo が無い"
+            "（cd backend && python3 -m prep.route_search.bundles）"
+        )
+        return True
+    return False
+
+
+def main():
+    if _skip():
+        return 0
+    ng = 0
+
+    assert client.get("/api/health").json() == {"status": "ok"}
+
+    # ① プリセット一覧が index.json と同一
+    r = client.get("/api/evac-routes/presets")
+    with open(os.path.join(get_settings().bundles_dir, "index.json"), "rb") as f:
+        raw = f.read()
+    same = r.status_code == 200 and r.content == raw
+    print(f"  presets            バイト一致={same}")
+    ng += not same
+    idx = json.loads(raw)
+
+    # ② バンドルが各ファイルと同一（全OD × 全シナリオ）
+    n = 0
+    for sc in [s["id"] for s in idx["scenarios"]]:
+        for od in [o["slug"] for o in idx["od"]]:
+            p = os.path.join(get_settings().bundles_dir, sc, f"{od}.json")
+            if not os.path.exists(p):
+                continue
+            got = client.get(f"/api/evac-routes/presets/{od}?scenario={sc}")
+            with open(p, "rb") as f:
+                want = f.read()
+            if got.status_code != 200 or got.content != want:
+                print(f"  !! 不一致 {sc}/{od}")
+                ng += 1
+            n += 1
+    print(f"  bundles            {n} 件すべてバイト一致={not ng}")
+
+    # ③ 不正な識別子を弾く（ディレクトリ横断の防止）
+    for bad in ["../../etc", "a/b", ".hidden"]:
+        code = client.get(f"/api/evac-routes/presets/od01?scenario={bad}").status_code
+        if code not in (400, 404):
+            print(f"  !! {bad!r} が {code} で通った")
+            ng += 1
+    print("  不正な識別子       400/404 で拒否")
+
+    # ④ ハザードカタログ。**包絡の説明文と凡例をAPIから配れていること**
+    h = client.get("/api/hazards").json()
+    ids = [x["id"] for x in h["hazards"]]
+    flood = next(x for x in h["hazards"] if x["id"] == "flood")
+    env = next(s for s in flood["scenarios"] if s["id"] == "envelope")
+    checks = [
+        ("種別が2つ", ids == ["flood", "quake"]),
+        ("同時に1つの方針", h["display_policy"] == "one_at_a_time"),
+        ("包絡の説明に『上限の保証』", "上限の保証" in env["note"]),
+        (
+            "包絡を『同時に氾濫』と言っていない",
+            "という意味ではありません" in env["note"]
+            or "同時に氾濫した場合" not in env["note"].split("ではありません")[0],
+        ),
+        (
+            "範囲外の凡例に『判断材料がない』",
+            any(
+                "判断材料がない" in (x.get("note", "") + x["label"])
+                for x in flood["legend"]
+            ),
+        ),
+        (
+            "タイルURLに var が出ていない",
+            all("var" not in s["tile_url"] for s in flood["scenarios"]),
+        ),
+    ]
+    for name, ok in checks:
+        print(f"  {name:<28} {'OK' if ok else 'NG'}")
+        ng += not ok
+
+    print("OK" if not ng else f"NG: {ng} 件")
+    return 1 if ng else 0
+
+
+def test_api_matches_static_files():
+    assert main() == 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
