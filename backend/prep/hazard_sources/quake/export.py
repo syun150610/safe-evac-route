@@ -20,6 +20,7 @@
     python3 -m prep.hazard_sources.quake.export --scenario total
     python3 -m prep.hazard_sources.quake.export --bbox 139.76 35.70 139.82 35.76
 """
+
 from __future__ import annotations
 
 import argparse
@@ -27,9 +28,9 @@ import json
 import os
 import sys
 
-from prep.paths import quake_gpkg, tiles_path
 from prep.hazard_sources.quake.cost import QUAKE_COST
 from prep.hazard_sources.quake.source import COLUMNS, SCENARIOS
+from prep.paths import quake_gpkg, tiles_path
 
 # 座標の丸め。6桁で約0.1m。町丁目の境界にはこれで十分で、サイズが半分以下になる
 COORD_DP = 6
@@ -38,22 +39,35 @@ SIMPLIFY_DEG = 0.00002
 
 # ランク → 色。凡例もこれから作るので、UIに書き写さない
 PALETTE = {
-    1: "#4d9221", 2: "#a6d96a", 3: "#fee08b", 4: "#f46d43", 5: "#a50026",
+    1: "#4d9221",
+    2: "#a6d96a",
+    3: "#fee08b",
+    4: "#f46d43",
+    5: "#a50026",
 }
 RANK_LABEL = {
-    1: "ランク1（相対的に低い）", 2: "ランク2", 3: "ランク3",
-    4: "ランク4", 5: "ランク5（相対的に高い）",
+    1: "ランク1（相対的に低い）",
+    2: "ランク2",
+    3: "ランク3",
+    4: "ランク4",
+    5: "ランク5（相対的に高い）",
 }
 
 
 def legend(scenario):
     """UIがそのまま描く凡例。係数も一緒に出す（何に効いているかを見せる）"""
-    items = [{"color": PALETTE[r], "label": RANK_LABEL[r],
-              "cost_factor": QUAKE_COST[r]} for r in sorted(PALETTE)]
-    items.append({"hatch": True,
-                  "label": "調査の範囲外（判断材料がない）",
-                  "note": "このデータは51市区町村ぶんしかない。"
-                          "「危険度が低い」ではなく「評価されていない」"})
+    items = [
+        {"color": PALETTE[r], "label": RANK_LABEL[r], "cost_factor": QUAKE_COST[r]}
+        for r in sorted(PALETTE)
+    ]
+    items.append(
+        {
+            "hatch": True,
+            "label": "調査の範囲外（判断材料がない）",
+            "note": "このデータは51市区町村ぶんしかない。"
+            "「危険度が低い」ではなく「評価されていない」",
+        }
+    )
     return items
 
 
@@ -63,8 +77,10 @@ def export(scenario, bbox=None, gpkg=None, outdir=None):
     gpkg = gpkg or quake_gpkg()
     if not os.path.exists(gpkg):
         print(f"! 地震ハザードGPKGが無い: {gpkg}", file=sys.stderr)
-        print("  var/data/hazard/hazard.gpkg に置くか、環境変数 HAZARD_QUAKE_GPKG を指定する",
-              file=sys.stderr)
+        print(
+            "  var/data/hazard/hazard.gpkg に置くか、環境変数 HAZARD_QUAKE_GPKG を指定する",
+            file=sys.stderr,
+        )
         return None
 
     meta = next(s for s in SCENARIOS if s["id"] == scenario)
@@ -85,18 +101,23 @@ def export(scenario, bbox=None, gpkg=None, outdir=None):
     feats = []
     for _, row in gdf.iterrows():
         r = int(row["rank"])
-        feats.append({
-            "type": "Feature",
-            "geometry": json.loads(gpd.GeoSeries([row.geometry]).to_json())
-                            ["features"][0]["geometry"],
-            "properties": {
-                "rank": r,
-                "color": PALETTE.get(r, "#999999"),
-                "cost_factor": QUAKE_COST.get(r, 1.0),
-                "city": row.get("区市町村名"),
-                "area": next((row.get(c) for c in name_cols if c != "区市町村名"), None),
-            },
-        })
+        feats.append(
+            {
+                "type": "Feature",
+                "geometry": json.loads(gpd.GeoSeries([row.geometry]).to_json())[
+                    "features"
+                ][0]["geometry"],
+                "properties": {
+                    "rank": r,
+                    "color": PALETTE.get(r, "#999999"),
+                    "cost_factor": QUAKE_COST.get(r, 1.0),
+                    "city": row.get("区市町村名"),
+                    "area": next(
+                        (row.get(c) for c in name_cols if c != "区市町村名"), None
+                    ),
+                },
+            }
+        )
 
     fc = {
         "type": "FeatureCollection",
@@ -115,11 +136,16 @@ def export(scenario, bbox=None, gpkg=None, outdir=None):
     with open(out, "w", encoding="utf-8") as f:
         json.dump(_round(fc), f, ensure_ascii=False, separators=(",", ":"))
     size = os.path.getsize(out) / 1e6
-    dist = {r: sum(1 for x in feats if x["properties"]["rank"] == r) for r in sorted(PALETTE)}
+    dist = {
+        r: sum(1 for x in feats if x["properties"]["rank"] == r)
+        for r in sorted(PALETTE)
+    }
     print(f"saved: {out} ({size:.1f} MB)")
-    print(f"  町丁目 {len(feats):,} / {n_all:,}"
-          + (f"（bboxで絞り込み）" if bbox else "（全域）"))
-    print(f"  ランク分布: " + "  ".join(f"R{r}={c:,}" for r, c in dist.items()))
+    print(
+        f"  町丁目 {len(feats):,} / {n_all:,}"
+        + ("（bboxで絞り込み）" if bbox else "（全域）")
+    )
+    print("  ランク分布: " + "  ".join(f"R{r}={c:,}" for r, c in dist.items()))
     return out
 
 
@@ -136,10 +162,20 @@ def _round(obj):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--scenario", choices=[s["id"] for s in SCENARIOS], default=None,
-                    help="省略すると3シナリオぶん出す")
-    ap.add_argument("--bbox", nargs=4, type=float, default=None,
-                    metavar=("W", "S", "E", "N"), help="この範囲だけに絞る")
+    ap.add_argument(
+        "--scenario",
+        choices=[s["id"] for s in SCENARIOS],
+        default=None,
+        help="省略すると3シナリオぶん出す",
+    )
+    ap.add_argument(
+        "--bbox",
+        nargs=4,
+        type=float,
+        default=None,
+        metavar=("W", "S", "E", "N"),
+        help="この範囲だけに絞る",
+    )
     ap.add_argument("--gpkg", default=None)
     ap.add_argument("--outdir", default=None)
     args = ap.parse_args()

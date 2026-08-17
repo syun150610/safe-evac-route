@@ -28,6 +28,7 @@
 ポリゴンをラスタに焼くと境界がぼやけ、クリックもできず、サイズも100MB級になる
 （docs/dev/05_チーム移行案.md §3-2）。
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -36,8 +37,8 @@ import numpy as np
 class HazardSource:
     """種別ごとの実装が満たす契約。継承は必須ではない（duck typing でよい）。"""
 
-    id: str = ""          # "flood" / "quake" / … API・タイルパス・ディレクトリ名と同じ文字列
-    label: str = ""       # 画面に出す名前
+    id: str = ""  # "flood" / "quake" / … API・タイルパス・ディレクトリ名と同じ文字列
+    label: str = ""  # 画面に出す名前
 
     def scenarios(self) -> list[dict]:
         """[{"id","label","kind","note"}, …]。種別の中だけで一意なID"""
@@ -60,7 +61,7 @@ class HazardSource:
         raise NotImplementedError
 
     def display_kind(self) -> str:
-        """"raster" or "vector\""""
+        """ "raster" or "vector\""""
         raise NotImplementedError
 
     def legend(self, scenario: str) -> list[dict]:

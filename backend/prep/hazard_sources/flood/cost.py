@@ -3,6 +3,7 @@
 route_search/graph.py（旧 build_graph.py）から切り出した。**中身は変えていない。**
 値の根拠は docs/dev/01_基本実装.md 5「ハザード重み係数の初期値」。
 """
+
 import numpy as np
 
 # 通行不可(inf)をグラフに載せるときの有限フォールバック値（SPEC 5 タスクA 末尾）
@@ -30,15 +31,15 @@ def hazard_cost(depth_m: float) -> float:
     変更した場合はここに変更前後の値と理由を残す。
     """
     if depth_m < 0.10:
-        return 1.0      # 影響なし
+        return 1.0  # 影響なし
     if depth_m < 0.20:
-        return 1.3      # 注意
+        return 1.3  # 注意
     if depth_m < 0.30:
-        return 2.0      # 歩きにくい
+        return 2.0  # 歩きにくい
     if depth_m < 0.50:
-        return 4.0      # 歩行困難
+        return 4.0  # 歩行困難
     if depth_m < 1.00:
-        return 12.0     # 移動不能に近い
+        return 12.0  # 移動不能に近い
     return float("inf")  # 通行不可
 
 

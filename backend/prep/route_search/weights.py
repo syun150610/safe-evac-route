@@ -24,6 +24,7 @@ networkx の callable weight は、事前計算したスカラより関数呼び
 **既存の `weight_combined` と同じ規則**にしてあり、下の `equals_baked()` で
 一致することを機械的に確認できる。
 """
+
 import math
 
 from prep.hazard_sources.flood.cost import IMPASSABLE_FINITE
@@ -110,11 +111,13 @@ def equals_baked(G, hazards, tol=0.0):
     w = edge_weight(G, hazards)
     bad, first = 0, None
     for u, v, k, d in G.edges(keys=True, data=True):
-        got, exp = w(u, v, {k: d}), d[name]   # 1本ぶんを平行エッジの形で渡す
+        got, exp = w(u, v, {k: d}), d[name]  # 1本ぶんを平行エッジの形で渡す
         if not (got == exp or (tol and abs(got - exp) <= tol * max(1.0, abs(exp)))):
             bad += 1
             if first is None:
-                first = f"{(u, v, k)}: callable={got!r} baked={exp!r} " \
-                        f"(length={d['length']}, " \
-                        f"{', '.join(f'{cost_key(h)}={d.get(cost_key(h))!r}' for h in hazards)})"
+                first = (
+                    f"{(u, v, k)}: callable={got!r} baked={exp!r} "
+                    f"(length={d['length']}, "
+                    f"{', '.join(f'{cost_key(h)}={d.get(cost_key(h))!r}' for h in hazards)})"
+                )
     return bad, first

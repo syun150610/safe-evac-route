@@ -28,7 +28,7 @@ HAZARDS = {
         "display_kind": "vector",
         "module": "prep.hazard_sources.quake",
         "note": "地域危険度（町丁目単位のランク1〜5）。"
-                "離散のポリゴンなのでベクタで描く",
+        "離散のポリゴンなのでベクタで描く",
     },
 }
 
@@ -47,9 +47,13 @@ def scenarios(hazard_id):
     """種別ごとのシナリオ一覧。IDは**その種別の中でだけ**一意（global に一意にしない）"""
     if hazard_id == "flood":
         from prep.hazard_sources.flood.scenarios import SCENARIOS
-        return [{"id": k, "label": v["label"], "kind": v.get("kind", "single_basin")}
-                for k, v in SCENARIOS.items()]
+
+        return [
+            {"id": k, "label": v["label"], "kind": v.get("kind", "single_basin")}
+            for k, v in SCENARIOS.items()
+        ]
     if hazard_id == "quake":
         from prep.hazard_sources.quake.source import SCENARIOS
+
         return [{"id": s["id"], "label": s["label"], "kind": "rank"} for s in SCENARIOS]
     raise KeyError(hazard_id)

@@ -6,21 +6,24 @@ make_tiles.py から切り出した（2026-08-16 の構成整理）。**中身�
 ここが変わるとタイルの色とエッジに焼かれた値が食い違う
 （docs/dev/引き継ぎ.md 3-2 の格子原点の問題）。触るときは両方を焼き直すこと。
 """
-import os, math, json, sys
+
+import math
+import os
+
 import numpy as np
 import pandas as pd
-from scipy.ndimage import maximum_filter, minimum_filter, binary_fill_holes
+from scipy.ndimage import binary_fill_holes, maximum_filter, minimum_filter
 
-from prep.hazard_sources.flood.scenarios import SCENARIOS, SUSPECT_DATUM
+from prep.hazard_sources.flood.scenarios import SUSPECT_DATUM
 
 # ---------------- 想定範囲外(NoData)の扱い ----------------
 # 「浸水なし(0m)」と「そのシナリオの想定図が覆っていない」は**別物**。
 # 前者は透明、後者はグレーのハッチングで描き分ける。
 # これを区別しないと、覆っていないだけの場所が「安全」に見える。
-COVERAGE_CLOSE_M = 50        # 建物欠損(罠3)程度の穴は「覆っている」とみなして埋める半径(m)
-HATCH_RGBA = (120, 124, 130, 70)   # 対象外のハッチ色
-HATCH_PERIOD = 10            # 斜線の周期(px)
-HATCH_WIDTH = 3              # 斜線の太さ(px)
+COVERAGE_CLOSE_M = 50  # 建物欠損(罠3)程度の穴は「覆っている」とみなして埋める半径(m)
+HATCH_RGBA = (120, 124, 130, 70)  # 対象外のハッチ色
+HATCH_PERIOD = 10  # 斜線の周期(px)
+HATCH_WIDTH = 3  # 斜線の太さ(px)
 
 # ハッチを描く範囲 = このアプリが扱う全シナリオの合併bbox。
 # ここを外れた場所には何も描かない（地図が素のまま出る）。
@@ -53,9 +56,11 @@ def read_points(path):
     """
     name = os.path.basename(path)
     if name in SUSPECT_DATUM:
-        print(f"  ! 警告: {name} は旧日本測地系の疑いがある"
-              f"（世界測地系との差 約+360m/-291m。docs/findings/データ棚卸し.md 第3節）")
-        print(f"  !        このスクリプトは変換しない。そのまま使うと位置がずれる")
+        print(
+            f"  ! 警告: {name} は旧日本測地系の疑いがある"
+            f"（世界測地系との差 約+360m/-291m。docs/findings/データ棚卸し.md 第3節）"
+        )
+        print("  !        このスクリプトは変換しない。そのまま使うと位置がずれる")
 
     enc = sniff_encoding(path)
     df = pd.read_csv(path, encoding=enc, low_memory=False)
@@ -63,7 +68,9 @@ def read_points(path):
 
     missing = [c for c in ("浸水深", "緯度", "経度") if c not in df.columns]
     if missing:
-        raise ValueError(f"{name}: 必要な列が無い {missing} / 実際の列={list(df.columns)}")
+        raise ValueError(
+            f"{name}: 必要な列が無い {missing} / 実際の列={list(df.columns)}"
+        )
 
     # 末尾ゴミ行(\x1a等)対策: 数値化できない行を落とす
     for c in ("浸水深", "緯度", "経度"):
@@ -87,20 +94,36 @@ def read_points(path):
                 excluded.append((sheet, len(idx), [float(x) for x in u]))
         if excluded:
             n_ex = sum(e[1] for e in excluded)
-            print(f"  ! {name}: ランク値の図郭 {len(excluded)}枚 / {n_ex:,}点 を除外"
-                  f"（例: 図郭{excluded[0][0]} の値 {excluded[0][2]}）")
+            print(
+                f"  ! {name}: ランク値の図郭 {len(excluded)}枚 / {n_ex:,}点 を除外"
+                f"（例: 図郭{excluded[0][0]} の値 {excluded[0][2]}）"
+            )
             df = df[keep]
 
-    print(f"  {name}: {len(df):,}点 ({enc})" + (f" / 不正な{dropped}行を除外" if dropped else ""))
-    stats = {"file": name, "encoding": enc, "points": int(len(df)),
-             "dropped_nonnumeric": int(dropped),
-             "excluded_rank_sheets": [{"sheet": int(s) if str(s).isdigit() else str(s),
-                                       "points": int(n), "values": vals}
-                                      for s, n, vals in excluded]}
-    return (df["緯度"].to_numpy(np.float64),
-            df["経度"].to_numpy(np.float64),
-            df["浸水深"].to_numpy(np.float32),
-            stats)
+    print(
+        f"  {name}: {len(df):,}点 ({enc})"
+        + (f" / 不正な{dropped}行を除外" if dropped else "")
+    )
+    stats = {
+        "file": name,
+        "encoding": enc,
+        "points": int(len(df)),
+        "dropped_nonnumeric": int(dropped),
+        "excluded_rank_sheets": [
+            {
+                "sheet": int(s) if str(s).isdigit() else str(s),
+                "points": int(n),
+                "values": vals,
+            }
+            for s, n, vals in excluded
+        ],
+    }
+    return (
+        df["緯度"].to_numpy(np.float64),
+        df["経度"].to_numpy(np.float64),
+        df["浸水深"].to_numpy(np.float32),
+        stats,
+    )
 
 
 def load_grid(csv, bbox=None):
@@ -137,17 +160,17 @@ def load_grid(csv, bbox=None):
     dlat, dlon = 8.33e-5, 1.25e-4
     lat_min, lat_max = lat.min(), lat.max()
     lon_min, lon_max = lon.min(), lon.max()
-    lat_max = math.ceil(lat_max / dlat) * dlat     # 北端を絶対格子へ（外側に広げる）
-    lon_min = math.floor(lon_min / dlon) * dlon    # 西端を絶対格子へ（外側に広げる）
+    lat_max = math.ceil(lat_max / dlat) * dlat  # 北端を絶対格子へ（外側に広げる）
+    lon_min = math.floor(lon_min / dlon) * dlon  # 西端を絶対格子へ（外側に広げる）
     nrow = int(math.ceil((lat_max - lat_min) / dlat)) + 1
     ncol = int(math.ceil((lon_max - lon_min) / dlon)) + 1
 
     grid = np.zeros((nrow, ncol), dtype=np.float32)
-    r = np.round((lat_max - lat) / dlat).astype(np.int32)   # 上が北
+    r = np.round((lat_max - lat) / dlat).astype(np.int32)  # 上が北
     c = np.round((lon - lon_min) / dlon).astype(np.int32)
     np.clip(r, 0, nrow - 1, out=r)
     np.clip(c, 0, ncol - 1, out=c)
-    np.maximum.at(grid, (r, c), dep)   # 重複セルは最大値を採用（安全側）
+    np.maximum.at(grid, (r, c), dep)  # 重複セルは最大値を採用（安全側）
 
     # ---- 想定範囲(coverage)の算出 ----
     # 元データに点があるセルが「覆われている」。ただし建物部分はもともとデータが無い（罠3）ので、
@@ -158,15 +181,26 @@ def load_grid(csv, bbox=None):
     seen[r, c] = True
     kr = max(1, int(round(COVERAGE_CLOSE_M / (dlat * 111320))) * 2 + 1)
     kc = max(1, int(round(COVERAGE_CLOSE_M / (dlon * 90400))) * 2 + 1)
-    cov = maximum_filter(seen, size=(kr, kc))      # 膨張
-    cov = minimum_filter(cov, size=(kr, kc))       # 収縮 → クロージング
+    cov = maximum_filter(seen, size=(kr, kc))  # 膨張
+    cov = minimum_filter(cov, size=(kr, kc))  # 収縮 → クロージング
     cov = binary_fill_holes(cov)
-    print(f"  coverage: {cov.mean() * 100:.1f}% of grid "
-          f"(元データのあるセル {seen.mean() * 100:.1f}%, 穴埋め半径 {COVERAGE_CLOSE_M}m)")
+    print(
+        f"  coverage: {cov.mean() * 100:.1f}% of grid "
+        f"(元データのあるセル {seen.mean() * 100:.1f}%, 穴埋め半径 {COVERAGE_CLOSE_M}m)"
+    )
 
-    meta = dict(lat_max=lat_max, lat_min=lat_min, lon_min=lon_min, lon_max=lon_max,
-                dlat=dlat, dlon=dlon, nrow=nrow, ncol=ncol, coverage=cov,
-                sources=sources)
+    meta = dict(
+        lat_max=lat_max,
+        lat_min=lat_min,
+        lon_min=lon_min,
+        lon_max=lon_max,
+        dlat=dlat,
+        dlon=dlon,
+        nrow=nrow,
+        ncol=ncol,
+        coverage=cov,
+        sources=sources,
+    )
     return grid, meta
 
 
@@ -185,5 +219,3 @@ def lookup_covered(coords, meta):
     np.clip(r, 0, meta["nrow"] - 1, out=r)
     np.clip(c, 0, meta["ncol"] - 1, out=c)
     return inside & cov[r, c]
-
-

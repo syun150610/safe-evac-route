@@ -41,9 +41,17 @@ pnpm-debug.log*
 
 # Geodata. **全部 gitignore。** raw は配布元から取り直せ、processed は
 # backend/prep で再生成できる（backend/prep/paths.py に置き場の一覧）。
-# ⚠️ processed を無視し忘れると、浸水タイル 2,491枚が commit 対象になる
+# ⚠️ processed を無視し忘れると、浸水タイル 2,491枚が commit 対象になる。
+#
+# ⚠️ **末尾スラッシュ付きだけでは足りない。** 実データは重いので別の場所に置いて
+#    シンボリックリンクを張ることがあるが、`data/raw/` はディレクトリにしか
+#    マッチせず、**リンクは追跡対象のまま残る**（実際に `?? data/raw` が出た）。
+#    スラッシュ有無の両方を書く。
+data/raw
 data/raw/
+data/processed
 data/processed/
+data/cache
 data/cache/
 
 # Logs and temporary files

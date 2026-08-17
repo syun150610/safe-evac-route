@@ -14,6 +14,7 @@
 `graph.py` はここから import して再エクスポートするので、
 **既存の `from prep.route_search.graph import nearest_node` はそのまま動く。**
 """
+
 from __future__ import annotations
 
 import json
@@ -25,10 +26,10 @@ import numpy as np
 from prep.paths import graph_path
 
 # SPEC 1「対象エリア」より
-ORIGIN_DEFAULT = (35.7497, 139.8050)   # 北千住駅
-DEST_DEFAULT = (35.7141, 139.7774)     # 上野駅
+ORIGIN_DEFAULT = (35.7497, 139.8050)  # 北千住駅
+DEST_DEFAULT = (35.7141, 139.7774)  # 上野駅
 
-MARGIN_KM = 1.0        # 起終点bboxの片側マージン（SPEC 5 タスクA-1）
+MARGIN_KM = 1.0  # 起終点bboxの片側マージン（SPEC 5 タスクA-1）
 
 OUT_DEFAULT = graph_path("kitasenju_ueno.pkl")
 
@@ -79,7 +80,7 @@ def meta_path(graph_file: str) -> str:
 
 
 def load_meta(graph_file: str) -> dict:
-    with open(meta_path(graph_file), "r", encoding="utf-8") as f:
+    with open(meta_path(graph_file), encoding="utf-8") as f:
         return json.load(f)
 
 
