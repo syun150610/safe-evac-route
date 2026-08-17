@@ -8,6 +8,11 @@ dependencies = [
     "httpx>=0.28.1,<1",
     "pydantic-settings>=2.12.0,<3",
     "uvicorn[standard]>=0.40.0,<1",
+    # ↓ POST /api/evac-routes/search（その場で経路を引く）に要る。
+    #    prep とは違い**実行時**に使うので [project] 側に置く
+    "networkx>=3.6,<4",  # Dijkstra と subgraph_view
+    "numpy>=2.5,<3",     # 最寄りノード探索
+    "shapely>=2.1,<3",   # 焼いたグラフの pickle に LineString が入っている
 ]
 
 [dependency-groups]
