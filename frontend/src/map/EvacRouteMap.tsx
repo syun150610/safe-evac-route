@@ -19,6 +19,7 @@ import type { BBox } from './adapters/types'
 import { HazardPicker, type HazardSelection } from './components/HazardPicker'
 import { LayerPicker, type ShownHazard } from './components/LayerPicker'
 import { PlaceInput } from './components/PlaceInput'
+import { RouteMessages } from './components/RouteMessages'
 import { RouteTable } from './components/RouteTable'
 import { DRAW_ORDER, INITIAL_ON, STYLE } from './constants'
 import { inArea, useArea } from './hooks/useArea'
@@ -392,6 +393,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                 shown={shown}
                 onToggle={(id, on) => setShown((s) => ({ ...s, [id]: on }))}
               />
+              <RouteMessages bundle={bundle} shown={shown} />
             </>
           )}
           {mode === 'search' && !bundle && !search.loading && (
