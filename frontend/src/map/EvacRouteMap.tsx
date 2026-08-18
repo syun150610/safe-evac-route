@@ -283,10 +283,14 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
           {err && (
             <p className="text-[12px] text-red-700">
               APIを読めませんでした: {err}
-              <br />
-              <code className="rounded bg-slate-100 px-1">
-                cd backend &amp;&amp; uvicorn app.main:app --port 8200
-              </code>
+              {import.meta.env.DEV && (
+                <>
+                  <br />
+                  <code className="rounded bg-slate-100 px-1">
+                    cd backend &amp;&amp; uvicorn app.main:app --port 8000
+                  </code>
+                </>
+              )}
             </p>
           )}
 
