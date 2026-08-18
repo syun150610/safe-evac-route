@@ -16,6 +16,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { BBox } from './adapters/types'
+import { BottomSheet, useMobileLayout } from './components/BottomSheet'
 import { HazardPicker, type HazardSelection } from './components/HazardPicker'
 import { LayerPicker, type ShownHazard } from './components/LayerPicker'
 import { PlaceInput } from './components/PlaceInput'
@@ -44,6 +45,7 @@ type Mode = 'preset' | 'search'
 
 export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform }) {
   const { adapter, ready } = useMapAdapter(platform, 'map', CENTER, 13)
+  const mobile = useMobileLayout()
   const { index, error: indexError } = usePresets()
   const { catalog, error: hazardError } = useHazards()
   const { area, error: areaError } = useArea()
@@ -52,6 +54,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const [od, setOd] = useState<string | null>(null)
   const [scenario, setScenario] = useState<string | null>(null)
   const [shown, setShown] = useState<Record<RouteId, boolean>>(INITIAL_ON)
+  const [sheetOpen, setSheetOpen] = useState(false)
 
   // ① 2地点
   const [origin, setOrigin] = useState<Place | null>(null)
@@ -143,8 +146,14 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       )
     })
     const bb = routeBounds(bundle, shown)
-    if (bb) a.fitBounds(bb, { padding: { top: 60, right: 60, bottom: 60, left: 420 } })
-  }, [adapter, ready, bundle])
+    if (bb) {
+      a.fitBounds(bb, {
+        padding: mobile
+          ? { top: 50, right: 24, bottom: 98, left: 24 }
+          : { top: 60, right: 60, bottom: 60, left: 420 },
+      })
+    }
+  }, [adapter, ready, bundle, mobile])
 
   useEffect(() => {
     const a = adapter.current
@@ -243,13 +252,32 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     if (m === 'preset') search.clear()
   }
 
+  function changeSheet(open: boolean) {
+    setSheetOpen(open)
+    if (open || !mobile || !bundle) return
+    const a = adapter.current
+    const bb = routeBounds(bundle, shown)
+    if (a && bb) {
+      a.fitBounds(bb, {
+        padding: { top: 50, right: 24, bottom: 98, left: 24 },
+        duration: 200,
+      })
+    }
+  }
+
   const err = indexError ?? presetError ?? hazardError ?? areaError
 
   return (
     <>
       <div id="map" style={{ position: 'absolute', inset: 0 }} />
-      <div className="absolute top-3 left-3 z-10 max-h-[calc(100%-46px)] overflow-y-auto">
-        <div className="w-[372px] rounded-lg border border-slate-300 bg-white/95 px-3.5 py-3 text-[13px] leading-normal shadow-[0_2px_10px_rgba(0,0,0,0.12)]">
+      <BottomSheet
+        adapter={adapter}
+        bundle={bundle}
+        mobile={mobile}
+        open={sheetOpen}
+        onOpenChange={changeSheet}
+      >
+        <div className="w-[372px] rounded-lg border border-slate-300 bg-white/95 px-3.5 py-3 text-[13px] leading-normal shadow-[0_2px_10px_rgba(0,0,0,0.12)] max-[700px]:w-full max-[700px]:rounded-none max-[700px]:border-0 max-[700px]:border-t max-[700px]:shadow-none">
           <h1 className="mb-2 text-sm font-semibold">避難経路の比較</h1>
           {err && (
             <p className="text-[12px] text-red-700">
@@ -266,7 +294,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               type="button"
               role="tab"
               aria-selected={mode === 'preset'}
-              className={`min-h-9 flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-[12.5px] ${mode === 'preset' ? 'bg-blue-600 border-blue-600 text-white font-semibold' : 'bg-slate-50 text-slate-700'}`}
+              className={`min-h-9 flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-[12.5px] max-[700px]:min-h-11 ${mode === 'preset' ? 'bg-blue-600 border-blue-600 text-white font-semibold' : 'bg-slate-50 text-slate-700'}`}
               onClick={() => switchMode('preset')}
             >
               プリセット
@@ -275,7 +303,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               type="button"
               role="tab"
               aria-selected={mode === 'search'}
-              className={`min-h-9 flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-[12.5px] ${mode === 'search' ? 'bg-blue-600 border-blue-600 text-white font-semibold' : 'bg-slate-50 text-slate-700'}`}
+              className={`min-h-9 flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-[12.5px] max-[700px]:min-h-11 ${mode === 'search' ? 'bg-blue-600 border-blue-600 text-white font-semibold' : 'bg-slate-50 text-slate-700'}`}
               onClick={() => switchMode('search')}
             >
               地点を指定
@@ -400,7 +428,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             </p>
           )}
         </div>
-      </div>
+      </BottomSheet>
     </>
   )
 }

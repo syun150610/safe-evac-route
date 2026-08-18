@@ -42,7 +42,7 @@ export function HazardPicker({ catalog, value, onChange, scenario, disabled }: P
       {(catalog?.hazards ?? []).map((h) => (
         <label
           key={h.id}
-          className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 text-[12.5px]"
+          className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 text-[12.5px] max-[700px]:min-h-11"
           title={h.note}
         >
           <input
