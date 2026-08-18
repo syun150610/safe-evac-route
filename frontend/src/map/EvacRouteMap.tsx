@@ -17,6 +17,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { BBox } from './adapters/types'
 import { BottomSheet, useMobileLayout } from './components/BottomSheet'
+import { DataAttribution } from './components/DataAttribution'
 import { HazardPicker, type HazardSelection } from './components/HazardPicker'
 import { LayerPicker, type ShownHazard } from './components/LayerPicker'
 import { PlaceInput } from './components/PlaceInput'
@@ -428,7 +429,9 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             </p>
           )}
         </div>
+        {mobile && <DataAttribution mobile platform={platform} />}
       </BottomSheet>
+      {!mobile && <DataAttribution mobile={false} platform={platform} />}
     </>
   )
 }
