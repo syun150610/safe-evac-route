@@ -36,6 +36,29 @@
           }
         }
       }
+    },
+    {
+      "includes": ["src/map/adapters/google.ts", "src/map/adapters/google.test.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/**/*.test.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noNonNullAssertion": "off"
+          },
+          "complexity": {
+            "noUselessConstructor": "off"
+          }
+        }
+      }
     }
   ],
   "assist": {

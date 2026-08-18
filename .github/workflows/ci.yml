@@ -107,6 +107,9 @@ jobs:
       - name: Run type checks
         run: npm run typecheck
 
+      - name: Run tests
+        run: npm run test
+
       - name: Build frontend
         run: npm run build
 
