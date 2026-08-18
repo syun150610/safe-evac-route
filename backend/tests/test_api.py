@@ -1,7 +1,7 @@
-"""APIが静的JSONと**同一のバイト列**を返すことの確認。
+"""APIが本番同梱の静的JSONと**同一のバイト列**を返すことの確認。
 
 静的配信からAPI経由に切り替えても表示が変わらないことを担保する
-（05_チーム移行案 段5の完了条件）。out/demo が無ければスキップする。
+（05_チーム移行案 段5の完了条件）。本番配布物なので、無ければ失敗する。
 
     cd backend && python3 tests/test_api.py
 """
@@ -21,19 +21,9 @@ from app.main import app  # noqa: E402
 client = TestClient(app)
 
 
-def _skip():
-    if not os.path.exists(os.path.join(get_settings().bundles_dir, "index.json")):
-        print(
-            "skip: backend/prep/out/demo が無い"
-            "（cd backend && python3 -m prep.route_search.bundles）"
-        )
-        return True
-    return False
-
-
 def main():
-    if _skip():
-        return 0
+    index_path = os.path.join(get_settings().bundles_dir, "index.json")
+    assert os.path.exists(index_path), f"本番配布用プリセットが無い: {index_path}"
     ng = 0
 
     assert client.get("/api/health").json() == {"status": "ok"}
@@ -52,8 +42,7 @@ def main():
     for sc in [s["id"] for s in idx["scenarios"]]:
         for od in [o["slug"] for o in idx["od"]]:
             p = os.path.join(get_settings().bundles_dir, sc, f"{od}.json")
-            if not os.path.exists(p):
-                continue
+            assert os.path.exists(p), f"本番配布用プリセットが無い: {p}"
             got = client.get(f"/api/evac-routes/presets/{od}?scenario={sc}")
             with open(p, "rb") as f:
                 want = f.read()
@@ -61,6 +50,7 @@ def main():
                 print(f"  !! 不一致 {sc}/{od}")
                 ng += 1
             n += 1
+    assert n == 36, f"プリセット数が不正: {n}（期待値36）"
     print(f"  bundles            {n} 件すべてバイト一致={not ng}")
 
     # ③ 不正な識別子を弾く（ディレクトリ横断の防止）

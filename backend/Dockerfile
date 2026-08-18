@@ -22,6 +22,9 @@ COPY app/ ./app/
 COPY prep/ ./prep/
 # 任意地点探索用の圧縮グラフ（約1.6MB×3）。前処理pickleは同梱しない。
 COPY graph/ ./graph/
+# 初期表示と固定OD比較に使う事前計算済みプリセット。
+# data/processed/bundles はgitignore対象なので、本番配布用を明示的に同梱する。
+COPY bundles/ ./bundles/
 
 ENV PATH="/app/.venv/bin:$PATH"
 

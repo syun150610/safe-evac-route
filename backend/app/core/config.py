@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # ⚠️ 生成物の置き場は prep.paths が単一の出所。ここで二重に定義しない
 #    （ズレるとタイルとグラフで別の場所を見に行く）。
 #    prep.paths は標準ライブラリだけで動く
-from prep.paths import BUNDLES_DIR, TILES_DIR
+from prep.paths import RUNTIME_BUNDLES_DIR, TILES_DIR
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
@@ -23,8 +23,9 @@ class Settings(BaseSettings):
     request_timeout_seconds: float = 10.0
 
     # ---- 地図まわり ----
-    # 事前計算したプリセット（prep.route_search.bundles の出力）
-    bundles_dir: str = str(BUNDLES_DIR)
+    # 事前計算して本番配布物として同梱したプリセット。
+    # data/processed/bundles は前処理の出力先で、gitignore対象なので参照しない。
+    bundles_dir: str = str(RUNTIME_BUNDLES_DIR)
     # 開発中だけ FastAPI から配るタイル。**本番は Worker + R2**（開発サーバ専用）
     tiles_dir: str = str(TILES_DIR)
     # タイルURLの組み立て先。R2 に移したらここを差し替えるだけでフロントは無改修

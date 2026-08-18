@@ -156,7 +156,23 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Build backend image
-        run: docker build --file backend/Dockerfile backend
+        run: docker build --tag safe-evac-route-backend:test --file backend/Dockerfile backend
+
+      - name: Smoke test backend image
+        run: |
+          docker run --detach --name safe-evac-route-backend-test \
+            --publish 8000:8000 safe-evac-route-backend:test
+          trap 'docker rm --force safe-evac-route-backend-test' EXIT
+
+          for _ in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8000/api/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          curl --fail --silent --show-error \
+            http://127.0.0.1:8000/api/evac-routes/presets >/dev/null
 
   ci-success:
     name: CI Success

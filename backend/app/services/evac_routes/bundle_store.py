@@ -15,7 +15,7 @@ from app.core.config import get_settings
 
 
 class NotGenerated(Exception):
-    """out/demo が無い（prep.route_search.bundles を実行していない）"""
+    """本番配布用プリセットが無い"""
 
 
 def _path(*parts):
@@ -26,8 +26,8 @@ def index_raw() -> bytes:
     p = _path("index.json")
     if not os.path.exists(p):
         raise NotGenerated(
-            "backend/prep/out/demo/index.json が無い。"
-            "cd backend && python3 -m prep.route_search.bundles を実行すること"
+            "本番配布用プリセット bundles/index.json がありません。"
+            "Dockerイメージの作成元に backend/bundles が含まれているか確認してください"
         )
     with open(p, "rb") as f:
         return f.read()
