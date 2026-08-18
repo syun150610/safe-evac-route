@@ -3,7 +3,8 @@
 スクリプトは `backend/prep/` にあるが、参照するものは同じ場所には無い:
 
     <リポジトリ直下>/data/raw/                 元データ（配布元からのダウンロード）
-    <リポジトリ直下>/data/processed/graph/     焼き込み済みグラフ pickle
+    <リポジトリ直下>/data/processed/graph/     前処理用グラフ pickle
+    backend/graph/                              本番配布用グラフ NPZ
     <リポジトリ直下>/data/processed/tiles/     生成したXYZタイル・ベクタ
     <リポジトリ直下>/data/processed/bundles/   プリセット（APIが返す）
     <リポジトリ直下>/data/cache/               OSMnx のキャッシュ
@@ -36,6 +37,10 @@ GRAPH_DIR = PROCESSED_DIR / "graph"
 TILES_DIR = PROCESSED_DIR / "tiles"
 BUNDLES_DIR = PROCESSED_DIR / "bundles"
 
+# 本番APIへ同梱する圧縮グラフ。`data/processed/graph` の pickle は前処理用で
+# gitignore 対象だが、こちらの npz は小さいため git に入れて Docker へ COPY する。
+RUNTIME_GRAPH_DIR = PREP_DIR.parent / "graph"
+
 # ⚠️ 旧名。`data_path()` が指すのは「元データ」なので RAW_DIR と同じもの。
 #    移送前（hazard-route リポジトリ）は `var/data` だった
 DATA_DIR = RAW_DIR
@@ -50,6 +55,10 @@ def data_path(*parts):
 
 def graph_path(*parts):
     return str(GRAPH_DIR.joinpath(*parts))
+
+
+def runtime_graph_path(*parts):
+    return str(RUNTIME_GRAPH_DIR.joinpath(*parts))
 
 
 def tiles_path(*parts):

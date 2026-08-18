@@ -20,6 +20,8 @@ COPY app/ ./app/
 #    それらを使う prep/route_search/graph.py 等は実行時に import されない
 #    （tests/test_layering.py が機械的に確認している）
 COPY prep/ ./prep/
+# 任意地点探索用の圧縮グラフ（約1.6MB×3）。前処理pickleは同梱しない。
+COPY graph/ ./graph/
 
 ENV PATH="/app/.venv/bin:$PATH"
 

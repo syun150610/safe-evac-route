@@ -1,0 +1,60 @@
+"""本番同梱NPZが読み込め、任意地点探索に使えることを確認する。"""
+
+import os
+
+import numpy as np
+import pytest
+
+from app.services.evac_routes import search as route_search
+from prep.paths import runtime_graph_path
+from prep.route_search.npz_graph import load_graph_npz
+
+GRAPH_NAMES = (
+    "kitasenju_ueno_envelope",
+    "kitasenju_ueno",
+    "kitasenju_ueno_kandagawa",
+)
+
+
+@pytest.mark.parametrize("name", GRAPH_NAMES)
+def test_committed_npz_has_expected_shape_and_no_pickle(name):
+    path = runtime_graph_path(f"{name}.npz")
+    assert os.path.exists(path)
+    with np.load(path, allow_pickle=False) as data:
+        assert int(data["schema_version"][0]) == 1
+        assert data["node_id"].shape == (27_144,)
+        assert data["edge_u"].shape == (82_586,)
+        assert all(array.dtype.kind != "O" for array in data.values())
+
+
+def test_npz_rebuilds_graph_and_searches_route():
+    graph = load_graph_npz(runtime_graph_path("kitasenju_ueno_envelope.npz"))
+    assert graph.number_of_nodes() == 27_144
+    assert graph.number_of_edges() == 82_586
+
+    route_search._graphs.clear()
+    result = route_search.search(
+        {"lat": 35.7497, "lon": 139.8050, "label": "北千住駅"},
+        {"lat": 35.7141, "lon": 139.7774, "label": "上野駅"},
+        hazards={"flood": "envelope", "quake": "total"},
+        with_segments=False,
+    )
+    assert result["selected_route"] == "combined"
+    assert [route["id"] for route in result["routes"]] == ["baseline", "combined"]
+    assert result["routes"][0]["stats"] == {
+        "distance_m": 5445.9,
+        "duration_min_80": 68.1,
+        "duration_min_60": 90.8,
+        "max_depth_m": 1.34,
+        "ratio_over_03": 0.2162,
+        "mean_depth_m": 0.269,
+        "out_of_coverage_ratio": 0.0,
+        "length_over_03_m": 1177.5,
+        "n_edges": 170,
+        "n_impassable_edges": 6,
+        "quake_max_rank": 5,
+        "quake_r4plus_ratio": 0.302,
+        "quake_weighted_avg_rank": 2.765,
+        "quake_out_of_coverage_ratio": 0.0,
+    }
+    assert result["routes"][1]["stats"]["distance_m"] == 5563.1

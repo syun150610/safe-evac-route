@@ -75,7 +75,7 @@ def snap_m(G, node, lat: float, lon: float) -> float:
 
 
 def meta_path(graph_file: str) -> str:
-    """`*.pkl` に対応する `*_meta.json`（build 時の bbox などが入っている）"""
+    """グラフに対応する `*_meta.json`（build 時の bbox などが入っている）"""
     return os.path.splitext(graph_file)[0] + "_meta.json"
 
 

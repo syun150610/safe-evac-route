@@ -15,7 +15,7 @@
 
 `prep.route_search.graph` は osmnx を import しているので**触らない**。
 探索に要るものは `prep.route_search.snap` に切り出してある（05 §3-3）。
-API に増える依存は networkx / numpy / shapely（pickle の復元に要る）だけ。
+API に増える依存は networkx / numpy / shapely（NPZからのグラフ復元に要る）だけ。
 
 ## 掛け合わせ
 
@@ -26,15 +26,15 @@ API に増える依存は networkx / numpy / shapely（pickle の復元に要る
 from __future__ import annotations
 
 import os
-import pickle
 import threading
 
 import networkx as nx
 
 from prep.hazard_sources import registry
 from prep.hazard_sources.quake.cost import QUAKE_COST
-from prep.paths import rel
+from prep.paths import rel, runtime_graph_path
 from prep.route_search import bundles as B
+from prep.route_search.npz_graph import load_graph_npz
 from prep.route_search.search import (
     DEPTH_THRESHOLD,
     WALK_SPEED_DISASTER,
@@ -49,7 +49,7 @@ from prep.route_search.weights import baked_weight, edge_cost, edge_weight
 
 
 class NotGenerated(Exception):
-    """グラフ pickle が無い（prep.route_search.graph を実行していない）"""
+    """本番配布用のグラフNPZが無い"""
 
 
 class BadRequest(Exception):
@@ -95,17 +95,19 @@ _lock = threading.Lock()
 def _graph_file(scenario: str) -> str:
     if scenario not in B.GRAPHS:
         raise BadRequest(f"未知の浸水シナリオ: {scenario!r} / 既知={sorted(B.GRAPHS)}")
-    p = B.GRAPHS[scenario]
+    source = B.GRAPHS[scenario]
+    filename = os.path.splitext(os.path.basename(source))[0] + ".npz"
+    p = runtime_graph_path(filename)
     if not os.path.exists(p):
         raise NotGenerated(
             f"{rel(p)} が無い。"
-            f"cd backend && python3 -m prep.route_search.graph --scenario {scenario}"
+            "cd backend && python3 -m prep.route_search.export_npz を実行する"
         )
     return p
 
 
 def _graph(scenario: str) -> nx.MultiDiGraph:
-    """pickle を読んでプロセス内に持つ（1つ約28MB / 読み込み約1.2秒）。
+    """圧縮NPZを読み、MultiDiGraphとしてプロセス内に持つ。
 
     シナリオは3つしかないので単純な辞書で足りる。エリアを設定値化して増やすときは
     ここに上限を入れること（05 §13 段11）。
@@ -114,10 +116,14 @@ def _graph(scenario: str) -> nx.MultiDiGraph:
     with _lock:
         G = _graphs.get(scenario)
         if G is None:
-            with open(p, "rb") as f:
-                G = pickle.load(f)
+            G = load_graph_npz(p)
             _graphs[scenario] = G
         return G
+
+
+def _graph_ref(path: str) -> str:
+    """ローカルとコンテナで変わらない、レスポンス表示用のグラフ名。"""
+    return f"graph/{os.path.basename(path)}"
 
 
 # ---------------- 対象エリア ----------------
@@ -136,7 +142,7 @@ def area(scenario: str = DEFAULT_SCENARIO) -> dict:
         "scenario": scenario,
         "bbox": [left, bottom, right, top],
         "center": [(bottom + top) / 2, (left + right) / 2],
-        "graph": rel(p),
+        "graph": _graph_ref(p),
         "nodes": meta.get("nodes"),
         "edges": meta.get("edges"),
         "max_snap_m": MAX_SNAP_M,
@@ -341,7 +347,7 @@ def search(
         "scenario_display": meta["display"],
         "scenario_kind": meta["kind"],
         "scenario_note": meta["note"],
-        "graph": rel(_graph_file(sc)),
+        "graph": _graph_ref(_graph_file(sc)),
         # ⚠️ プリセットと**同じ意味・同じ値**にしてある（素のHTML版からの相対パス）。
         #    React版はここを見ずに /api/hazards のタイルURLを使う（05 §5-3）
         "tiles": f"../var/tiles/flood/{sc}/{{z}}/{{x}}/{{y}}.png",
