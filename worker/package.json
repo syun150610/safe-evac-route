@@ -12,14 +12,22 @@
     "predeploy": "npm run assets:build",
     "deploy": "wrangler deploy",
     "db:migrate:remote": "wrangler d1 migrations apply safe-evac-route-db --remote",
+    "tiles:upload": "node scripts/upload-tiles.mjs",
     "typegen": "wrangler types",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.21.3",
     "typescript": "^7.0.2",
+    "vitest": "^4.1.10",
     "wrangler": "4.123.0"
   },
   "dependencies": {
     "@cloudflare/containers": "0.3.7"
+  },
+  "allowScripts": {
+    "workerd@1.20260811.1": true,
+    "esbuild@0.28.1": true
   }
 }

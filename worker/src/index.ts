@@ -2,6 +2,7 @@ import { Container, getContainer } from "@cloudflare/containers";
 
 import { handleD1Request } from "./bindings/d1";
 import { handleR2Request } from "./bindings/r2";
+import { handleTileRequest } from "./tiles";
 
 export { ContainerProxy } from "@cloudflare/containers";
 
@@ -20,8 +21,12 @@ FastAPIContainer.outboundByHost = {
 };
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const pathname = new URL(request.url).pathname;
+
+    if (pathname.startsWith("/tiles/")) {
+      return handleTileRequest(request, env, ctx);
+    }
 
     // /api配下はすべてFastAPIへ転送するため、バックエンドにエンドポイントを
     // 追加してもWorker側のルーティングを追記する必要はない。

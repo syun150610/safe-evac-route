@@ -145,6 +145,9 @@ jobs:
       - name: Run type checks
         run: npm run typecheck
 
+      - name: Run tests
+        run: npm run test
+
   container:
     name: Container
     needs: changes
