@@ -34,7 +34,7 @@ export function RouteTable({ bundle, shown, onToggle }: Props) {
           >
             <td>
               <label
-                className="flex min-h-8 cursor-pointer items-center gap-1.5"
+                className="flex min-h-8 cursor-pointer items-center gap-1.5 max-[700px]:min-h-11"
                 title={SUFFIX[r.id] ? `${r.desc}（${SUFFIX[r.id]}）` : r.desc}
               >
                 <input

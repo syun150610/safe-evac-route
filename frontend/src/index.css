@@ -17,3 +17,18 @@ body,
 .legend-hatch {
   background: repeating-linear-gradient(45deg, #fff 0 3px, #b9bec6 3px 4px);
 }
+
+/* MapLibre の帰属表示は地図コンテナ内の絶対配置。
+   スマホでは折りたたんだシートの上へ逃がし、常に読める状態を保つ。 */
+@media (max-width: 700px) {
+  html,
+  body {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  .maplibregl-ctrl-bottom-right,
+  .maplibregl-ctrl-bottom-left {
+    bottom: calc(var(--sheet-peek, 74px) + 4px);
+  }
+}

@@ -46,7 +46,7 @@ export function LayerPicker({ catalog, value, onChange, opacity, onOpacity, fixe
     <fieldset className="mb-2 rounded-md border border-slate-200 px-2.5 pt-1.5 pb-2 disabled:opacity-50">
       <legend className="px-1 text-[11px] text-slate-600">地図に表示する災害</legend>
       <div className="flex flex-wrap gap-x-3.5 gap-y-0.5">
-        <label className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 text-[12.5px]">
+        <label className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 text-[12.5px] max-[700px]:min-h-11">
           <input
             type="radio"
             name="layer"
@@ -59,7 +59,7 @@ export function LayerPicker({ catalog, value, onChange, opacity, onOpacity, fixe
         {hazards.map((h) => (
           <label
             key={h.id}
-            className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 text-[12.5px]"
+            className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 text-[12.5px] max-[700px]:min-h-11"
             title={h.note}
           >
             <input
@@ -90,11 +90,11 @@ export function LayerPicker({ catalog, value, onChange, opacity, onOpacity, fixe
       )}
 
       {current && (
-        <label className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-600">
+        <label className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-600 max-[700px]:min-h-11">
           濃さ
           <input
             type="range"
-            className="flex-1"
+            className="flex-1 max-[700px]:h-11"
             min={0}
             max={100}
             value={Math.round(opacity * 100)}
