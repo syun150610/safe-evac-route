@@ -50,10 +50,21 @@ jobs:
         run: npm ci
         working-directory: worker
 
+      - name: Check required production configuration
+        env:
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+        run: |
+          if [[ -z "${VITE_GOOGLE_MAPS_API_KEY}" ]]; then
+            echo "::error::production environment secret VITE_GOOGLE_MAPS_API_KEY is not configured"
+            exit 1
+          fi
+
       - name: Apply D1 migrations
         run: npm run db:migrate:remote
         working-directory: worker
 
       - name: Deploy to Cloudflare
+        env:
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
         run: npm run deploy
         working-directory: worker

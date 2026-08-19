@@ -89,12 +89,12 @@ export function createGoogleAdapter(): MapAdapter {
           <li>Google Cloud でプロジェクトを作成し、請求先アカウントを紐付ける</li>
           <li><b>Maps JavaScript API</b> を有効化する</li>
           <li>APIキーを発行し、HTTPリファラー制限をかける（推奨）</li>
-          <li>設定ファイルを作る: <pre>cd frontend &amp;&amp; cp config.example.js config.local.js</pre></li>
-          <li><code>frontend/config.local.js</code> の <code>GOOGLE_MAPS_API_KEY</code> に貼り付ける</li>
+          <li>設定ファイルを作る: <pre>cd frontend &amp;&amp; cp .env.example .env.local</pre></li>
+          <li><code>frontend/.env.local</code> の <code>VITE_GOOGLE_MAPS_API_KEY</code> に貼り付ける</li>
           <li>このページをリロードする</li>
         </ol>
         <p style="font-size:12.5px;color:#777;margin-bottom:0">
-          <code>config.local.js</code> は <code>.gitignore</code> 済みです。
+          <code>.env.local</code> は <code>.gitignore</code> 済みです。
           キーをリポジトリにコミットしないでください。</p>
         <div id="setupExtra" style="display:none;margin-top:14px;padding-top:12px;
              border-top:1px solid #e3e5e9;color:#b3261e;font-size:13px"></div>
