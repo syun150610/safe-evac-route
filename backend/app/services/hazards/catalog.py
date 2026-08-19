@@ -48,6 +48,7 @@ def _flood_scenarios():
     """
     from prep.route_search.bundles import SCENARIO_META
 
+    settings = get_settings()
     out = []
     for sid, meta in SCENARIO_META.items():
         out.append(
@@ -56,7 +57,8 @@ def _flood_scenarios():
                 "label": meta["display"],
                 "kind": meta["kind"],
                 "note": meta["note"],
-                "tile_url": f"{_tile_base()}/flood/{sid}/{{z}}/{{x}}/{{y}}.png",
+                "tile_url": f"{_tile_base()}/flood/"
+                f"{settings.hazard_data_profile}/{sid}/{{z}}/{{x}}/{{y}}.png",
             }
         )
     return out
@@ -89,6 +91,7 @@ def _quake_scenarios():
 
 def catalog():
     """GET /api/hazards の中身"""
+    settings = get_settings()
     hazards = []
     for hid in registry.ids():
         meta = registry.meta(hid)
@@ -106,6 +109,8 @@ def catalog():
             h["scenarios"] = _quake_scenarios()
         hazards.append(h)
     return {
+        "data_profile": settings.hazard_data_profile,
+        "data_profile_id": settings.hazard_profile_id,
         "hazards": hazards,
         # 同時に出すのは1つ（単位の違うものを重ねない。§3-4）
         "display_policy": "one_at_a_time",

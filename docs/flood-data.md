@@ -37,7 +37,8 @@ data/raw/hazard/hazard.gpkg
 `scope-kitasenju-ueno` は北千住駅～上野駅を囲むbboxに片側1kmの余白を加えた範囲で、
 東京都全域を意味しない。正確なbboxと余白はグラフのmeta JSONにも記録する。
 
-検証が終わるまで `backend/graph/`、`backend/bundles/`、R2の本番prefixを変更しない。
+再生成結果を確認するまでは `backend/graph/`、`backend/bundles/`、R2の本番prefixを
+変更しない。採用時は後述のprofile別ディレクトリへ追加し、旧成果物も残す。
 
 ```bash
 cd backend
@@ -64,12 +65,70 @@ uv run --frozen --group prep python -m prep.route_search.export_npz \
 uv run --frozen --group prep python -m prep.route_search.bundles \
   --graph-dir "$GRAPH_OUT" --outdir "$BUNDLE_OUT"
 
-BUNDLES_DIR="$BUNDLE_OUT" uv run --frozen pytest tests/test_api.py
+HAZARD_DATA_PROFILE=kensetsu \
+  BUNDLES_DIR=../data/processed/bundles \
+  GRAPH_DIR=../data/processed/runtime_graph \
+  uv run --frozen pytest tests/test_api.py tests/test_npz_graph.py
 ```
 
 旧下水道局版は `flood-gesuido_quake-risk9/scope-kitasenju-ueno`、建設局版は
 `flood-kensetsu_quake-risk9/scope-kitasenju-ueno` と識別する。本番採用時は両profileを
 保持し、利用者向け切替UIではなくデプロイ設定1つで選択できるようにする。
+
+## runtime成果物と切替設定
+
+Git・Dockerへ含める成果物は、次の2世代を同時に保持する。
+
+```text
+backend/graph/{flood-gesuido_quake-risk9,flood-kensetsu_quake-risk9}/
+  scope-kitasenju-ueno/
+backend/bundles/{flood-gesuido_quake-risk9,flood-kensetsu_quake-risk9}/
+  scope-kitasenju-ueno/
+```
+
+本番の選択箇所は `worker/wrangler.jsonc` の `HAZARD_DATA_PROFILE` 1つだけ。
+
+- `gesuido`: 旧・下水道局世代
+- `kensetsu`: 新・建設局世代
+
+Workerはこの値をFastAPI Containerへ渡す。FastAPIは同じ値からプリセットとNPZを選び、
+`/api/hazards` は同じprofileを含むタイルURLを返す。変更後はWorkerを再デプロイする。
+起動済みContainerのグラフを途中で差し替える運用はしない。
+
+FastAPIを単体起動するときは `backend/.env` の同名設定を使う。
+
+## R2タイル
+
+R2はprofileをオブジェクトキーに含め、旧新のタイルと24時間キャッシュが混ざらない
+構造にする。
+
+```text
+flood/gesuido/{scenario}/{z}/{x}/{y}.png
+flood/kensetsu/{scenario}/{z}/{x}/{y}.png
+quake/{building,fire,total}.geojson
+```
+
+旧タイルが `data/processed/tiles/flood/{scenario}` にある環境では、初回だけ次のように
+profile名の下へコピーする。元ディレクトリは削除しない。
+
+```bash
+cd data/processed/tiles/flood
+mkdir -p gesuido
+cp -a envelope kandagawa sumidagawa gesuido/
+```
+
+両profile 2,491枚ずつと地震GeoJSON 3件、合計4,985件が揃った後にアップロードする。
+このコマンドはR2を書き換えるため、PRのローカル検証では実行しない。
+
+```bash
+cd worker
+npm run tiles:upload -- "$(cd ../data/processed/tiles && pwd)" --check
+# `validated 4985 assets (no upload)` を確認した後、レビュー済みなら:
+npm run tiles:upload -- "$(cd ../data/processed/tiles && pwd)"
+```
+
+従来の `flood/{scenario}/...` は直ちに削除せずロールバック期間中は残すが、新しいAPIは
+profile付きURLだけを返す。
 
 ## 採用前の確認
 
@@ -79,3 +138,4 @@ BUNDLES_DIR="$BUNDLE_OUT" uv run --frozen pytest tests/test_api.py
 - プリセットAPIの全36件が静的JSONとバイト一致する
 - 入力ファイル、SHA256、bbox、coverage、タイル数、経路統計を記録する
 - 旧版との差分は機械検証だけに使い、利用者向け比較UIは作らない
+- API・探索・タイルURLが同じ `HAZARD_DATA_PROFILE` を参照する

@@ -19,14 +19,14 @@ class NotGenerated(Exception):
 
 
 def _path(*parts):
-    return os.path.join(get_settings().bundles_dir, *parts)
+    return os.path.join(get_settings().active_bundles_dir, *parts)
 
 
 def index_raw() -> bytes:
     p = _path("index.json")
     if not os.path.exists(p):
         raise NotGenerated(
-            "本番配布用プリセット bundles/index.json がありません。"
+            "選択中の本番配布用プリセット index.json がありません。"
             "Dockerイメージの作成元に backend/bundles が含まれているか確認してください"
         )
     with open(p, "rb") as f:

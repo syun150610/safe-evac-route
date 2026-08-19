@@ -5,12 +5,16 @@ import { spawn } from "node:child_process";
 const BUCKET = "safe-evac-route-storage";
 const CACHE_CONTROL = "public, max-age=3600, s-maxage=86400";
 const CONCURRENCY = 24;
-const EXPECTED_ASSETS = 2_494;
-const PUBLIC_KEY = /^(?:flood\/(?:envelope|kandagawa|sumidagawa)\/(?:12|13|14|15)\/\d+\/\d+\.png|quake\/(?:building|fire|total)\.geojson)$/;
+const EXPECTED_ASSETS = 4_985;
+const PUBLIC_ROOTS = ["flood/gesuido", "flood/kensetsu", "quake"];
+const PUBLIC_KEY = /^(?:flood\/(?:gesuido|kensetsu)\/(?:envelope|kandagawa|sumidagawa)\/(?:12|13|14|15)\/\d+\/\d+\.png|quake\/(?:building|fire|total)\.geojson)$/;
 const source = process.argv[2];
+const checkOnly = process.argv.includes("--check");
 
 if (!source) {
-  console.error("usage: npm run tiles:upload -- /absolute/path/to/tiles");
+  console.error(
+    "usage: npm run tiles:upload -- /absolute/path/to/data/processed/tiles [--check]",
+  );
   process.exit(2);
 }
 
@@ -66,7 +70,9 @@ function upload(file) {
 }
 
 const files = [];
-for await (const file of filesUnder(source)) files.push(file);
+for (const root of PUBLIC_ROOTS) {
+  for await (const file of filesUnder(join(source, root))) files.push(file);
+}
 files.sort();
 if (files.length === 0) throw new Error(`${source}: PNGまたはGeoJSONがありません`);
 if (files.length !== EXPECTED_ASSETS) {
@@ -74,6 +80,10 @@ if (files.length !== EXPECTED_ASSETS) {
 }
 const invalidKey = files.map(objectKey).find((key) => !PUBLIC_KEY.test(key));
 if (invalidKey) throw new Error(`${invalidKey}: 公開対象外のパスです`);
+if (checkOnly) {
+  console.log(`validated ${files.length} assets (no upload)`);
+  process.exit(0);
+}
 
 let next = 0;
 let completed = 0;

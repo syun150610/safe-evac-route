@@ -13,6 +13,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 
+from app.core.config import get_settings
 from app.schemas.evac_routes import SearchRequest
 from app.services.evac_routes import bundle_store
 from app.services.evac_routes import search as search_svc
@@ -26,7 +27,11 @@ router = APIRouter(prefix="/api/evac-routes", tags=["evac-routes"])
 
 def _json(raw: bytes) -> Response:
     # dict に直して返すとキー順や数値表記が変わりうるので、バイト列のまま返す
-    return Response(content=raw, media_type="application/json")
+    return Response(
+        content=raw,
+        media_type="application/json",
+        headers={"X-Hazard-Data-Profile": get_settings().hazard_data_profile},
+    )
 
 
 @router.get("/presets")
