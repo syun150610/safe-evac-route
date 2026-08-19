@@ -1,0 +1,104 @@
+{
+  "csv": [
+    "data/raw/tokyoto_kensetsukyoku/shinsui_kandagawa.csv"
+  ],
+  "scenario": "kandagawa",
+  "source_profile": "flood-kensetsu_quake-risk9",
+  "sources": {
+    "flood": {
+      "id": "kensetsu",
+      "label": "東京都建設局 浸水予想区域図",
+      "files": [
+        "data/raw/tokyoto_kensetsukyoku/shinsui_kandagawa.csv"
+      ]
+    },
+    "quake": {
+      "id": "risk9",
+      "label": "東京都 第9回地域危険度測定調査",
+      "file": "data/raw/hazard/hazard.gpkg"
+    }
+  },
+  "scope": {
+    "id": "kitasenju-ueno",
+    "margin_km": 1.0
+  },
+  "bbox_left_bottom_right_top": [
+    139.76633376336125,
+    35.70511688825009,
+    139.81606623663876,
+    35.75868311174991
+  ],
+  "origin_latlon": [
+    35.7497,
+    139.805
+  ],
+  "dest_latlon": [
+    35.7141,
+    139.7774
+  ],
+  "origin_node": 6238211484,
+  "dest_node": 1858524703,
+  "network_type": "walk",
+  "sample_interval_m": 10.0,
+  "nodes": 27144,
+  "edges": 82586,
+  "impassable_edges": 1684,
+  "impassable_finite_fallback": 1000000.0,
+  "passable_subgraph_connects_od": true,
+  "edge_depth_pct_length_weighted": {
+    ">0.0": 1.9894660956784587,
+    ">0.2": 1.9894660956784587,
+    ">0.3": 1.9894660956784587,
+    ">0.5": 1.9894660956784587,
+    ">1.0": 0.02468604440753256,
+    ">2.0": 0.005952696475963034
+  },
+  "hazard_cost_bins": {
+    "<0.10": 1.0,
+    "<0.20": 1.3,
+    "<0.30": 2.0,
+    "<0.50": 4.0,
+    "<1.00": 12.0,
+    ">=1.00": "inf"
+  },
+  "coverage_penalty": 1.5,
+  "quake": {
+    "quake_cost": {
+      "1": 1.0,
+      "2": 1.2,
+      "3": 1.5,
+      "4": 2.0,
+      "5": 3.0
+    },
+    "quake_coverage_penalty": 1.2,
+    "edges_fully_out_of_coverage": 0,
+    "mean_coverage": 1.0,
+    "sample_points_out_of_coverage_pct": 0.0,
+    "rank_distribution": {
+      "quake_rank_building": {
+        "1": 6544,
+        "2": 5546,
+        "3": 19630,
+        "4": 30340,
+        "5": 20526,
+        "out_of_coverage": 0
+      },
+      "quake_rank_fire": {
+        "1": 10428,
+        "2": 23686,
+        "3": 17320,
+        "4": 16342,
+        "5": 14810,
+        "out_of_coverage": 0
+      },
+      "quake_rank_total": {
+        "1": 9520,
+        "2": 27538,
+        "3": 19258,
+        "4": 14964,
+        "5": 11306,
+        "out_of_coverage": 0
+      }
+    }
+  }
+}
