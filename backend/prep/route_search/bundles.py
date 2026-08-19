@@ -343,7 +343,21 @@ def main():
         help="区間単位のFeatureを省く（出力を小さくする）",
     )
     ap.add_argument("--outdir", default=OUTDIR)
+    ap.add_argument(
+        "--graph-dir",
+        default=None,
+        help="前処理グラフの別ディレクトリ（basenameは既定と同じ）",
+    )
     args = ap.parse_args()
+
+    graphs = (
+        {
+            s: os.path.join(args.graph_dir, os.path.basename(p))
+            for s, p in GRAPHS.items()
+        }
+        if args.graph_dir
+        else GRAPHS
+    )
 
     pairs = list(OD_PAIRS)
     if args.od:
@@ -352,23 +366,23 @@ def main():
             raise SystemExit(f"地点が不明: {a} / {b}  （既知: {'・'.join(P)}）")
         pairs = [(a, b, next((n for x, y, n in OD_PAIRS if (x, y) == (a, b)), ""))]
 
-    scenarios = sorted(GRAPHS) if args.scenario == "all" else [args.scenario]
+    scenarios = sorted(graphs) if args.scenario == "all" else [args.scenario]
     os.makedirs(args.outdir, exist_ok=True)
 
     od_index, total_bytes = [], 0
     for sc in scenarios:
-        if not os.path.exists(GRAPHS[sc]):
+        if not os.path.exists(graphs[sc]):
             print(
-                f"! {GRAPHS[sc]} が無い。build_graph.py --scenario {sc} を先に実行",
+                f"! {graphs[sc]} が無い。build_graph.py --scenario {sc} を先に実行",
                 file=sys.stderr,
             )
             continue
         t0 = time.time()
         print(f"\n=== {sc} : {SCENARIO_META[sc]['display']} ===")
-        with open(GRAPHS[sc], "rb") as f:
+        with open(graphs[sc], "rb") as f:
             G = pickle.load(f)
         print(
-            f"graph: {GRAPHS[sc]}  nodes={G.number_of_nodes():,} edges={G.number_of_edges():,}"
+            f"graph: {graphs[sc]}  nodes={G.number_of_nodes():,} edges={G.number_of_edges():,}"
         )
         d = os.path.join(args.outdir, sc)
         os.makedirs(d, exist_ok=True)
@@ -376,7 +390,7 @@ def main():
         for i, (a, b, note) in enumerate(pairs, 1):
             s = slug(i, a, b)
             bundle = build(
-                G, sc, GRAPHS[sc], a, b, note, with_segments=not args.no_segments
+                G, sc, graphs[sc], a, b, note, with_segments=not args.no_segments
             )
             if bundle is None:
                 print(f"  skip {a}→{b}（起終点が同一ノード）")

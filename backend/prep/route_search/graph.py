@@ -57,7 +57,7 @@ from prep.hazard_sources.quake.cost import (
     QUAKE_GPKG,
 )
 from prep.paths import CACHE_DIR as CACHE_DIR_PATH
-from prep.paths import data_path, graph_path, rel
+from prep.paths import graph_path, rel
 
 # 「焼いたグラフを使う側」が要るものは snap.py に置いてある（osmnx 非依存）。
 # ここから再エクスポートするので、既存の import 先は変えなくてよい
@@ -72,7 +72,7 @@ from prep.route_search.snap import (  # noqa: F401
 )
 
 # ---------------- 設定 ----------------
-CSV_DEFAULT = data_path("shinsui_sumidagawa.csv")
+CSV_DEFAULT = SCENARIOS["sumidagawa"]["csv"][0]
 CACHE_DIR = str(CACHE_DIR_PATH)
 
 SAMPLE_M = 10.0  # エッジ上のサンプル間隔(m)（SPEC 5 タスクA-2）

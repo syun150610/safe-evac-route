@@ -87,12 +87,33 @@ def main() -> None:
         choices=sorted(bundles.GRAPHS),
         help="省略時は全シナリオを変換",
     )
+    parser.add_argument(
+        "--source-dir",
+        help="前処理pickleの別ディレクトリ（basenameは既定と同じ）",
+    )
+    parser.add_argument(
+        "--outdir",
+        help="NPZの別出力ディレクトリ（省略時はbackend/graph）",
+    )
     args = parser.parse_args()
+    graphs = (
+        {
+            scenario: os.path.join(args.source_dir, os.path.basename(source))
+            for scenario, source in bundles.GRAPHS.items()
+        }
+        if args.source_dir
+        else bundles.GRAPHS
+    )
     scenarios = [args.scenario] if args.scenario else sorted(bundles.GRAPHS)
     for scenario in scenarios:
-        source = bundles.GRAPHS[scenario]
+        source = graphs[scenario]
         filename = os.path.splitext(os.path.basename(source))[0] + ".npz"
-        export_one(source, runtime_graph_path(filename))
+        output = (
+            os.path.join(args.outdir, filename)
+            if args.outdir
+            else runtime_graph_path(filename)
+        )
+        export_one(source, output)
 
 
 if __name__ == "__main__":

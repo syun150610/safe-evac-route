@@ -79,26 +79,26 @@ def read_points(path):
     df = df.dropna(subset=["浸水深", "緯度", "経度"])
     dropped = n0 - len(df)
 
-    # 図郭単位でランク値(0〜7の整数)の面を除外する。
-    # ランクが何メートルかはデータから分からないので、実数値の面と混ぜられない。
-    # ファイルごと捨てるのではなく図郭単位で落とす（docs/dev/03_ハザード拡張.md C-1「混在ファイルの扱い」）。
-    excluded = []
+    # 整数メートルだけの図郭を記録するが、除外・補正はしない。
+    # 建設局の神田川CSVを旧実水深と全座標照合した結果、整数値は未知のランクではなく
+    # 1m単位へ丸められたメートル値だった。正式な一次入力の公開値としてそのまま採用する。
+    integer_only_sheets = []
     if "図郭No" in df.columns:
-        keep = np.ones(len(df), dtype=bool)
+        depth_values = df["浸水深"].to_numpy()
         for sheet, idx in df.groupby("図郭No").indices.items():
-            v = df["浸水深"].to_numpy()[idx]
+            v = depth_values[idx]
             u = np.unique(v)
-            # 全点0m の面は「浸水しない」であってランク値ではない。除外しないこと
+            # 全点0mは精度を判断できないので、この一覧には含めない。
             if len(u) >= 2 and len(u) <= 12 and np.all(np.isclose(v, np.round(v))):
-                keep[idx] = False
-                excluded.append((sheet, len(idx), [float(x) for x in u]))
-        if excluded:
-            n_ex = sum(e[1] for e in excluded)
+                integer_only_sheets.append((sheet, len(idx), [float(x) for x in u]))
+        if integer_only_sheets:
+            n_integer = sum(e[1] for e in integer_only_sheets)
             print(
-                f"  ! {name}: ランク値の図郭 {len(excluded)}枚 / {n_ex:,}点 を除外"
-                f"（例: 図郭{excluded[0][0]} の値 {excluded[0][2]}）"
+                f"  ! {name}: 整数メートルのみの図郭 {len(integer_only_sheets)}枚 / "
+                f"{n_integer:,}点 を公開値として保持"
+                f"（例: 図郭{integer_only_sheets[0][0]} の値 "
+                f"{integer_only_sheets[0][2]}）"
             )
-            df = df[keep]
 
     print(
         f"  {name}: {len(df):,}点 ({enc})"
@@ -109,13 +109,13 @@ def read_points(path):
         "encoding": enc,
         "points": int(len(df)),
         "dropped_nonnumeric": int(dropped),
-        "excluded_rank_sheets": [
+        "integer_only_sheets": [
             {
                 "sheet": int(s) if str(s).isdigit() else str(s),
                 "points": int(n),
                 "values": vals,
             }
-            for s, n, vals in excluded
+            for s, n, vals in integer_only_sheets
         ],
     }
     return (

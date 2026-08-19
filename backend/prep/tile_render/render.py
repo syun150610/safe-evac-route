@@ -210,6 +210,8 @@ def build_scenario(sid, out_root=OUT_ROOT):
             else "単一流域の浸水想定"
         ),
         source=f"東京都 浸水予想区域図（{sc['label']}）",
+        source_dataset_url=sc.get("source_dataset_url"),
+        precision_note=sc.get("precision_note"),
         csv=[os.path.basename(p) for p in sc["csv"]],
         # 「この数値がどのデータの合成か」を後から追えるようにする（SPEC_C C-1）
         sources=meta.get("sources"),
@@ -233,6 +235,11 @@ if __name__ == "__main__":
         "scenario", nargs="?", choices=sorted(SCENARIOS), help="生成するシナリオID"
     )
     ap.add_argument("--all", action="store_true", help="全シナリオを生成")
+    ap.add_argument(
+        "--out-root",
+        default=OUT_ROOT,
+        help="出力ルート（既定: data/processed/tiles/flood）",
+    )
     args = ap.parse_args()
 
     if args.all:
@@ -250,4 +257,4 @@ if __name__ == "__main__":
         sys.exit(1)
 
     for sid in targets:
-        build_scenario(sid)
+        build_scenario(sid, out_root=args.out_root)
