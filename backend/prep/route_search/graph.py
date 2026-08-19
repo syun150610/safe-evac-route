@@ -50,11 +50,17 @@ from prep.hazard_sources.flood.cost import (
 # 自前で書き直すと格子原点がズレてタイルとエッジ値が食い違うので、必ず import する。
 # （make_tiles.py は import しても副作用なし: 処理は __main__ ガード内）
 from prep.hazard_sources.flood.grid import load_grid, lookup_covered
-from prep.hazard_sources.flood.scenarios import SCENARIOS
+from prep.hazard_sources.flood.scenarios import (
+    FLOOD_SOURCE_ID,
+    FLOOD_SOURCE_LABEL,
+    SCENARIOS,
+)
 from prep.hazard_sources.quake.cost import (
     QUAKE_COST,
     QUAKE_COVERAGE_PENALTY,
     QUAKE_GPKG,
+    QUAKE_SOURCE_ID,
+    QUAKE_SOURCE_LABEL,
 )
 from prep.paths import CACHE_DIR as CACHE_DIR_PATH
 from prep.paths import graph_path, rel
@@ -542,6 +548,31 @@ def main():
     meta_out = {
         "csv": [rel(c) for c in csvs],
         "scenario": args.scenario,
+        "source_profile": (
+            f"flood-{FLOOD_SOURCE_ID}_quake-{QUAKE_SOURCE_ID}"
+            if args.scenario
+            else f"flood-custom_quake-{QUAKE_SOURCE_ID}"
+        ),
+        "sources": {
+            "flood": {
+                "id": FLOOD_SOURCE_ID if args.scenario else "custom",
+                "label": FLOOD_SOURCE_LABEL if args.scenario else "CLI指定CSV",
+                "files": [rel(c) for c in csvs],
+            },
+            "quake": {
+                "id": QUAKE_SOURCE_ID,
+                "label": QUAKE_SOURCE_LABEL,
+                "file": rel(QUAKE_GPKG),
+            },
+        },
+        "scope": {
+            "id": (
+                "kitasenju-ueno"
+                if origin == tuple(ORIGIN_DEFAULT) and dest == tuple(DEST_DEFAULT)
+                else "custom"
+            ),
+            "margin_km": args.margin_km,
+        },
         "bbox_left_bottom_right_top": list(bbox),
         "origin_latlon": list(origin),
         "dest_latlon": list(dest),

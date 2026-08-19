@@ -9,6 +9,8 @@ from prep.paths import data_path
 KENSETSU_DATASET_URL = (
     "https://catalog.data.metro.tokyo.lg.jp/dataset/t000014d0000000029"
 )
+FLOOD_SOURCE_ID = "kensetsu"
+FLOOD_SOURCE_LABEL = "東京都建設局 浸水予想区域図"
 
 
 def kensetsu_csv(filename):

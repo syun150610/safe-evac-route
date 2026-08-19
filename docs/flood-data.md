@@ -30,31 +30,46 @@ data/raw/hazard/hazard.gpkg
 
 ## 既存成果物を上書きしない再生成
 
-以下は `data/processed/kensetsu/` へ別出力する。検証が終わるまで `backend/graph/`、
-`backend/bundles/`、R2の本番prefixを変更しない。
+生成物は「成果物の種類 → 入力profile → 探索範囲」で分ける。浸水タイルは単一ハザード
+なので `flood/kensetsu`、地震属性も含むグラフ・NPZ・bundleは
+`flood-kensetsu_quake-risk9/scope-kitasenju-ueno` とする。
+
+`scope-kitasenju-ueno` は北千住駅～上野駅を囲むbboxに片側1kmの余白を加えた範囲で、
+東京都全域を意味しない。正確なbboxと余白はグラフのmeta JSONにも記録する。
+
+検証が終わるまで `backend/graph/`、`backend/bundles/`、R2の本番prefixを変更しない。
 
 ```bash
 cd backend
-OUT=../data/processed/kensetsu
+PROFILE=flood-kensetsu_quake-risk9
+SCOPE=scope-kitasenju-ueno
+TILE_OUT=../data/processed/tiles/flood/kensetsu
+GRAPH_OUT=../data/processed/graph/$PROFILE/$SCOPE
+NPZ_OUT=../data/processed/runtime_graph/$PROFILE/$SCOPE
+BUNDLE_OUT=../data/processed/bundles/$PROFILE/$SCOPE
 
 uv run --frozen --group prep python -m prep.tile_render.render \
-  --all --out-root "$OUT/tiles/flood"
+  --all --out-root "$TILE_OUT"
 
 uv run --frozen --group prep python -m prep.route_search.graph \
-  --scenario envelope --out "$OUT/graph/kitasenju_ueno_envelope.pkl"
+  --scenario envelope --out "$GRAPH_OUT/kitasenju_ueno_envelope.pkl"
 uv run --frozen --group prep python -m prep.route_search.graph \
-  --scenario kandagawa --out "$OUT/graph/kitasenju_ueno_kandagawa.pkl"
+  --scenario kandagawa --out "$GRAPH_OUT/kitasenju_ueno_kandagawa.pkl"
 uv run --frozen --group prep python -m prep.route_search.graph \
-  --scenario sumidagawa --out "$OUT/graph/kitasenju_ueno.pkl"
+  --scenario sumidagawa --out "$GRAPH_OUT/kitasenju_ueno.pkl"
 
 uv run --frozen --group prep python -m prep.route_search.export_npz \
-  --source-dir "$OUT/graph" --outdir "$OUT/runtime_graph"
+  --source-dir "$GRAPH_OUT" --outdir "$NPZ_OUT"
 
 uv run --frozen --group prep python -m prep.route_search.bundles \
-  --graph-dir "$OUT/graph" --outdir "$OUT/bundles"
+  --graph-dir "$GRAPH_OUT" --outdir "$BUNDLE_OUT"
 
-BUNDLES_DIR="$OUT/bundles" uv run --frozen pytest tests/test_api.py
+BUNDLES_DIR="$BUNDLE_OUT" uv run --frozen pytest tests/test_api.py
 ```
+
+旧下水道局版は `flood-gesuido_quake-risk9/scope-kitasenju-ueno`、建設局版は
+`flood-kensetsu_quake-risk9/scope-kitasenju-ueno` と識別する。本番採用時は両profileを
+保持し、利用者向け切替UIではなくデプロイ設定1つで選択できるようにする。
 
 ## 採用前の確認
 
