@@ -40,6 +40,9 @@ BUNDLES_DIR = PROCESSED_DIR / "bundles"
 # 本番APIへ同梱する圧縮グラフ。`data/processed/graph` の pickle は前処理用で
 # gitignore 対象だが、こちらの npz は小さいため git に入れて Docker へ COPY する。
 RUNTIME_GRAPH_DIR = PREP_DIR.parent / "graph"
+# 本番APIへ同梱する事前計算済みプリセット。前処理の出力先とは分け、
+# Git・Dockerに含まれる配布物であることを明示する。
+RUNTIME_BUNDLES_DIR = PREP_DIR.parent / "bundles"
 
 # ⚠️ 旧名。`data_path()` が指すのは「元データ」なので RAW_DIR と同じもの。
 #    移送前（hazard-route リポジトリ）は `var/data` だった
