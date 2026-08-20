@@ -1,7 +1,7 @@
 /** APIクライアント。**相対パスでバックの中を直接読まない**
  * （docs/dev/05_チーム移行案.md §3-2。フロントの階層に依存しなくなる）
  */
-import type { Area, Bundle, HazardCatalog, PresetIndex, SearchRequest } from '../map/types'
+import type { Area, Bundle, HazardCatalog, PresetIndex, SearchRequest, ShelterCollection } from '../map/types'
 
 const BASE = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -83,3 +83,12 @@ export const getArea = (scenario?: string) =>
 
 /** 任意の2点の経路。戻り値はプリセットと同じ形 */
 export const postSearch = (req: SearchRequest) => post<Bundle>('/evac-routes/search', req)
+
+/** 避難所・避難場所一覧（GeoJSON）。bbox は "left,bottom,right,top" */
+export const getShelters = (params?: { bbox?: string; type?: string }) => {
+  const q = new URLSearchParams()
+  if (params?.bbox) q.set('bbox', params.bbox)
+  if (params?.type) q.set('type', params.type)
+  const qs = q.toString()
+  return get<ShelterCollection>(`/shelters${qs ? `?${qs}` : ''}`)
+}

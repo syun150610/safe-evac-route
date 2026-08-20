@@ -168,3 +168,25 @@ export interface HazardCatalog {
   display_policy: string
   note: string
 }
+
+export interface ShelterProperties {
+  id: string
+  name: string
+  type: 'urgent' | 'designated'
+  type_label: string
+  address: string
+  municipality: string
+  hazard_types: string[]
+}
+
+export interface ShelterFeature {
+  type: 'Feature'
+  geometry: { type: 'Point'; coordinates: [number, number] }
+  properties: ShelterProperties
+}
+
+export interface ShelterCollection {
+  type: 'FeatureCollection'
+  features: ShelterFeature[]
+  meta: { total: number }
+}

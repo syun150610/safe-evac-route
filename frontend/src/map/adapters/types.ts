@@ -38,6 +38,13 @@ export interface MarkerSpec {
   label: string
 }
 
+export interface ShelterMarkerSpec {
+  lngLat: LngLatTuple
+  label: string
+  /** urgent = 指定緊急避難場所（緑）/ designated = 指定避難所（黄） */
+  shelterType: 'urgent' | 'designated'
+}
+
 export interface RouteClick {
   lngLat: LngLatTuple
   route: RouteId
@@ -76,6 +83,8 @@ export interface MapAdapter {
   setLineWidth(routeId: RouteId, w: number): void
 
   setMarkers(list: MarkerSpec[]): void
+  /** 避難所・避難場所ピン。urgent=緑、designated=黄。空配列で全消し */
+  setShelterMarkers(list: ShelterMarkerSpec[]): void
   showPopup(lngLat: LngLatTuple, html: string): void
 
   /** cb は「押された経路ID + 座標」を受ける。区間の特定は共通側が座標から行う */
