@@ -61,11 +61,23 @@ HAZARD_DATA_PROFILE=kensetsu uv run --frozen uvicorn app.main:app --host 127.0.0
 
 ```bash
 cd "$(git rev-parse --show-toplevel)/frontend"
-API_TARGET=http://127.0.0.1:8000 npm run dev
+API_TARGET=http://127.0.0.1:8000 npm run dev -- --strictPort
 ```
 
 - MapLibre: <http://localhost:5173/?platform=maplibre>
 - Google Maps: <http://localhost:5173/>。`frontend/.env.local` のAPIキーが必要
+
+`--strictPort`は、5173番が別のViteで使用中なら起動を失敗させる。Vite既定の自動的な
+ポート繰り上げを許すと、runbookのURLから別の古いフロントを開いても気づきにくいため、
+再現確認では使用しない。既存プロセスを止められない場合は、バックエンドとフロントの
+ポートを明示的に変更し、Viteが表示した`Local`のURLを開く。
+
+fresh cloneで前処理を実行していない場合の正常な表示は次のとおり。
+
+- プリセットの地点組・シナリオ・経路一覧と、地図上の経路が表示される
+- 「地点を指定」で浸水・地震を選び、任意地点探索を実行できる
+- MapLibreでは地理院の背景地図が表示される
+- 浸水・地震の表示用成果物がないためハザードレイヤーは表示されず、リクエストは404になる
 
 `data/processed/tiles/`がある端末では、FastAPIが `/tiles/*` も配信する。fresh cloneで
 このディレクトリがない場合も、プリセットと任意地点探索は動くが、浸水・地震レイヤーは
@@ -236,6 +248,7 @@ npm run tiles:upload -- /absolute/path/to/data/processed/tiles --check
 | 症状 | 主な原因 | 確認 |
 |---|---|---|
 | uvicornが`address already in use`で終了 | 別プロセスが8000番を使用中 | 使用中のAPIを止めるか、uvicornと`API_TARGET`を同じ別ポートへ変更 |
+| Viteが`Port 5173 is in use`で終了 | 別のフロントが5173番を使用中 | 使用中のViteを止めるか、`--port`で別ポートを明示してそのURLを開く |
 | プリセットAPIが503 | 古いブランチ、profile成果物なし、Docker build context違い | `backend/bundles/{profile-id}/{scope}/index.json` |
 | 任意地点探索が503 | 選択profileのNPZなし | `backend/graph/{profile-id}/{scope}/*.npz` |
 | uvicornでタイル404 | `data/processed/tiles/`なし、profile名不一致 | `TILES_DIR`とタイル配置 |
