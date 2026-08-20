@@ -54,6 +54,12 @@ data/raw/
 !data/raw/
 data/raw/*
 !data/raw/.gitkeep
+!data/raw/hazard/
+data/raw/hazard/*
+!data/raw/hazard/.gitkeep
+!data/raw/tokyoto_kensetsukyoku/
+data/raw/tokyoto_kensetsukyoku/*
+!data/raw/tokyoto_kensetsukyoku/.gitkeep
 !data/raw/tokyoto_toshiseibikyoku/
 data/raw/tokyoto_toshiseibikyoku/*
 !data/raw/tokyoto_toshiseibikyoku/.gitkeep
@@ -63,8 +69,24 @@ data/processed/
 !data/processed/
 data/processed/*
 !data/processed/.gitkeep
+!data/processed/bundles/
+data/processed/bundles/*
+!data/processed/bundles/.gitkeep
+!data/processed/graph/
+data/processed/graph/*
+!data/processed/graph/.gitkeep
+!data/processed/runtime_graph/
+data/processed/runtime_graph/*
+!data/processed/runtime_graph/.gitkeep
+!data/processed/tiles/
+data/processed/tiles/*
+!data/processed/tiles/.gitkeep
 data/cache
 data/cache/
+# OSMnxの再生成可能なcache本体はignoreし、標準配置だけを示す。
+!data/cache/
+data/cache/*
+!data/cache/.gitkeep
 
 # Logs and temporary files
 *.log
