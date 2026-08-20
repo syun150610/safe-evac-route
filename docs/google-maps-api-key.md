@@ -40,13 +40,19 @@ Google Cloud Consoleの「APIとサービス」→「認証情報」でAPIキー
 このリポジトリのrunbookで使う例:
 
 ```text
+http://localhost:5173
 http://localhost:5173/*
+http://localhost:5174
 http://localhost:5174/*
+http://127.0.0.1:5173
 http://127.0.0.1:5173/*
+http://127.0.0.1:5174
 http://127.0.0.1:5174/*
 ```
 
-別ポートで起動する場合は、そのポートも明示的に追加する。`*`だけで全サイトを許可しない。
+Google Cloudの仕様に従い、各ホスト・ポートについて「末尾スラッシュなし」と
+「パスワイルドカード付き」の2件を登録する。別ポートで起動する場合も、そのポートの
+2件を明示的に追加する。`*`だけで全サイトを許可しない。
 
 ### APIの制限
 
@@ -71,16 +77,18 @@ VITE_GOOGLE_MAPS_API_KEY=<ローカル開発用キー>
 ## 本番用キー
 
 ローカル用とは別のAPIキーを作成する。現在のキー名は
-`Production API Key for Hackathon`。
+`Production API Key for Hackathon`。2026-08-20時点の発行者は平賀。
 
 ### アプリケーションの制限
 
 「ウェブサイト（HTTPリファラー）」を選び、現在の公開サイトだけを登録する。
 
 ```text
+https://saigai-map-api.tokyo-odh-150.workers.dev
 https://saigai-map-api.tokyo-odh-150.workers.dev/*
 ```
 
+本番も、ルートURLと配下のパスを許可する2件を両方登録する。
 カスタムドメインや別のプレビュー環境を追加した場合は、そのオリジンを個別に追加する。
 公開URLを変更するときは、デプロイ前に制限も更新する。
 
