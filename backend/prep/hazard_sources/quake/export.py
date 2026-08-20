@@ -81,7 +81,7 @@ def export(scenario, bbox=None, gpkg=None, outdir=None):
     if not os.path.exists(gpkg):
         print(f"! 地震ハザードGPKGが無い: {gpkg}", file=sys.stderr)
         print(
-            "  var/data/hazard/hazard.gpkg に置くか、環境変数 HAZARD_QUAKE_GPKG を指定する",
+            "  data/raw/hazard/hazard.gpkg を生成するか、環境変数 HAZARD_QUAKE_GPKG を指定する",
             file=sys.stderr,
         )
         return None
