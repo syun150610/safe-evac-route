@@ -6,7 +6,7 @@
 取得できるようにする。rawは容量が大きいためGitへ入れず、各自が次のスクリプトで取得する。
 
 ```bash
-cd /path/to/safe-evac-route
+cd "$(git rev-parse --show-toplevel)"
 ./scripts/prep/download-raw.sh all
 ```
 
@@ -56,7 +56,7 @@ docs/prep/      データフロー、入力仕様、再生成手順
 prep依存を入れて変換する。
 
 ```bash
-cd /path/to/safe-evac-route/backend
+cd "$(git rev-parse --show-toplevel)/backend"
 uv sync --frozen --group prep
 uv run --frozen --group prep python -m prep.hazard_sources.quake.build
 ```

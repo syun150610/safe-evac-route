@@ -16,12 +16,15 @@
 - Python 3.14（`.python-version`）
 - uv
 - Docker EngineまたはDocker Desktop
-- `safe-evac-route` の作業ツリー
+- `safe-evac-route` の作業ツリー内でコマンドを実行すること
+
+この文書では、clone先の絶対パスを固定せず、Gitが返すリポジトリルートから移動する。
+したがって、リポジトリ内のどのディレクトリからコードブロックを実行してもよい。
 
 初回だけ依存関係を復元する。
 
 ```bash
-cd /path/to/safe-evac-route/backend
+cd "$(git rev-parse --show-toplevel)/backend"
 uv sync --frozen
 
 cd ../frontend
@@ -45,7 +48,7 @@ profileを変えた後は、起動中のAPIまたはContainerを再起動する�
 ### バックエンド
 
 ```bash
-cd /path/to/safe-evac-route/backend
+cd "$(git rev-parse --show-toplevel)/backend"
 cp -n .env.example .env
 HAZARD_DATA_PROFILE=kensetsu \
   uv run --frozen uvicorn app.main:app --host 127.0.0.1 --port 8000
@@ -58,7 +61,7 @@ HAZARD_DATA_PROFILE=kensetsu \
 別ターミナルで起動する。
 
 ```bash
-cd /path/to/safe-evac-route/frontend
+cd "$(git rev-parse --show-toplevel)/frontend"
 API_TARGET=http://127.0.0.1:8000 npm run dev
 ```
 
@@ -76,7 +79,7 @@ API_TARGET=http://127.0.0.1:8000 npm run dev
 リポジトリ直下で実行する。
 
 ```bash
-cd /path/to/safe-evac-route
+cd "$(git rev-parse --show-toplevel)"
 docker build \
   --tag safe-evac-route-backend:local \
   --file backend/Dockerfile \
@@ -95,7 +98,7 @@ NPZとプリセットはイメージへ同梱されるため、`data/`なしで�
 `data/processed/tiles/`がある端末では、ホストの生成物を読み取り専用でマウントする。
 
 ```bash
-cd /path/to/safe-evac-route
+cd "$(git rev-parse --show-toplevel)"
 docker run --rm \
   --publish 8000:8000 \
   --env HAZARD_DATA_PROFILE=kensetsu \
@@ -115,7 +118,7 @@ docker run --rm \
 Cloudflareのローカル構成をまとめて起動する。
 
 ```bash
-cd /path/to/safe-evac-route/worker
+cd "$(git rev-parse --show-toplevel)/worker"
 npm run dev
 ```
 
@@ -178,7 +181,7 @@ curl --fail --silent --show-error \
 通常起動では不要である。タイル・NPZ・プリセットを作り直す場合だけ実行する。
 
 ```bash
-cd /path/to/safe-evac-route/backend
+cd "$(git rev-parse --show-toplevel)/backend"
 uv sync --frozen --group prep
 ```
 
@@ -195,7 +198,7 @@ data/raw/hazard/hazard.gpkg
 生成後は最低限、次を確認する。
 
 ```bash
-cd /path/to/safe-evac-route/backend
+cd "$(git rev-parse --show-toplevel)/backend"
 uv run --frozen ruff check .
 uv run --frozen ruff format --check .
 uv run --frozen pytest
