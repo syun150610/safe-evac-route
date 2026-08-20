@@ -30,7 +30,8 @@
     {
       "class_name": "FastAPIContainer",
       "image": "../backend/Dockerfile",
-      "max_instances": 3
+      "max_instances": 3,
+      "instance_type":"standard-2"
     }
   ],
   "durable_objects": {
