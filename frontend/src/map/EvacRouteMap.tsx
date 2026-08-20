@@ -209,7 +209,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   }, [adapter, ready, quakeData, opacity])
 
   // 避難所・避難場所ピン
-  const { data: shelterData } = useShelters(showShelters, area?.bbox)
+  const { data: shelterData, error: shelterError } = useShelters(showShelters, area?.bbox)
   useEffect(() => {
     const a = adapter.current
     if (!a || !ready) return
@@ -219,7 +219,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     }
     a.setShelterMarkers(
       shelterData.features.map((f) => ({
-        lngLat: [f.geometry.coordinates[0], f.geometry.coordinates[1]],
+        lngLat: f.geometry.coordinates,
         label: `【${f.properties.type_label}】${f.properties.name}`,
         shelterType: f.properties.type,
       })),
@@ -452,6 +452,11 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                 指定避難所
               </span>
             </label>
+            {shelterError && (
+              <p className="mt-1 text-[11px] text-red-700">
+                避難所の読み込みに失敗しました: {shelterError}
+              </p>
+            )}
           </div>
 
           {bundle && (

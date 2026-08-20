@@ -30,7 +30,7 @@ _HAZARD_COLS: dict[str, str] = {
 def _parse_latlng(row: dict, lat_key: str, lon_key: str) -> tuple[float, float] | None:
     try:
         return float(row[lat_key].strip()), float(row[lon_key].strip())
-    except ValueError, KeyError:
+    except (ValueError, KeyError):  # fmt: skip
         return None
 
 
