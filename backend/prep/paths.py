@@ -22,7 +22,6 @@
 """
 
 import os
-import sys
 from pathlib import Path
 
 PREP_DIR = Path(__file__).resolve().parent  # backend/prep
@@ -117,16 +116,3 @@ def require(path, how):
     if not os.path.exists(str(path)):
         raise FileNotFoundError(f"{rel(path)} が無い。先にこれを実行する:\n    {how}")
     return str(path)
-
-
-def _warn_if_missing():
-    """`data/` が丸ごと無いときだけ一度知らせる（import しただけでは落とさない）"""
-    if not DATA_ROOT.exists():
-        print(
-            f"[paths] {rel(DATA_ROOT)} がありません。"
-            "元データを data/raw/ に置き、prep で生成物を作ってください",
-            file=sys.stderr,
-        )
-
-
-_warn_if_missing()

@@ -49,9 +49,8 @@ profileを変えた後は、起動中のAPIまたはContainerを再起動する�
 
 ```bash
 cd "$(git rev-parse --show-toplevel)/backend"
-cp -n .env.example .env
-HAZARD_DATA_PROFILE=kensetsu \
-  uv run --frozen uvicorn app.main:app --host 127.0.0.1 --port 8000
+test -f .env || cp .env.example .env
+HAZARD_DATA_PROFILE=kensetsu uv run --frozen uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 `.env`の `HAZARD_DATA_PROFILE` を変更してもよい。コマンド先頭の環境変数が優先される。
@@ -236,6 +235,7 @@ npm run tiles:upload -- /absolute/path/to/data/processed/tiles --check
 
 | 症状 | 主な原因 | 確認 |
 |---|---|---|
+| uvicornが`address already in use`で終了 | 別プロセスが8000番を使用中 | 使用中のAPIを止めるか、uvicornと`API_TARGET`を同じ別ポートへ変更 |
 | プリセットAPIが503 | 古いブランチ、profile成果物なし、Docker build context違い | `backend/bundles/{profile-id}/{scope}/index.json` |
 | 任意地点探索が503 | 選択profileのNPZなし | `backend/graph/{profile-id}/{scope}/*.npz` |
 | uvicornでタイル404 | `data/processed/tiles/`なし、profile名不一致 | `TILES_DIR`とタイル配置 |
