@@ -30,7 +30,7 @@ _HAZARD_COLS: dict[str, str] = {
 def _parse_latlng(row: dict, lat_key: str, lon_key: str) -> tuple[float, float] | None:
     try:
         return float(row[lat_key].strip()), float(row[lon_key].strip())
-    except (ValueError, KeyError):
+    except ValueError, KeyError:
         return None
 
 
@@ -81,7 +81,9 @@ def load_area() -> list[dict]:
     features: list[dict] = []
     with open(path, encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
-        hazard_keys_normalized = {k.replace("\n", ""): v for k, v in _HAZARD_COLS.items()}
+        hazard_keys_normalized = {
+            k.replace("\n", ""): v for k, v in _HAZARD_COLS.items()
+        }
         for i, row in enumerate(reader):
             # 列名の \n を除去したdictに変換
             row = {k.replace("\n", ""): v for k, v in row.items()}
