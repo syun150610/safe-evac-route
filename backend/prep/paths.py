@@ -9,8 +9,9 @@
     <リポジトリ直下>/data/processed/bundles/   プリセット（APIが返す）
     <リポジトリ直下>/data/cache/               OSMnx のキャッシュ
 
-**`data/` は全部 gitignore。** 生の元データは配布元から取り直せるし、
-`processed/` は `prep` で再生成できる（AGENTS.md の `data/{raw,processed}` に合わせた）。
+**`data/` の実データは gitignore。** 生の元データは配布元から取り直せるし、
+`processed/` は `prep` で再生成できる。標準ディレクトリを示す `.gitkeep` だけを
+追跡する（AGENTS.md の `data/{raw,processed}` に合わせた）。
 
 **cwd に依存させない。** `__file__` から解決するので、
 
@@ -80,8 +81,7 @@ def rel(path):
 
     絶対パスを焼き込むと、環境ごとに差分が出て再現性の確認ができなくなる。
     """
-    # resolve() はシンボリックリンクを辿ってしまい、data/ を別の場所に張っている
-    # 環境でリポジトリ外と判定される。正規化だけして相対を取る
+    # 成果物へ環境依存の実パスを焼き込まないため、絶対パス化だけして相対を取る。
     ap = os.path.abspath(str(path))
     r = os.path.relpath(ap, ROOT)
     return str(path) if r.startswith("..") else r

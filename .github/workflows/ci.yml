@@ -28,6 +28,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Reject tracked symlinks
+        run: |
+          tracked_symlinks="$(git ls-files -s | awk '$1 == "120000" { print $4 }')"
+          if [[ -n "${tracked_symlinks}" ]]; then
+            echo "::error::symlinkは使用できません。実ファイルまたは実ディレクトリを配置してください。"
+            printf '%s\n' "${tracked_symlinks}"
+            exit 1
+          fi
+
       - name: Detect changed paths
         id: filter
         uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
