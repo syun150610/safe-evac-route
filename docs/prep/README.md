@@ -12,7 +12,8 @@
 
 - NPZグラフとプリセットJSONは `backend/graph/`、`backend/bundles/` に追跡済み
 - Dockerイメージにも上の2ディレクトリを同梱する
-- rawと再生成可能なprocessedはGitに入れない
+- rawと再生成可能なprocessedの実データはGitに入れない
+- `data/`配下は実ディレクトリとして使い、symlinkは使わない
 - ローカルで浸水・地震レイヤーまで表示するときだけ `data/processed/tiles/` が必要
 - 本番の表示タイルはContainerではなくR2から配信する
 
@@ -58,8 +59,10 @@ OpenStreetMap道路網 ───────────────────
 | 圧縮NPZ | `data/processed/runtime_graph/{profile-id}/{scope}/` | `backend/graph/{profile-id}/{scope}/` | 追跡 |
 | プリセット | `data/processed/bundles/{profile-id}/{scope}/` | `backend/bundles/{profile-id}/{scope}/` | 追跡 |
 
-`data/`はraw・processed・cacheを含めてGit管理外である。生成後に本番採用するNPZと
-プリセットだけを、数値検証後にruntimeディレクトリへ明示的に追加する。
+`data/`は標準ディレクトリを示す`.gitkeep`だけをGitで追跡し、raw・processed・cacheの
+実データはGit管理外とする。別の場所へのsymlinkは使わず、一次データをコピーまたは取得し、
+成果物を実ディレクトリへ生成する。生成後に本番採用するNPZとプリセットだけを、数値検証後に
+runtimeディレクトリへ明示的に追加する。
 
 ## データprofileと探索範囲
 
