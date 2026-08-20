@@ -104,6 +104,9 @@ docker run --rm \
 ```
 
 NPZとプリセットはイメージへ同梱されるため、`data/`なしでもAPIと任意地点探索が動く。
+`Uvicorn running on http://0.0.0.0:8000`まで表示されればContainerの起動は成功している。
+そのターミナルは止めず、別ターミナルから[共通スモークテスト](#共通スモークテスト)を
+実行する。表示用成果物をmountしていないため、タイル確認だけは404が正常である。
 
 ### Dockerバックエンド＋npmフロントで表示タイルも確認する
 
@@ -111,15 +114,25 @@ NPZとプリセットはイメージへ同梱されるため、`data/`なしで�
 `npm run dev`」という組み合わせである。`data/processed/tiles/`がある端末では、
 ホストの生成物を読み取り専用でマウントする。
 
+fresh cloneには表示用成果物がないため、この確認はそのままでは実行できない。チームで
+共有した成果物を別の場所に配置している場合は、`TASK_TILES_DIR`をその絶対パスへ変更する。
+表示用成果物がない人はこの項目をスキップしてよい。
+
 ターミナル1でバックエンドを起動する。
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
+TASK_TILES_DIR="$(pwd)/data/processed/tiles"
+test -d "$TASK_TILES_DIR" || {
+  echo "表示用成果物がありません: $TASK_TILES_DIR" >&2
+  exit 1
+}
+
 docker run --rm \
   --publish 8000:8000 \
   --env HAZARD_DATA_PROFILE=kensetsu \
   --env TILES_DIR=/tiles-data \
-  --mount type=bind,src="$(pwd)/data/processed/tiles",dst=/tiles-data,readonly \
+  --mount type=bind,src="$TASK_TILES_DIR",dst=/tiles-data,readonly \
   safe-evac-route-backend:local
 ```
 
@@ -127,7 +140,7 @@ docker run --rm \
 
 ```bash
 cd "$(git rev-parse --show-toplevel)/frontend"
-API_TARGET=http://127.0.0.1:8000 npm run dev
+API_TARGET=http://127.0.0.1:8000 npm run dev -- --strictPort
 ```
 
 上のmount構文はLinux・macOS・WSL向けである。Windows PowerShellからDockerを直接使う
