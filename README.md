@@ -72,3 +72,4 @@ cp backend/.env.example backend/.env
 - [Cloudflare構成](docs/cloudflare.md)
 - [データベース構成](docs/database.md)
 - [CI/CD](docs/ci-cd.md)
+- [Google Maps JavaScript APIキーの準備](docs/google-maps-api-key.md)

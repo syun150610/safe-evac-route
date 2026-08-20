@@ -42,10 +42,14 @@ Environment Secretsとして次の値を登録する。
 
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
+- `VITE_GOOGLE_MAPS_API_KEY`
 
 `CLOUDFLARE_API_TOKEN` はCloudflare公式の `Edit Cloudflare Workers` テンプレートで
 作成し、対象をこのプロジェクトのCloudflareアカウントだけに限定する。秘密値は
 リポジトリ、`.env.example`、Issue、Pull Requestへ記載しない。
+
+`VITE_GOOGLE_MAPS_API_KEY`のローカル用・本番用の分離、Google Cloud側の制限、登録手順は
+[Google Maps JavaScript APIキーの準備](google-maps-api-key.md)を参照する。
 
 ## GitHub Ruleset
 
