@@ -93,9 +93,13 @@ docker run --rm \
 
 NPZとプリセットはイメージへ同梱されるため、`data/`なしでもAPIと任意地点探索が動く。
 
-### 表示タイルも確認する
+### Dockerバックエンド＋npmフロントで表示タイルも確認する
 
-`data/processed/tiles/`がある端末では、ホストの生成物を読み取り専用でマウントする。
+これは「バックエンドは本番Containerに近いDocker、フロントはHMRが使える
+`npm run dev`」という組み合わせである。`data/processed/tiles/`がある端末では、
+ホストの生成物を読み取り専用でマウントする。
+
+ターミナル1でバックエンドを起動する。
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
@@ -107,8 +111,12 @@ docker run --rm \
   safe-evac-route-backend:local
 ```
 
-フロントはAと同じく、別ターミナルで `API_TARGET=http://127.0.0.1:8000 npm run dev`
-として起動する。
+ターミナル2でフロントを起動する。
+
+```bash
+cd "$(git rev-parse --show-toplevel)/frontend"
+API_TARGET=http://127.0.0.1:8000 npm run dev
+```
 
 上のmount構文はLinux・macOS・WSL向けである。Windows PowerShellからDockerを直接使う
 場合は、`src`をWindowsの絶対パスへ置き換える。
@@ -178,7 +186,21 @@ curl --fail --silent --show-error \
 
 ## 前処理を実行する場合
 
-通常起動では不要である。タイル・NPZ・プリセットを作り直す場合だけ実行する。
+初回cloneした全員が前処理する必要はない。必要範囲は目的によって異なる。
+
+| 目的 | raw・processed | 完全再生成 |
+|---|---|---|
+| 通常のフロント・API・任意地点探索開発 | 不要 | 不要 |
+| ローカルで浸水・地震レイヤーも表示 | `data/processed/tiles/`のみ必要 | 不要 |
+| raw・シナリオ・格子処理・重み・探索範囲を変更 | 必要 | 必要 |
+| 本番採用するタイル・NPZ・プリセットを更新 | 必要 | 必要 |
+
+表示確認だけなら、チームで共有した `data/processed/tiles/` を配置するのが最短である。
+自分でタイルを再現する場合は[一次データの取得](prep/raw-data.md)と
+[浸水データの入力と再生成](prep/flood-data.md)の「表示タイルだけ必要な場合」を使う。
+
+完全再生成は、データ入力や計算処理を変更した担当者が、タイル・pickle・NPZ・
+プリセットの整合性を確認するときに行う。
 
 ```bash
 cd "$(git rev-parse --show-toplevel)/backend"
@@ -193,7 +215,7 @@ data/raw/tokyoto_kensetsukyoku/*.csv
 data/raw/hazard/hazard.gpkg
 ```
 
-3シナリオを既存成果物と別の場所へ生成する完全なコマンドは
+3シナリオを既存成果物と別の場所へ生成する完全なコマンドは、データ成果物の更新担当が
 [浸水データの入力と再生成](prep/flood-data.md#既存成果物を上書きしない再生成)を使う。
 生成後は最低限、次を確認する。
 

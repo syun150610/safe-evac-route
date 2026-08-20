@@ -30,7 +30,29 @@ data/raw/hazard/hazard.gpkg
 このファイルがない場合、グラフ生成は警告を出して地震属性を省略する。その出力を本番へ
 採用してはいけない。
 
+## 表示タイルだけ必要な場合
+
+通常のAPI・探索開発にはrawもタイルも不要である。Dockerバックエンドとnpmフロントで
+浸水・地震レイヤーまで表示したい場合だけ、共有済みの `data/processed/tiles/` を配置するか、
+次を実行する。pickle・NPZ・プリセットの生成は不要である。
+
+```bash
+cd "$(git rev-parse --show-toplevel)/backend"
+uv sync --frozen --group prep
+
+uv run --frozen --group prep python -m prep.tile_render.render \
+  --all --out-root ../data/processed/tiles/flood/kensetsu
+
+uv run --frozen --group prep python -m prep.hazard_sources.quake.export
+```
+
+必要なCSVとGPKGの準備は[一次データの取得](raw-data.md)を参照する。一度も生成していない
+端末でも、このタイル生成まででローカル表示確認には足りる。
+
 ## 既存成果物を上書きしない再生成
+
+ここから先は、raw・シナリオ・格子処理・重み・探索範囲を変更した場合や、本番採用する
+成果物を更新する場合の手順である。初回cloneしただけのチームメンバーは実行不要である。
 
 生成物は「成果物の種類 → 入力profile → 探索範囲」で分ける。浸水タイルは単一ハザード
 なので `flood/kensetsu`、地震属性も含むグラフ・NPZ・bundleは
@@ -43,7 +65,7 @@ data/raw/hazard/hazard.gpkg
 変更しない。採用時は後述のprofile別ディレクトリへ追加し、旧成果物も残す。
 
 ```bash
-cd backend
+cd "$(git rev-parse --show-toplevel)/backend"
 PROFILE=flood-kensetsu_quake-risk9
 SCOPE=scope-kitasenju-ueno
 TILE_OUT=../data/processed/tiles/flood/kensetsu
@@ -53,6 +75,8 @@ BUNDLE_OUT=../data/processed/bundles/$PROFILE/$SCOPE
 
 uv run --frozen --group prep python -m prep.tile_render.render \
   --all --out-root "$TILE_OUT"
+
+uv run --frozen --group prep python -m prep.hazard_sources.quake.export
 
 uv run --frozen --group prep python -m prep.route_search.graph \
   --scenario envelope --out "$GRAPH_OUT/kitasenju_ueno_envelope.pkl"
@@ -114,7 +138,7 @@ quake/{building,fire,total}.geojson
 profile名の下へコピーする。元ディレクトリは削除しない。
 
 ```bash
-cd data/processed/tiles/flood
+cd "$(git rev-parse --show-toplevel)/data/processed/tiles/flood"
 mkdir -p gesuido
 cp -a envelope kandagawa sumidagawa gesuido/
 ```
@@ -123,7 +147,7 @@ cp -a envelope kandagawa sumidagawa gesuido/
 このコマンドはR2を書き換えるため、PRのローカル検証では実行しない。
 
 ```bash
-cd worker
+cd "$(git rev-parse --show-toplevel)/worker"
 npm run tiles:upload -- "$(cd ../data/processed/tiles && pwd)" --check
 # `validated 4985 assets (no upload)` を確認した後、レビュー済みなら:
 npm run tiles:upload -- "$(cd ../data/processed/tiles && pwd)"
