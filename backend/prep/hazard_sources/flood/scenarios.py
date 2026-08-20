@@ -1,44 +1,49 @@
-"""浸水シナリオの定義 — どのCSVをどう合成するか。
+"""浸水シナリオの定義 — どの建設局CSVをどう合成するか。
 
-make_tiles.py から切り出した（2026-08-16 の構成整理）。**中身は変えていない。**
 タイル生成（tile_render）とグラフ構築（route_search）の両方がここを見る。
+入力ファイルを各処理へ重複して書かず、この定義を単一の出所にする。
 """
 
 from prep.paths import data_path
 
+KENSETSU_DATASET_URL = (
+    "https://catalog.data.metro.tokyo.lg.jp/dataset/t000014d0000000029"
+)
+FLOOD_SOURCE_ID = "kensetsu"
+FLOOD_SOURCE_LABEL = "東京都建設局 浸水予想区域図"
+
+
+def kensetsu_csv(filename):
+    return data_path("tokyoto_kensetsukyoku", filename)
+
+
 # ---------------- シナリオ定義 ----------------
-# 1シナリオ = 1つの想定事象。複数CSVは「同一シナリオの地理的分割」の場合だけ結合する。
+# 建設局17 CSVを正式な一次入力とし、現在の3シナリオへ必要なファイルを割り当てる。
+# 17 CSVを17シナリオとして公開するわけではない。
 SCENARIOS = {
     # ---- 包絡（既定） ----
-    # 採用規則: 実数値(m) かつ 世界測地系 のファイルのみ（docs/dev/03_ハザード拡張.md C-1）。
-    # 対象コリドー（北千住↔上野）に点があるか、bboxが重なるものを選定した。
     "envelope": {
         "label": "包絡（複数河川の最大値）",
         "csv": [
-            data_path("shinsui_sumidagawa.csv"),  # 隅田川及び新河岸川
-            data_path(
-                "0_kandakaiseicsvnorth.csv"
-            ),  # 神田川（例外的に数字系列が実数値・世界測地系）
-            data_path("1_kandakaiseicsvsouth.csv"),
-            data_path(
-                "nakagawa_ayase_jiban_shinsui_1.csv"
-            ),  # 中川・綾瀬川（コリドー北端に501点）
-            data_path("koutou_jiban_shinsui_1.csv"),  # 江東（bboxのみ重なる。念のため）
+            kensetsu_csv("shinsui_sumidagawa.csv"),
+            kensetsu_csv("shinsui_kandagawa.csv"),
+            kensetsu_csv("shinsui_nakagawa.csv"),
+            kensetsu_csv("shinsui_koutounaibu.csv"),
         ],
+        "source_dataset_url": KENSETSU_DATASET_URL,
+        "precision_note": "神田川は東京都の公開値をメートルとしてそのまま採用",
     },
     # ---- 単一河川シナリオ（切替オプション） ----
     "sumidagawa": {
         "label": "隅田川及び新河岸川流域",
-        "csv": [data_path("shinsui_sumidagawa.csv")],
+        "csv": [kensetsu_csv("shinsui_sumidagawa.csv")],
+        "source_dataset_url": KENSETSU_DATASET_URL,
     },
     "kandagawa": {
         "label": "神田川流域",
-        # 実数値の系列（改正版）を採用。kanda_jiban_shinsui_* は浸水深がランク値(0〜7)で、
-        # 各ランクが何メートルかがデータから分からないため使わない（docs/findings/データ棚卸し.md 第4節）
-        "csv": [
-            data_path("0_kandakaiseicsvnorth.csv"),
-            data_path("1_kandakaiseicsvsouth.csv"),
-        ],
+        "csv": [kensetsu_csv("shinsui_kandagawa.csv")],
+        "source_dataset_url": KENSETSU_DATASET_URL,
+        "precision_note": "東京都の公開値をメートルとしてそのまま採用",
     },
 }
 
