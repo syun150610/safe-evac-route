@@ -70,9 +70,10 @@ cp .env.example .env
 ## 関連ドキュメント
 
 - [Cloudflare構成](docs/cloudflare.md)
-- [前処理・runtime成果物の全体像](docs/prep-overview.md)
+- [前処理・runtime成果物の全体像](docs/prep/README.md)
 - [ローカル実行・検証runbook](docs/local-runbook.md)
-- [浸水データの入力と再生成](docs/flood-data.md)
+- [一次データの取得](docs/prep/raw-data.md)
+- [浸水データの入力と再生成](docs/prep/flood-data.md)
 - [データベース構成](docs/database.md)
 - [CI/CD](docs/ci-cd.md)
 - [Google Maps JavaScript APIキーの準備](docs/google-maps-api-key.md)

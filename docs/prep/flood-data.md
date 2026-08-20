@@ -10,6 +10,8 @@
 
 現在の3シナリオは `backend/prep/hazard_sources/flood/scenarios.py` を単一の出所とする。
 
+CSV 17件と地震SHPの取得、地震GPKGの生成は[一次データの取得](raw-data.md)を使う。
+
 | シナリオ | 建設局CSV |
 |---|---|
 | `sumidagawa` | `shinsui_sumidagawa.csv` |
@@ -19,7 +21,7 @@
 神田川CSVには、小数メートルと整数メートルの図郭が混在する。整数値を未知のランクとして
 除外せず、東京都の公開値をメートルとしてそのまま採用する。丸め前の値は推定・補正しない。
 
-グラフへ地震属性も焼き込むため、次のファイルも必要になる。
+グラフへ地震属性も焼き込むため、公式SHPから正規化した次のファイルも必要になる。
 
 ```text
 data/raw/hazard/hazard.gpkg

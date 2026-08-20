@@ -3,8 +3,8 @@
 ## この文書の目的
 
 ハザードデータの一次入力から、画面表示・プリセット・任意地点探索で使う成果物までの
-関係を示す。実際のコマンドは [ローカル実行・検証runbook](local-runbook.md) と
-[浸水データの入力と再生成](flood-data.md) を参照する。
+関係を示す。実際のコマンドは [ローカル実行・検証runbook](../local-runbook.md)、
+[一次データの取得](raw-data.md)、[浸水データの入力と再生成](flood-data.md)を参照する。
 
 ## 先に結論
 
@@ -22,11 +22,10 @@
 ## データフロー
 
 ```text
-東京都建設局 浸水CSV ─┐
-                       ├─ scenario定義 ─ 格子再構成 ─┬─ PNGタイル ── R2
-東京都 地域危険度GPKG ─┤                             │
-                       │                             └─ 道路エッジへ値を焼き込み
-OpenStreetMap道路網 ───┘                                            │
+東京都建設局 浸水CSV ─ scenario定義 ─ 格子再構成 ─┬─ PNGタイル ── R2
+                                                  └─ 浸水値 ───────┐
+東京都 地域危険度SHP ─ GPKG正規化 ──────────────── 地震ランク ────┤
+OpenStreetMap道路網 ─────────────────────────────── 道路グラフ ────┤
                                                                     ▼
                                                           前処理pickleグラフ
                                                              ├─ 圧縮NPZ ── 任意地点探索
@@ -40,9 +39,11 @@ OpenStreetMap道路網 ───┘                                            �
 | 種類 | ローカル配置 | 用途 |
 |---|---|---|
 | 東京都建設局 浸水予想区域図CSV | `data/raw/tokyoto_kensetsukyoku/` | 浸水格子、タイル、道路エッジ属性 |
-| 東京都 第9回地域危険度GPKG | `data/raw/hazard/hazard.gpkg` | 地震危険度の道路エッジ属性 |
+| 東京都 第9回地域危険度SHP | `data/raw/tokyoto_toshiseibikyoku/all2.zip` | 地震の公式一次入力 |
+| 正規化した地域危険度GPKG | `data/raw/hazard/hazard.gpkg` | 地震危険度の道路エッジ属性 |
 | OpenStreetMap道路網 | OSMnx取得・`data/cache/` | 歩行者道路グラフ |
 
+一次入力の取得とSHPからGPKGへの変換は[一次データの取得](raw-data.md)を参照する。
 現在の3シナリオと建設局CSVの対応は
 `backend/prep/hazard_sources/flood/scenarios.py`を単一の出所とする。詳細は
 [浸水データの入力と再生成](flood-data.md)に記載している。

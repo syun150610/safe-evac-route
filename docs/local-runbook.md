@@ -8,7 +8,7 @@
 2. Docker単体: 本番Containerに近いバックエンド確認
 3. Wrangler: Worker・Static Assets・Bindings・Containerの結合確認
 
-データ構造は [前処理・runtime成果物の全体像](prep-overview.md) を参照する。
+データ構造は [前処理・runtime成果物の全体像](prep/README.md) を参照する。
 
 ## 前提
 
@@ -182,7 +182,8 @@ cd /path/to/safe-evac-route/backend
 uv sync --frozen --group prep
 ```
 
-次のrawが必要になる。
+次のrawが必要になる。取得・地震GPKG変換は
+[一次データの取得](prep/raw-data.md)を参照する。
 
 ```text
 data/raw/tokyoto_kensetsukyoku/*.csv
@@ -190,7 +191,7 @@ data/raw/hazard/hazard.gpkg
 ```
 
 3シナリオを既存成果物と別の場所へ生成する完全なコマンドは
-[浸水データの入力と再生成](flood-data.md#既存成果物を上書きしない再生成)を使う。
+[浸水データの入力と再生成](prep/flood-data.md#既存成果物を上書きしない再生成)を使う。
 生成後は最低限、次を確認する。
 
 ```bash
