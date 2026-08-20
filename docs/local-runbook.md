@@ -119,6 +119,10 @@ fresh cloneには表示用成果物がない。浸水・地震レイヤーも確
 取得し、`data/processed/tiles/`を生成する。生成後、ホストの成果物を読み取り専用で
 Containerへマウントする。
 
+> [!IMPORTANT]
+> 下のDocker起動は、浸水PNGと地震GeoJSONを事前生成しない限り動作しない。
+> fresh clone直後には実行せず、生成しない人はこの表示確認をスキップする。
+
 ターミナル1でバックエンドを起動する。
 
 ```bash
@@ -143,6 +147,16 @@ fi
 cd "$(git rev-parse --show-toplevel)/frontend"
 API_TARGET=http://127.0.0.1:8000 npm run dev -- --strictPort
 ```
+
+5173番が使用中なら、Viteは意図的に起動を中止する。使用中のフロントを止めない場合は、
+空いている番号を`--port`で明示し、同じ番号のURLを開く。たとえば5174番を使う場合:
+
+```bash
+API_TARGET=http://127.0.0.1:8000 npm run dev -- --port 5174 --strictPort
+```
+
+- MapLibre: <http://localhost:5174/?platform=maplibre>
+- Google Maps: <http://localhost:5174/>。`frontend/.env.local`のAPIキーが必要
 
 上のmount構文はLinux・macOS・WSL向けである。Windows PowerShellからDockerを直接使う
 場合は、`src`をWindowsの絶対パスへ置き換える。
