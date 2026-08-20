@@ -9,13 +9,15 @@ export function useShelters(enabled: boolean, bbox?: [number, number, number, nu
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // 配列は毎レンダーで新インスタンスになるので文字列に変換して依存させる
+  const bboxStr = bbox ? bbox.join(',') : undefined
+
   useEffect(() => {
     if (!enabled) {
       setData(null)
       return
     }
     setLoading(true)
-    const bboxStr = bbox ? bbox.join(',') : undefined
     getShelters({ bbox: bboxStr })
       .then((d) => {
         setData(d)
@@ -23,7 +25,7 @@ export function useShelters(enabled: boolean, bbox?: [number, number, number, nu
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false))
-  }, [enabled, bbox?.join(',')])
+  }, [enabled, bboxStr])
 
   return { data, error, loading }
 }

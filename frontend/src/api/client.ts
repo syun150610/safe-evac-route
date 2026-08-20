@@ -1,7 +1,14 @@
 /** APIクライアント。**相対パスでバックの中を直接読まない**
  * （docs/dev/05_チーム移行案.md §3-2。フロントの階層に依存しなくなる）
  */
-import type { Area, Bundle, HazardCatalog, PresetIndex, SearchRequest, ShelterCollection } from '../map/types'
+import type {
+  Area,
+  Bundle,
+  HazardCatalog,
+  PresetIndex,
+  SearchRequest,
+  ShelterCollection,
+} from '../map/types'
 
 const BASE = import.meta.env.VITE_API_BASE ?? '/api'
 

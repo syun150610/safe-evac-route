@@ -13,21 +13,29 @@ from app.services.shelters import loader
 
 router = APIRouter(prefix="/api/shelters", tags=["shelters"])
 
+_VALID_TYPES = ("urgent", "designated", "all")
+
 
 def _parse_bbox(raw: str) -> tuple[float, float, float, float]:
     parts = raw.split(",")
     if len(parts) != 4:
         raise HTTPException(
             status_code=400,
-            detail={"error": "bad_request", "message": "bbox は left,bottom,right,top の形式で指定してください"},
+            detail={
+                "error": "bad_request",
+                "message": "bbox は left,bottom,right,top の形式で指定してください",
+            },
         )
     try:
         left, bottom, right, top = (float(p) for p in parts)
-    except ValueError:
+    except ValueError as e:
         raise HTTPException(
             status_code=400,
-            detail={"error": "bad_request", "message": "bbox の値が数値ではありません"},
-        )
+            detail={
+                "error": "bad_request",
+                "message": "bbox の値が数値ではありません",
+            },
+        ) from e
     return left, bottom, right, top
 
 
@@ -43,10 +51,13 @@ def shelters(
     """
     parsed_bbox = _parse_bbox(bbox) if bbox else None
 
-    if type and type not in ("urgent", "designated", "all"):
+    if type and type not in _VALID_TYPES:
         raise HTTPException(
             status_code=400,
-            detail={"error": "bad_request", "message": "type は urgent / designated / all のいずれかです"},
+            detail={
+                "error": "bad_request",
+                "message": "type は urgent / designated / all のいずれかです",
+            },
         )
 
     return loader.get(bbox=parsed_bbox, type_filter=type)

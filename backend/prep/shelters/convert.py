@@ -51,7 +51,7 @@ def load_center() -> list[dict]:
             if header is None:
                 header = [c.strip() for c in row]
                 continue
-            row_dict = dict(zip(header, row))
+            row_dict = dict(zip(header, row, strict=False))
             latlng = _parse_latlng(row_dict, "緯度", "経度")
             if latlng is None:
                 continue
@@ -81,8 +81,6 @@ def load_area() -> list[dict]:
     features: list[dict] = []
     with open(path, encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
-        # ヘッダ列名に \n が含まれる場合があるので正規化してマッピング
-        fieldnames = [k.replace("\n", "") for k in (reader.fieldnames or [])]
         hazard_keys_normalized = {k.replace("\n", ""): v for k, v in _HAZARD_COLS.items()}
         for i, row in enumerate(reader):
             # 列名の \n を除去したdictに変換
