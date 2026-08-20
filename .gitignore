@@ -49,8 +49,20 @@ pnpm-debug.log*
 #    スラッシュ有無の両方を書く。
 data/raw
 data/raw/
+# 実ディレクトリの場合だけplaceholderを追跡する。上のスラッシュなし規則により、
+# data/rawがsymlinkの場合は引き続きリンク自体をignoreする。
+!data/raw/
+data/raw/*
+!data/raw/.gitkeep
+!data/raw/tokyoto_toshiseibikyoku/
+data/raw/tokyoto_toshiseibikyoku/*
+!data/raw/tokyoto_toshiseibikyoku/.gitkeep
 data/processed
 data/processed/
+# processedも実成果物はignoreし、空ディレクトリを保つplaceholderだけ追跡する。
+!data/processed/
+data/processed/*
+!data/processed/.gitkeep
 data/cache
 data/cache/
 
