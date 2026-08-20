@@ -1,8 +1,7 @@
-"""検証・デモに使う地点とOD 12組。
+"""検証・プリセット生成に共通で使う地点とOD 12組。
 
-studies/od_study.py から切り出した（2026-08-16）。**中身は変えていない。**
-本番（bundles.py）が使うので、検証専用の studies/ には置けない
-（studies → prep の一方向にするため。docs/dev/引き継ぎ.md / tests/test_layering.py）。
+本番のbundles.pyも使う定義なのでprepに置き、検証専用のstudiesには依存させない。
+依存方向はtests/test_layering.pyで検証する。
 """
 
 P = {

@@ -9,7 +9,7 @@ route_search/graph.py の bake_quake() から切り出した。**ロジックは
 
 ⚠️ **51市区町村しか含まないので「範囲外」は実在する。**
 ポリゴンの外を「ランク0＝最も安全」として扱うと、探索器が未評価の道へ逃げ込む
-（浸水側で潰したのと同じ問題。docs/findings/検証記録.md 6-2）。
+（浸水側と同じ問題）。
 だから covered を必ず一緒に返す。
 """
 
@@ -17,7 +17,7 @@ import os
 
 # ⚠️ numpy / pandas / geopandas は **sample_ranks() の中で import する。**
 #    このモジュールの COLUMNS と SCENARIOS は API（/api/hazards の凡例）も読むので、
-#    モジュール先頭で重い依存を引くと API に pandas が要る（05_チーム移行案 §3-3）。
+#    モジュール先頭で重い依存を引くとAPIの実行時依存にpandas等が混ざる。
 
 # GPKGの列名 → エッジ属性名。3つの「シナリオ」に相当する
 COLUMNS = {

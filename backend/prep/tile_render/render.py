@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""浸水深タイルの描画 — 格子をXYZのPNGに焼く。
+"""共通浸水格子をXYZ形式のPNGタイルへ描画する。
 
-make_tiles.py から切り出した（2026-08-16 の構成整理）。**中身は変えていない。**
-格子そのものは prep/hazard_sources/flood/grid.py が持つ。
+格子の生成・被覆判定は prep/hazard_sources/flood/grid.py が持つ。
 
 使い方（backend/ で実行する）:
     python3 -m prep.tile_render.render --all
@@ -19,9 +18,7 @@ import sys
 import numpy as np
 from PIL import Image
 
-# ⚠️ 2026-08-16 に make_tiles.py から切り出したとき、**この2つが落ちていた**。
-#    引きのズーム（1pxが格子1個より粗い）でしか使わないので、
-#    タイルを焼き直すまで1年でも露見しない類のバグ。z12〜14 で NameError になる。
+# 引きのズームでは、1px内の最大浸水深と最小被覆を取るために使う。
 from scipy.ndimage import maximum_filter, minimum_filter
 
 from prep.hazard_sources.flood.grid import COVERAGE_EXTENT, load_grid
@@ -41,7 +38,6 @@ OUT_ROOT = tiles_path("flood")
 #   frontend/src/map/EvacRouteMap.tsx  FLOOD_ZOOM
 # ⚠️ 補間を切るのも忘れない（MapLibre: raster-resampling=nearest /
 #    Google: getTile の image-rendering=pixelated）。切らないとブロックがぼやける。
-# 経緯: docs/dev/07_チーム統合の差分.md §2-7-0
 ZOOMS = range(12, 16)
 PALETTE = "standard"  # "standard"(国交省浸水深標準色) or "pedestrian"(徒歩基準)
 BBOX = None  # (lat_min, lat_max, lon_min, lon_max) or None=全域
@@ -50,8 +46,6 @@ MIN_DEPTH = 0.01  # これ未満は透明（浸水なし扱い）
 
 # 「浸水しない」と「このシナリオが覆っていない」を描き分けるためのハッチ。
 # 前者は透明、後者はグレーの斜線。区別しないと、覆っていないだけの場所が「安全」に見える。
-# ⚠️ scipy の import と同じく、2026-08-16 の切り出しで**落ちていた3つ**。
-#    値は元の make_tiles.py のまま（`git show aec01fe^:backend/prep/make_tiles.py`）
 HATCH_RGBA = (120, 124, 130, 70)  # 対象外のハッチ色
 HATCH_PERIOD = 10  # 斜線の周期(px)
 HATCH_WIDTH = 3  # 斜線の太さ(px)

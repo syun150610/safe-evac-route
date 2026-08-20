@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     graph_dir: str = str(RUNTIME_GRAPH_DIR)
     # 開発中だけ FastAPI から配るタイル。**本番は Worker + R2**（開発サーバ専用）
     tiles_dir: str = str(TILES_DIR)
-    # タイルURLの組み立て先。R2 に移したらここを差し替えるだけでフロントは無改修
+    # タイルURLの組み立て先。ローカルFastAPIと本番Worker/R2を環境設定で切り替える
     tile_base_url: str = "/tiles"
 
     model_config = SettingsConfigDict(

@@ -2,7 +2,7 @@
 """
 タスクB: 経路探索とGeoJSON出力
 
-build_graph.py が焼き込んだグラフから2本の経路を出す。
+prep.route_search.graphが焼き込んだグラフから2本の経路を出す。
 
   baseline  weight="length"         単純最短（既存の地図アプリ相当）
   hazard    weight="weight_hazard"  ハザード重み付き（本作品の主張）
@@ -13,8 +13,8 @@ build_graph.py が焼き込んだグラフから2本の経路を出す。
   data/processed/route_analysis.json     数値サマリ
 
 使い方:
-    python3 route.py
-    python3 route.py --origin 35.7497 139.8050 --dest 35.7141 139.7774
+    python3 -m prep.route_search.search
+    python3 -m prep.route_search.search --origin 35.7497 139.8050 --dest 35.7141 139.7774
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ import networkx as nx
 from prep.paths import OUT_DIR
 
 # ⚠️ **graph.py から取らない。** あれは osmnx を import しているので、
-#    ここ経由で API が osmnx を抱え込む（05_チーム移行案 §3-3）。
+#    ここ経由でAPIがosmnxを抱え込む。
 #    探索に要るぶんだけ snap.py に切り出してある
 from prep.route_search.snap import (
     DEST_DEFAULT,
@@ -348,7 +348,7 @@ def main():
         description="ハザード考慮経路の探索とGeoJSON出力（タスクB）"
     )
     ap.add_argument(
-        "--graph", default=GRAPH_DEFAULT, help="build_graph.py が出力した pickle"
+        "--graph", default=GRAPH_DEFAULT, help="prep.route_search.graphが出力したpickle"
     )
     ap.add_argument(
         "--origin",

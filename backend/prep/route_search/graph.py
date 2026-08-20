@@ -13,12 +13,12 @@ OSM歩行者ネットワーク（OSMnx）の各エッジに、浸水予想区域
 設計上の決定（SPEC 4-5）:
   ランタイムで空間検索をしない。ここで全部焼き込む。実行時はただの重み付きグラフ探索。
 
-依存: osmnx, networkx, numpy, pandas, shapely（+ make_tiles.py 経由で scipy, Pillow）
+依存: `pyproject.toml` の prep dependency group
 
-使い方:
-    python3 build_graph.py                  # 北千住↔上野（デフォルト）
-    python3 build_graph.py --rebuild        # OSMキャッシュを無視して取り直す
-    python3 build_graph.py --graphml        # GraphML も併せて出力
+使い方（backend/で実行）:
+    python3 -m prep.route_search.graph --scenario envelope
+    python3 -m prep.route_search.graph --scenario kandagawa --rebuild
+    python3 -m prep.route_search.graph --scenario sumidagawa --graphml
 """
 
 from __future__ import annotations
@@ -46,9 +46,8 @@ from prep.hazard_sources.flood.cost import (
     hazard_cost_vec,
 )
 
-# load_grid はタイル生成と完全に同じロジックを使う。
-# 自前で書き直すと格子原点がズレてタイルとエッジ値が食い違うので、必ず import する。
-# （make_tiles.py は import しても副作用なし: 処理は __main__ ガード内）
+# load_grid はタイル生成と完全に同じロジックを使う。自前で書き直すと格子原点がズレて
+# タイルとエッジ値が食い違うため、必ず共通実装をimportする。
 from prep.hazard_sources.flood.grid import load_grid, lookup_covered
 from prep.hazard_sources.flood.scenarios import (
     FLOOD_SOURCE_ID,
@@ -86,9 +85,7 @@ MAX_SAMPLES_PER_EDGE = 500  # 異常に長いエッジの保険
 
 # 北千住↔上野 区間の浸水深分布（隅田川CSV単体の実測値）。main() の末尾で
 # CSVから再計算して突き合わせ、ズレたら「データが更新された可能性」として報告する。
-# ⚠️ render.py の HATCH_* と同じく、2026-08-16 の切り出しで**落ちていた**。
-#    --skip-spec-check を付けずに基準CSVで焼いたときだけ NameError になるので、
-#    グラフを焼き直すまで露見しない。値は元の build_graph.py のまま
+# --skip-spec-checkを付けずに隅田川シナリオを生成した場合だけ照合する。
 SPEC_STATS_BBOX = (35.705, 35.760, 139.770, 139.812)  # lat0, lat1, lon0, lon1
 SPEC_STATS_EXPECTED = {
     "n_points": 181613,
@@ -185,7 +182,7 @@ def sample_points(lines, lengths, step_m: float):
 def lookup_depth(coords, grid, meta):
     """サンプル点(lon,lat) -> 最寄りグリッドセルの浸水深。
 
-    make_tiles.render() と同じインデックス計算（最近傍）。KDTreeは使わない。
+    tile_renderと同じ共通格子のインデックス計算（最近傍）。KDTreeは使わない。
     グリッド範囲外は 0.0（＝浸水なし扱い）とし、件数を返して呼び出し側で警告できるようにする。
     """
     lon = coords[:, 0]
@@ -287,7 +284,7 @@ def bake_quake(G, keys, coords, offsets, counts, gpkg=QUAKE_GPKG):
        旧版は最初にヒットした1件を採用していた。
     3. **範囲外(coverage)を区別する。** 旧版はポリゴン外を penalty 0（＝最も安全）
        として扱っていたが、これは「未評価の道が最安値になる」という、浸水側で
-       潰したのと同じ問題を起こす（docs/findings/検証記録.md 6-2）。
+       潰したのと同じ問題を起こす。
        このデータは51市区町村しか含まないので範囲外は実在する。
 
     C-2 の範囲では**属性を焼き込むだけ**で、weight_hazard は変更しない。
@@ -422,7 +419,7 @@ def main():
         "--scenario",
         choices=sorted(SCENARIOS),
         default=None,
-        help="make_tiles.py のシナリオ定義からCSVを引く（--csv より優先）",
+        help="共通シナリオ定義からCSVを引く（--csv より優先）",
     )
     ap.add_argument("--out", default=None, help="出力 pickle パス")
     ap.add_argument(
@@ -487,7 +484,7 @@ def main():
 
     # 1) 浸水深グリッド
     # BBOXは渡さずCSV全域を読む。全域でも約 1770x1546 float32 = 11MB と軽く、
-    # かつ make_tiles.py が生成したタイルと格子原点が完全に一致するので、
+    # かつtile_renderが生成したタイルと格子原点が完全に一致するので、
     # 「タイルの見た目」と「エッジの値」が食い違わない。
     print("loading depth grid ...")
     t0 = time.time()

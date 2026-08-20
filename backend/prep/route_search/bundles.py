@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-D-1 / D-2: デモUI用の経路バンドルを出力する（docs/dev/04_デモUI.md）
+"""デモUIとプリセットAPI用の経路バンドルを出力する。
 
 主OD は **北千住駅 → 上野駅**、対比OD は **牛田→浅草**（SPEC_D D-1）。
 ただし **ODはハードコードしない。** od_study.py の12組すべてを出力し、
@@ -14,11 +13,10 @@ UI側でプルダウンから選べるようにする。
   ⑤ quake     weight_quake     地震のみ … 比較用・推奨経路ではない    赤・既定OFF
   —  minimax  （二分探索）      最大浸水深を最小化した経路の下限       紫破線・既定OFF
 
-④を推奨にする根拠は docs/findings/検証記録.md 10-2:
-「地震を足す距離コストは、②比で中央値 −0.3%」＝ほぼ同じ距離で地震リスクが下がる。
-②を既定にする理由はもう無い。
+現行の検証値では、④の②に対する距離差の中央値は−0.3%だったため、
+現在の静的プリセットでは④を推奨経路として保持している。
 
-③(Google) は発表で表示しない方針（docs/dev/引き継ぎ.md 4章 課題7）。ここでも出さない。
+③（Google経路比較）は発表用プリセットへ含めない。
 
 出力:
 
@@ -32,10 +30,10 @@ UI側でプルダウンから選べるようにする。
 既存の `search.py` の出力（data/processed/route*.geojson）には**一切触らない**。
 あちらは検証用で、こちらは表示用。同じグラフから別の形で出す。
 
-使い方:
-    python3 demo_routes.py                      # 全シナリオ × 全OD（約3分）
-    python3 demo_routes.py --scenario envelope  # 包絡のみ
-    python3 demo_routes.py --od 北千住 上野      # 1組だけ
+使い方（backend/で実行）:
+    python3 -m prep.route_search.bundles
+    python3 -m prep.route_search.bundles --scenario envelope
+    python3 -m prep.route_search.bundles --od 北千住 上野
 """
 
 from __future__ import annotations
@@ -69,7 +67,7 @@ from prep.route_search.snap import nearest_node, snap_m
 
 OUTDIR = bundles_path()
 
-# シナリオID -> グラフ。build_graph.py --scenario の出力規則に合わせてある
+# シナリオID -> グラフ。prep.route_search.graphの出力規則に合わせる
 GRAPHS = {
     "envelope": graph_path("kitasenju_ueno_envelope.pkl"),
     "sumidagawa": graph_path("kitasenju_ueno.pkl"),  # 既定シナリオは接尾辞なし
@@ -101,7 +99,7 @@ SCENARIO_META = {
     },
 }
 
-# 表示順・番号は docs/findings/検証記録.md 10章の表記に合わせる（①②④⑤）。
+# 表示順・番号は既存プリセットと発表資料の表記（①②④⑤）を維持する。
 # ③ は Google で、発表では表示しない。番号を詰めると資料と食い違うので欠番のままにする。
 #   role="recommended" 推奨経路 / "compare" 比較対象 / "counterexample" 反例 / "bound" 下限
 ROUTES = [
@@ -169,7 +167,7 @@ def feature(coords, props):
 def segment_features(G, edges, route_id):
     """エッジ単位のFeature。浸水と地震を**別プロパティ**で持たせる。
 
-    単位が違うので1つの数値に混ぜない（docs/dev/03_ハザード拡張.md C-3「表示について」）。
+    浸水深と地震ランクは単位が違うので、表示用プロパティでは1つの数値に混ぜない。
     """
     feats = []
     for i, (u, v, k) in enumerate(edges):
@@ -373,7 +371,8 @@ def main():
     for sc in scenarios:
         if not os.path.exists(graphs[sc]):
             print(
-                f"! {graphs[sc]} が無い。build_graph.py --scenario {sc} を先に実行",
+                f"! {graphs[sc]} が無い。python -m prep.route_search.graph "
+                f"--scenario {sc} を先に実行",
                 file=sys.stderr,
             )
             continue

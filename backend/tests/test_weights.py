@@ -1,10 +1,10 @@
 """探索時の掛け合わせが、事前計算した重みと一致することの確認。
 
-段3（docs/dev/05_チーム移行案.md §3-3）で入れた `cost_{hazard}` の掛け合わせが、
+`cost_{hazard}` の動的な掛け合わせが、
 既存の `weight_hazard` / `weight_quake` / `weight_combined` と**同じ値・同じ経路**に
 なることを担保する。ここが崩れると、検証記録 10章の数値と実装が食い違う。
 
-グラフ（var/graph/*.pkl）が要るので、無ければスキップする。
+前処理pickleグラフ（data/processed/graph）が要るので、無ければスキップする。
 
     cd backend && python3 tests/test_weights.py
 """

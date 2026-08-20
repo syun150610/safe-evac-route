@@ -2,8 +2,8 @@
 
 ⚠️ **JSONの形は prep.route_search.bundles の出力そのまま。**
 フロントの表示・指標・判定文がこの形に直結しているので、API化に伴って変えない
-（05_チーム移行案 §3-1「守るもの」）。だからレスポンスは dict をそのまま返し、
-Pydanticで作り直さない。ここでは**説明のための型**だけ置く。
+方針である。レスポンスはdictをそのまま返し、Pydanticで作り直さない。
+ここでは**説明のための型**だけ置く。
 """
 
 from typing import Any
@@ -48,7 +48,7 @@ class SearchRequest(BaseModel):
     """POST /api/evac-routes/search
 
     ⚠️ **レスポンスの形はプリセットと同じ**（routes[] / geojson / …）。
-    フロントの表示コードを1本化するため（06_次セッションへの指示.md §2）。
+    フロントの表示コードを1本化するため。
 
         {
           "origin": {"lat": 35.7497, "lon": 139.8050},
