@@ -33,12 +33,23 @@ data/raw/hazard/hazard.gpkg
 ## 表示タイルだけ必要な場合
 
 通常のAPI・探索開発にはrawもタイルも不要である。Dockerバックエンドとnpmフロントで
-浸水・地震レイヤーまで表示したい場合だけ、共有済みの `data/processed/tiles/` を配置するか、
-次を実行する。pickle・NPZ・プリセットの生成は不要である。
+浸水・地震レイヤーまで表示したい場合だけ、次を実行する。pickle・NPZ・プリセットの
+生成は不要である。
+
+最初に、東京都の公式配布元から建設局CSV 17件と地域危険度SHPを取得する。
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+./scripts/prep/download-raw.sh all
+```
+
+次に、地震SHPを共通入力のGPKGへ正規化し、浸水PNGと地震GeoJSONを生成する。
 
 ```bash
 cd "$(git rev-parse --show-toplevel)/backend"
 uv sync --frozen --group prep
+
+uv run --frozen --group prep python -m prep.hazard_sources.quake.build
 
 uv run --frozen --group prep python -m prep.tile_render.render \
   --all --out-root ../data/processed/tiles/flood/kensetsu
@@ -46,8 +57,9 @@ uv run --frozen --group prep python -m prep.tile_render.render \
 uv run --frozen --group prep python -m prep.hazard_sources.quake.export
 ```
 
-必要なCSVとGPKGの準備は[一次データの取得](raw-data.md)を参照する。一度も生成していない
-端末でも、このタイル生成まででローカル表示確認には足りる。
+取得済みの空でないrawと既存GPKGは既定で再取得・上書きしない。取得物、公式URL、検証内容、
+明示的に作り直す場合の`--force`は[一次データの取得](raw-data.md)を参照する。一度も生成して
+いない端末でも、ここまででローカル表示確認には足りる。
 
 ## 既存成果物を上書きしない再生成
 

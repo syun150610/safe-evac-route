@@ -111,29 +111,30 @@ NPZとプリセットはイメージへ同梱されるため、`data/`なしで�
 ### Dockerバックエンド＋npmフロントで表示タイルも確認する
 
 これは「バックエンドは本番Containerに近いDocker、フロントはHMRが使える
-`npm run dev`」という組み合わせである。`data/processed/tiles/`がある端末では、
-ホストの生成物を読み取り専用でマウントする。
+`npm run dev`」という組み合わせである。この表示確認は任意であり、通常のAPI・探索開発に
+必要な手順ではない。
 
-fresh cloneには表示用成果物がないため、この確認はそのままでは実行できない。チームで
-共有した成果物を別の場所に配置している場合は、`TASK_TILES_DIR`をその絶対パスへ変更する。
-表示用成果物がない人はこの項目をスキップしてよい。
+fresh cloneには表示用成果物がない。浸水・地震レイヤーも確認したい場合だけ、先に
+[表示タイルだけ必要な場合](prep/flood-data.md#表示タイルだけ必要な場合)の手順で公式rawを
+取得し、`data/processed/tiles/`を生成する。生成後、ホストの成果物を読み取り専用で
+Containerへマウントする。
 
 ターミナル1でバックエンドを起動する。
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
 TASK_TILES_DIR="$(pwd)/data/processed/tiles"
-test -d "$TASK_TILES_DIR" || {
-  echo "表示用成果物がありません: $TASK_TILES_DIR" >&2
-  exit 1
-}
-
-docker run --rm \
-  --publish 8000:8000 \
-  --env HAZARD_DATA_PROFILE=kensetsu \
-  --env TILES_DIR=/tiles-data \
-  --mount type=bind,src="$TASK_TILES_DIR",dst=/tiles-data,readonly \
-  safe-evac-route-backend:local
+if test -f "$TASK_TILES_DIR/quake/total.geojson" && \
+   test -d "$TASK_TILES_DIR/flood/kensetsu/envelope"; then
+  docker run --rm \
+    --publish 8000:8000 \
+    --env HAZARD_DATA_PROFILE=kensetsu \
+    --env TILES_DIR=/tiles-data \
+    --mount type=bind,src="$TASK_TILES_DIR",dst=/tiles-data,readonly \
+    safe-evac-route-backend:local
+else
+  echo "表示用成果物がありません。任意のタイル生成手順を先に実行してください。" >&2
+fi
 ```
 
 ターミナル2でフロントを起動する。
