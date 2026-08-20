@@ -1,8 +1,7 @@
-"""事前計算したバンドルを読んで返すだけ。
+"""事前計算したプリセットバンドルを、選択中のprofileから読み出す。
 
-いまはこれだけで発表デモが成立する（**コンテナを1回も起こさずに配信できる**
-＝ Workers + R2 で足りる。05_チーム移行案 §4-5）。
-その場で経路を引く `search.py` は必要になってから足す。
+任意地点探索は別のsearchサービスがNPZグラフから計算する。ここでは事前計算済みJSONだけを
+扱い、プリセットAPIと任意地点探索の責務を混在させない。
 
 ⚠️ **ファイルの中身は加工しない。** バイト列をそのまま返すことで、
 静的配信していたときと同一であることを確認できるようにしてある。
@@ -19,14 +18,14 @@ class NotGenerated(Exception):
 
 
 def _path(*parts):
-    return os.path.join(get_settings().bundles_dir, *parts)
+    return os.path.join(get_settings().active_bundles_dir, *parts)
 
 
 def index_raw() -> bytes:
     p = _path("index.json")
     if not os.path.exists(p):
         raise NotGenerated(
-            "本番配布用プリセット bundles/index.json がありません。"
+            "選択中の本番配布用プリセット index.json がありません。"
             "Dockerイメージの作成元に backend/bundles が含まれているか確認してください"
         )
     with open(p, "rb") as f:

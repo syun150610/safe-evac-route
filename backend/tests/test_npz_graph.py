@@ -5,8 +5,8 @@ import os
 import numpy as np
 import pytest
 
+from app.core.config import get_settings
 from app.services.evac_routes import search as route_search
-from prep.paths import runtime_graph_path
 from prep.route_search.npz_graph import load_graph_npz
 
 GRAPH_NAMES = (
@@ -14,11 +14,19 @@ GRAPH_NAMES = (
     "kitasenju_ueno",
     "kitasenju_ueno_kandagawa",
 )
+PROFILES = ("gesuido", "kensetsu")
 
 
+def graph_path(name: str) -> str:
+    return os.path.join(get_settings().active_graph_dir, f"{name}.npz")
+
+
+@pytest.mark.parametrize("profile", PROFILES)
 @pytest.mark.parametrize("name", GRAPH_NAMES)
-def test_committed_npz_has_expected_shape_and_no_pickle(name):
-    path = runtime_graph_path(f"{name}.npz")
+def test_committed_npz_has_expected_shape_and_no_pickle(monkeypatch, profile, name):
+    monkeypatch.setenv("HAZARD_DATA_PROFILE", profile)
+    get_settings.cache_clear()
+    path = graph_path(name)
     assert os.path.exists(path)
     with np.load(path, allow_pickle=False) as data:
         assert int(data["schema_version"][0]) == 1
@@ -27,8 +35,16 @@ def test_committed_npz_has_expected_shape_and_no_pickle(name):
         assert all(array.dtype.kind != "O" for array in data.values())
 
 
-def test_npz_rebuilds_graph_and_searches_route():
-    graph = load_graph_npz(runtime_graph_path("kitasenju_ueno_envelope.npz"))
+@pytest.mark.parametrize(
+    ("profile", "combined_distance_m"),
+    [("gesuido", 5563.1), ("kensetsu", 5791.5)],
+)
+def test_npz_rebuilds_graph_and_searches_route(
+    monkeypatch, profile, combined_distance_m
+):
+    monkeypatch.setenv("HAZARD_DATA_PROFILE", profile)
+    get_settings.cache_clear()
+    graph = load_graph_npz(graph_path("kitasenju_ueno_envelope"))
     assert graph.number_of_nodes() == 27_144
     assert graph.number_of_edges() == 82_586
 
@@ -39,6 +55,7 @@ def test_npz_rebuilds_graph_and_searches_route():
         hazards={"flood": "envelope", "quake": "total"},
         with_segments=False,
     )
+    assert result["data_profile"] == profile
     assert result["selected_route"] == "combined"
     assert [route["id"] for route in result["routes"]] == ["baseline", "combined"]
     assert result["routes"][0]["stats"] == {
@@ -57,4 +74,4 @@ def test_npz_rebuilds_graph_and_searches_route():
         "quake_weighted_avg_rank": 2.765,
         "quake_out_of_coverage_ratio": 0.0,
     }
-    assert result["routes"][1]["stats"]["distance_m"] == 5563.1
+    assert result["routes"][1]["stats"]["distance_m"] == combined_distance_m

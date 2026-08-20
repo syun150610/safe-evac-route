@@ -1,4 +1,5 @@
 import { Container, getContainer } from "@cloudflare/containers";
+import { env } from "cloudflare:workers";
 
 import { handleD1Request } from "./bindings/d1";
 import { handleR2Request } from "./bindings/r2";
@@ -10,6 +11,9 @@ export { ContainerProxy } from "@cloudflare/containers";
 export class FastAPIContainer extends Container {
   defaultPort = 8000;
   sleepAfter = "5m";
+  envVars = {
+    HAZARD_DATA_PROFILE: env.HAZARD_DATA_PROFILE,
+  };
 }
 
 FastAPIContainer.outboundByHost = {

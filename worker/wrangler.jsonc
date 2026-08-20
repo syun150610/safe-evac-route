@@ -2,6 +2,11 @@
   "name": "saigai-map-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
+  "vars": {
+    // backendのプリセット・探索NPZ・浸水タイルを同じ世代へ一括で切り替える。
+    // 変更後はWorkerを再デプロイし、Containerを新しい設定で起動する。
+    "HAZARD_DATA_PROFILE": "kensetsu"
+  },
   "assets": {
     "directory": "../frontend/dist",
     "binding": "ASSETS",

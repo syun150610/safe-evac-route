@@ -7,14 +7,13 @@
 ## 対象エリア
 
 経路探索は**事前に焼いたグラフの中でしか動かない。** いま焼いてあるのは
-北千住↔上野の bbox + 1km だけ。外の地点は `OutOfArea` で弾く
-（docs/dev/06_次セッションへの指示.md §2「(a) で決定済み」）。
-23区に広げるには起終点周辺だけ切り出して読む仕組みが要る＝提出後（05 §4）。
+北千住↔上野の bbox + 1km だけで、外の地点は `OutOfArea` で弾く。
+東京都内へ広げる場合は、より大きいグラフの保持方法または地域分割の設計が別途必要になる。
 
 ## 重い依存を持ち込まない
 
 `prep.route_search.graph` は osmnx を import しているので**触らない**。
-探索に要るものは `prep.route_search.snap` に切り出してある（05 §3-3）。
+探索に要るものは `prep.route_search.snap` に分離してある。
 API に増える依存は networkx / numpy / shapely（NPZからのグラフ復元に要る）だけ。
 
 ## 掛け合わせ
@@ -30,9 +29,10 @@ import threading
 
 import networkx as nx
 
+from app.core.config import get_settings
 from prep.hazard_sources import registry
 from prep.hazard_sources.quake.cost import QUAKE_COST
-from prep.paths import rel, runtime_graph_path
+from prep.paths import rel
 from prep.route_search import bundles as B
 from prep.route_search.npz_graph import load_graph_npz
 from prep.route_search.search import (
@@ -88,7 +88,7 @@ MAX_SNAP_M = 300.0
 DEFAULT_SCENARIO = "envelope"
 DEFAULT_INCLUDE = ("baseline", "selected")
 
-_graphs: dict[str, nx.MultiDiGraph] = {}
+_graphs: dict[tuple[str, str], nx.MultiDiGraph] = {}
 _lock = threading.Lock()
 
 
@@ -97,7 +97,7 @@ def _graph_file(scenario: str) -> str:
         raise BadRequest(f"未知の浸水シナリオ: {scenario!r} / 既知={sorted(B.GRAPHS)}")
     source = B.GRAPHS[scenario]
     filename = os.path.splitext(os.path.basename(source))[0] + ".npz"
-    p = runtime_graph_path(filename)
+    p = os.path.join(get_settings().active_graph_dir, filename)
     if not os.path.exists(p):
         raise NotGenerated(
             f"{rel(p)} が無い。"
@@ -113,17 +113,20 @@ def _graph(scenario: str) -> nx.MultiDiGraph:
     ここに上限を入れること（05 §13 段11）。
     """
     p = _graph_file(scenario)
+    profile = get_settings().hazard_data_profile
     with _lock:
-        G = _graphs.get(scenario)
+        key = (profile, scenario)
+        G = _graphs.get(key)
         if G is None:
             G = load_graph_npz(p)
-            _graphs[scenario] = G
+            _graphs[key] = G
         return G
 
 
 def _graph_ref(path: str) -> str:
     """ローカルとコンテナで変わらない、レスポンス表示用のグラフ名。"""
-    return f"graph/{os.path.basename(path)}"
+    relative = os.path.relpath(path, get_settings().graph_dir)
+    return f"graph/{relative.replace(os.sep, '/')}"
 
 
 # ---------------- 対象エリア ----------------
@@ -139,6 +142,7 @@ def area(scenario: str = DEFAULT_SCENARIO) -> dict:
     meta = load_meta(p)
     left, bottom, right, top = meta["bbox_left_bottom_right_top"]
     return {
+        "data_profile": get_settings().hazard_data_profile,
         "scenario": scenario,
         "bbox": [left, bottom, right, top],
         "center": [(bottom + top) / 2, (left + right) / 2],
@@ -342,15 +346,18 @@ def search(
             )
 
     meta = B.SCENARIO_META[sc]
+    settings = get_settings()
     return {
+        "data_profile": settings.hazard_data_profile,
         "scenario": sc,
         "scenario_display": meta["display"],
         "scenario_kind": meta["kind"],
         "scenario_note": meta["note"],
         "graph": _graph_ref(_graph_file(sc)),
-        # ⚠️ プリセットと**同じ意味・同じ値**にしてある（素のHTML版からの相対パス）。
-        #    React版はここを見ずに /api/hazards のタイルURLを使う（05 §5-3）
-        "tiles": f"../var/tiles/flood/{sc}/{{z}}/{{x}}/{{y}}.png",
+        # React版は /api/hazards のURLを使うが、任意地点探索のレスポンス側も
+        # 同じprofile付きURLに揃え、旧世代とキャッシュが混ざらないようにする。
+        "tiles": f"{settings.tile_base_url}/flood/"
+        f"{settings.hazard_data_profile}/{sc}/{{z}}/{{x}}/{{y}}.png",
         "od": {
             "origin": {
                 "name": o_label,

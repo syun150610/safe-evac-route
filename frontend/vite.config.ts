@@ -13,10 +13,8 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': apiTarget,
-      // ⚠️ **暫定。** ハザードのタイルは開発中だけ FastAPI が配っている。
-      //    Worker は /api/* しか Container へ回さないので、本番はここを通らない。
-      //    R2 + Worker から配るように変えるのは別PR（タイルURLは /api/hazards が
-      //    配るので、切り替えても表示側は無改修）
+      // Workerを使う場合はローカルR2、FastAPI直起動の場合は
+      // data/processed/tiles を同じ /tiles URLで参照する。
       '/tiles': apiTarget,
     },
   },

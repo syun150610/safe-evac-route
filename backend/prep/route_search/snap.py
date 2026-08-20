@@ -9,7 +9,7 @@
 
 の3つだけで、どれも numpy と標準ライブラリで足りる。
 これを `graph.py` に置いたままにすると、API が osmnx を丸ごと抱え込む
-（docs/dev/05_チーム移行案.md §3-3「重い依存を混ぜない」に反する）。
+ため、このモジュールを実行時依存だけで読める境界にする。
 
 `graph.py` はここから import して再エクスポートするので、
 **既存の `from prep.route_search.graph import nearest_node` はそのまま動く。**
@@ -88,7 +88,7 @@ def graph_bbox(graph_file: str):
     """焼いたときの bbox = **対象エリア**。(left, bottom, right, top)
 
     経路探索は事前に焼いたグラフの中でしか動かない。ここから外の地点は
-    「対象エリアの外」として弾く（docs/dev/06_次セッションへの指示.md §2 (a)）。
+    「対象エリアの外」として弾く。
     """
     return tuple(load_meta(graph_file)["bbox_left_bottom_right_top"])
 

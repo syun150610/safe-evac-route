@@ -1,13 +1,10 @@
-"""地域危険度ランク → 距離に掛ける係数。
-
-route_search/graph.py（旧 build_graph.py）から切り出した。**中身は変えていない。**
-"""
+"""地域危険度ランク → 距離に掛ける係数。"""
 
 from prep.paths import quake_gpkg
 
 # ---------------- 地震ハザード（SPEC_C C-2） ----------------
-# 東京都 第9回 地域危険度測定調査。旧プロジェクトで検証済みのGPKGを再利用する
-# （5,192町丁目 / 51市区町村 / EPSG:4326）。作り直さない。
+# 東京都 第9回 地域危険度測定調査。公式SHPからbuild.pyで正規化したGPKGを使う
+# （5,192町丁目 / 51市区町村 / EPSG:4326）。
 QUAKE_SOURCE_ID = "risk9"
 QUAKE_SOURCE_LABEL = "東京都 第9回地域危険度測定調査"
 QUAKE_GPKG = quake_gpkg()

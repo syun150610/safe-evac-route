@@ -1,0 +1,125 @@
+{
+  "default_scenario": "envelope",
+  "default_od": "od01",
+  "scenarios": [
+    {
+      "id": "envelope",
+      "display": "全河川（想定最大）",
+      "kind": "envelope",
+      "note": "**どの河川が氾濫しても、この地点の浸水深はこの値を超えません。**予測ではなく上限の保証です（包絡）。「全河川が同時に氾濫した場合」という意味ではありません。",
+      "tiles": "../var/tiles/flood/envelope/{z}/{x}/{y}.png"
+    },
+    {
+      "id": "kandagawa",
+      "display": "神田川",
+      "kind": "single_basin",
+      "note": "この流域が氾濫した場合の浸水想定です。この区間は想定図の範囲外が大半を占めます（＝浸水しないのではなく、判断材料がない）。",
+      "tiles": "../var/tiles/flood/kandagawa/{z}/{x}/{y}.png"
+    },
+    {
+      "id": "sumidagawa",
+      "display": "隅田川及び新河岸川",
+      "kind": "single_basin",
+      "note": "この流域が氾濫した場合の浸水想定です。他の河川が氾濫した場合はこの図では分かりません。",
+      "tiles": "../var/tiles/flood/sumidagawa/{z}/{x}/{y}.png"
+    }
+  ],
+  "od": [
+    {
+      "slug": "od01",
+      "origin": "北千住",
+      "dest": "上野",
+      "display": "北千住駅 → 上野駅",
+      "note": "基準（タスクF で検証済みの組）",
+      "role": "main"
+    },
+    {
+      "slug": "od02",
+      "origin": "上野",
+      "dest": "北千住",
+      "display": "上野駅 → 北千住駅",
+      "note": "逆方向（対称性の確認）",
+      "role": null
+    },
+    {
+      "slug": "od03",
+      "origin": "南千住",
+      "dest": "上野",
+      "display": "南千住駅 → 上野駅",
+      "note": "1.0m超地帯を正面から横断",
+      "role": null
+    },
+    {
+      "slug": "od04",
+      "origin": "町屋",
+      "dest": "浅草",
+      "display": "町屋駅 → 浅草駅",
+      "note": "北西→南東に低地を縦断",
+      "role": null
+    },
+    {
+      "slug": "od05",
+      "origin": "千住大橋",
+      "dest": "鶯谷",
+      "display": "千住大橋駅 → 鶯谷駅",
+      "note": "低地を斜めに横断",
+      "role": null
+    },
+    {
+      "slug": "od06",
+      "origin": "牛田",
+      "dest": "浅草",
+      "display": "牛田駅 → 浅草駅",
+      "note": "北東端→南端の長距離横断",
+      "role": "contrast"
+    },
+    {
+      "slug": "od07",
+      "origin": "北千住",
+      "dest": "田原町",
+      "display": "北千住駅 → 田原町駅",
+      "note": "最長。低地を端から端まで",
+      "role": null
+    },
+    {
+      "slug": "od08",
+      "origin": "三ノ輪",
+      "dest": "日暮里",
+      "display": "三ノ輪駅 → 日暮里駅",
+      "note": "低地→台地へ短距離で抜ける",
+      "role": null
+    },
+    {
+      "slug": "od09",
+      "origin": "南千住",
+      "dest": "西日暮里",
+      "display": "南千住駅 → 西日暮里駅",
+      "note": "低地→台地（やや長い）",
+      "role": null
+    },
+    {
+      "slug": "od10",
+      "origin": "入谷",
+      "dest": "北千住",
+      "display": "入谷駅 → 北千住駅",
+      "note": "低地内を南→北",
+      "role": null
+    },
+    {
+      "slug": "od11",
+      "origin": "浅草",
+      "dest": "日暮里",
+      "display": "浅草駅 → 日暮里駅",
+      "note": "南端→台地へ、深部を通りうる",
+      "role": null
+    },
+    {
+      "slug": "od12",
+      "origin": "日暮里",
+      "dest": "上野",
+      "display": "日暮里駅 → 上野駅",
+      "note": "対照: 台地側のみ。浸水域をほぼ通らない想定",
+      "role": null
+    }
+  ]
+}

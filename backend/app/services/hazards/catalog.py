@@ -1,6 +1,6 @@
 """ハザード種別のカタログ — 種別・シナリオ・凡例・タイルURLを1箇所から配る。
 
-**フロントに種別や凡例をハードコードさせない**のが目的（05_チーム移行案 §5-2）。
+**フロントに種別や凡例をハードコードさせない**のが目的。
 特に「包絡は予測ではなく上限の保証」「範囲外は判断材料がない」の説明文は、
 UIごとに書き写すと必ず表現がズレる。ここから配る。
 
@@ -16,7 +16,7 @@ from prep.paths import TILES_DIR
 
 # 浸水タイルのズーム範囲（prep.tile_render.render の ZOOMS と揃える）。
 # ⚠️ maxz は「焼いてある上限」で、拡大の上限ではない。超えた分は地図側が引き伸ばす。
-# データの格子が約10mなので z16以降は情報が増えない（docs/dev/07 §2-7-0）
+# データの格子が約10mなのでz16以降は情報が増えず、地図側のoverzoomに任せる。
 FLOOD_MINZ, FLOOD_MAXZ = 12, 15
 
 # 浸水の凡例。色は tile_render のパレットと同じ（国交省 浸水深標準色）
@@ -35,8 +35,7 @@ FLOOD_LEGEND = [
 
 
 def _tile_base():
-    """タイルのベースURL。**R2 + Worker に移したら設定だけで切り替わる。**
-    フロントはこのURLをそのまま使うので、移しても表示側は無改修"""
+    """タイルのベースURL。ローカルFastAPIと本番Worker/R2を設定で切り替える。"""
     return get_settings().tile_base_url
 
 
@@ -48,6 +47,7 @@ def _flood_scenarios():
     """
     from prep.route_search.bundles import SCENARIO_META
 
+    settings = get_settings()
     out = []
     for sid, meta in SCENARIO_META.items():
         out.append(
@@ -56,7 +56,8 @@ def _flood_scenarios():
                 "label": meta["display"],
                 "kind": meta["kind"],
                 "note": meta["note"],
-                "tile_url": f"{_tile_base()}/flood/{sid}/{{z}}/{{x}}/{{y}}.png",
+                "tile_url": f"{_tile_base()}/flood/"
+                f"{settings.hazard_data_profile}/{sid}/{{z}}/{{x}}/{{y}}.png",
             }
         )
     return out
@@ -89,6 +90,7 @@ def _quake_scenarios():
 
 def catalog():
     """GET /api/hazards の中身"""
+    settings = get_settings()
     hazards = []
     for hid in registry.ids():
         meta = registry.meta(hid)
@@ -106,6 +108,8 @@ def catalog():
             h["scenarios"] = _quake_scenarios()
         hazards.append(h)
     return {
+        "data_profile": settings.hazard_data_profile,
+        "data_profile_id": settings.hazard_profile_id,
         "hazards": hazards,
         # 同時に出すのは1つ（単位の違うものを重ねない。§3-4）
         "display_policy": "one_at_a_time",

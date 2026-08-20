@@ -15,13 +15,13 @@
 
 ```bash
 cd backend
-uv sync
+uv sync --frozen
 
 cd ../frontend
-npm install
+npm ci
 
 cd ../worker
-npm install
+npm ci
 ```
 
 Dockerが起動している状態で、Worker、Container、ローカルD1を起動します。
@@ -37,9 +37,9 @@ Reactをホットリロードしながら開発する場合は、別ターミナ
 ```bash
 cd frontend
 npm run dev
-npm run lint
-npm run format
 npm run check
+npm run typecheck
+npm run test
 ```
 
 確認先:
@@ -64,12 +64,16 @@ FastAPI単体起動ではCloudflare Bindingsが存在しないため、D1・R2�
 環境変数は `.env.example` をコピーして使用します。
 
 ```bash
-cp backend/.env.example backend/.env
+cp .env.example .env
 ```
 
 ## 関連ドキュメント
 
 - [Cloudflare構成](docs/cloudflare.md)
+- [前処理・runtime成果物の全体像](docs/prep/README.md)
+- [ローカル実行・検証runbook](docs/local-runbook.md)
+- [一次データの取得](docs/prep/raw-data.md)
+- [浸水データの入力と再生成](docs/prep/flood-data.md)
 - [データベース構成](docs/database.md)
 - [CI/CD](docs/ci-cd.md)
 - [Google Maps JavaScript APIキーの準備](docs/google-maps-api-key.md)

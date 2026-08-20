@@ -2,16 +2,16 @@
 
 1. 本番（app / prep）が studies を import していないこと
 2. **API が前処理の重い依存（osmnx / geopandas / scipy / pandas / Pillow）を
-   引き込んでいないこと**（05_チーム移行案 §3-3「混ぜない」）
+   引き込んでいないこと**
 
 2 は実際に一度破れていた。`app/services/hazards/catalog.py` が
 `prep.route_search.bundles` から説明文を読み、その bundles が
 `prep.route_search.graph`（osmnx）を import していた。
 （→ 探索に要るぶんを `prep/route_search/snap.py` に切り出して解消）
 
-1 も実際に一度破れていた。本番の `demo_routes.py`（現 bundles.py）が
+1 も実際に一度破れていた。`bundles.py`が
 検証用の `od_study.py` から OD 定義を import していた
-（→ `prep/route_search/od.py` に切り出して解消。docs/dev/05_チーム移行案.md §7）。
+（→ `prep/route_search/od.py` に切り出して解消）。
 `backend/studies/` は検証専用で、本番の依存グラフには入らない。
 
 どちらも名前と善意だけに頼らず、機械で落とす。

@@ -1,7 +1,7 @@
 """APIが本番同梱の静的JSONと**同一のバイト列**を返すことの確認。
 
 静的配信からAPI経由に切り替えても表示が変わらないことを担保する
-（05_チーム移行案 段5の完了条件）。本番配布物なので、無ければ失敗する。
+ためのテスト。本番配布物なので、無ければ失敗する。
 
     cd backend && python3 tests/test_api.py
 """
@@ -22,7 +22,9 @@ client = TestClient(app)
 
 
 def main():
-    index_path = os.path.join(get_settings().bundles_dir, "index.json")
+    settings = get_settings()
+    bundles_dir = settings.active_bundles_dir
+    index_path = os.path.join(bundles_dir, "index.json")
     assert os.path.exists(index_path), f"本番配布用プリセットが無い: {index_path}"
     ng = 0
 
@@ -30,7 +32,7 @@ def main():
 
     # ① プリセット一覧が index.json と同一
     r = client.get("/api/evac-routes/presets")
-    with open(os.path.join(get_settings().bundles_dir, "index.json"), "rb") as f:
+    with open(os.path.join(bundles_dir, "index.json"), "rb") as f:
         raw = f.read()
     same = r.status_code == 200 and r.content == raw
     print(f"  presets            バイト一致={same}")
@@ -41,7 +43,7 @@ def main():
     n = 0
     for sc in [s["id"] for s in idx["scenarios"]]:
         for od in [o["slug"] for o in idx["od"]]:
-            p = os.path.join(get_settings().bundles_dir, sc, f"{od}.json")
+            p = os.path.join(bundles_dir, sc, f"{od}.json")
             assert os.path.exists(p), f"本番配布用プリセットが無い: {p}"
             got = client.get(f"/api/evac-routes/presets/{od}?scenario={sc}")
             with open(p, "rb") as f:
@@ -67,6 +69,11 @@ def main():
     flood = next(x for x in h["hazards"] if x["id"] == "flood")
     env = next(s for s in flood["scenarios"] if s["id"] == "envelope")
     checks = [
+        ("選択中profileを返す", h["data_profile"] == settings.hazard_data_profile),
+        (
+            "プリセットも同じprofile",
+            r.headers["x-hazard-data-profile"] == settings.hazard_data_profile,
+        ),
         ("種別が2つ", ids == ["flood", "quake"]),
         ("同時に1つの方針", h["display_policy"] == "one_at_a_time"),
         ("包絡の説明に『上限の保証』", "上限の保証" in env["note"]),
@@ -85,6 +92,13 @@ def main():
         (
             "タイルURLに var が出ていない",
             all("var" not in s["tile_url"] for s in flood["scenarios"]),
+        ),
+        (
+            "タイルURLも同じprofile",
+            all(
+                f"/flood/{settings.hazard_data_profile}/" in s["tile_url"]
+                for s in flood["scenarios"]
+            ),
         ),
     ]
     for name, ok in checks:

@@ -1,5 +1,6 @@
 const TILE_PREFIX = "/tiles/";
-const FLOOD_TILE = /^flood\/(?:envelope|kandagawa|sumidagawa)\/(?:12|13|14|15)\/\d+\/\d+\.png$/;
+const FLOOD_TILE =
+  /^flood\/(?:gesuido|kensetsu)\/(?:envelope|kandagawa|sumidagawa)\/(?:12|13|14|15)\/\d+\/\d+\.png$/;
 const QUAKE_VECTOR = /^quake\/(?:building|fire|total)\.geojson$/;
 const CACHE_CONTROL = "public, max-age=3600, s-maxage=86400";
 
