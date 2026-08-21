@@ -20,6 +20,13 @@ UI改修中でも文言がぶれず、種別が増えてもフロントが無変
 ⚠️ **未評価区間を必ず併記する。** `out_of_coverage_ratio` が大きいとき、
 危険区間が0mなのは「安全」ではなく「判断材料が無い」。この区別を落とすと
 `hazard_sources/base.py` が禁じている読み違えをそのまま画面に出すことになる。
+
+⚠️ **どの種別も「全域整備」ではない。** 浸水は想定区域図の整備対象流域の中だけ、
+地震は地域危険度測定調査の対象区域（市街化区域）の中だけが評価済みで、
+島嶼部・非市街化区域は調査対象外。整備範囲の名前は registry の `scope` にあり、
+「この種別は全域だから未評価は起きない」と決め打ちしてはいけない。
+現行bbox（北千住〜上野）で地震の未評価が0%なのは、たまたま全域が
+市街化区域だからであって、範囲を広げれば対象外が現れる。
 """
 
 from __future__ import annotations
@@ -34,12 +41,29 @@ from prep.hazard_sources import registry
 # サブメートルの差を「改善した」と読ませないため、1mを下限にする。
 EPS_M = 1.0
 
-# これを超えたら、短文と並べて「評価できていない」と警告する。
-# 実測で経路上の範囲外率が45〜52%になったODが存在する（神田川シナリオ）。
+# これを超えたら、短文と並べて「安全という意味ではない」と警告する。
+# 実測で経路上の範囲外率が45〜75%になったODが存在する（神田川シナリオ）。
 # 詳細を開かなくても未評価が見えるようにするための閾値
 UNEVALUATED_WARN = 0.2
 
+# これ未満を「全区間評価済み」とみなす。表示は小数1桁なので、
+# 0.05%未満は「0.0%が範囲外」と出てしまい文と数字が食い違う
+UNEVALUATED_ZERO = 0.0005
+
 VERDICTS = ("avoided", "already_safe", "partial", "unavoidable")
+
+# 未評価区間の伝え方。**3段階だけ。** 4条件の判定（VERDICTS）とは独立で、
+# こちらを増やしても分岐は増えない。
+#   none … 全区間が整備範囲の中。数値をそのまま信じてよい
+#   some … 一部が外。事実として述べるだけ
+#   warn … 閾値超。「危険が無い」ではなく「判断材料が無い」ことを明示する
+UNEVALUATED_STAGES = ("none", "some", "warn")
+
+UNEVALUATED_NOTES = {
+    "none": "この経路は全区間が{scope}の中です",
+    "some": "この経路の{ratio}は{scope}の外です",
+    "warn": "この経路の{ratio}は{scope}の外です。安全という意味ではありません",
+}
 
 # 4条件の短文。**種別ごとに変わるのは {label} だけ。**
 TEMPLATES = {
@@ -80,6 +104,18 @@ def _risk_m(stats: dict, spec: dict) -> float | None:
     if ratio is None:
         return None
     return float(ratio) * float(stats.get("distance_m") or 0.0)
+
+
+def _unevaluated_stage(ratio: float) -> str:
+    """未評価割合 → 3段階。**ここに種別の分岐を持ち込まないこと。**
+
+    種別ごとの差は `scope`（整備範囲の名前）だけで、判定は共通にする。
+    """
+    if ratio < UNEVALUATED_ZERO:
+        return "none"
+    if ratio < UNEVALUATED_WARN:
+        return "some"
+    return "warn"
 
 
 def _verdict(before: float, after: float) -> str:
@@ -125,6 +161,8 @@ def _hazard_entry(hid, spec, base_st, sel_st, considered, dist, scenario_display
         f"{label} {_m(before)} → {_m(after)}"
     )
     condition_note = spec["condition_note"].format(scenario_display=scenario_display)
+    scope = spec["scope"]
+    stage = _unevaluated_stage(unevaluated)
 
     hazard_label = registry.meta(hid)["label"]
     return {
@@ -141,13 +179,12 @@ def _hazard_entry(hid, spec, base_st, sel_st, considered, dist, scenario_display
         "after_ratio": after_ratio,
         "unevaluated_ratio": unevaluated,
         "baseline_unevaluated_ratio": base_unevaluated,
-        # 詳細を開かなくても未評価が見えるようにする。閾値未満なら None。
+        # none / some / warn。フロントが閾値を持たずに強調を出し分けられるようにする
+        "unevaluated_stage": stage,
+        # 詳細を開かなくても未評価が見えるようにする。
         # ⚠️ 危険区間0mでも出す。「危険が無い」と「判断材料が無い」は別物
-        "unevaluated_note": (
-            f"この経路の{_pct(unevaluated)}は{hazard_label}の想定範囲外です。"
-            "安全という意味ではありません"
-            if unevaluated >= UNEVALUATED_WARN
-            else None
+        "unevaluated_note": UNEVALUATED_NOTES[stage].format(
+            scope=scope, ratio=_pct(unevaluated)
         ),
         "text": text,
         "detail": {
@@ -156,9 +193,11 @@ def _hazard_entry(hid, spec, base_st, sel_st, considered, dist, scenario_display
             f"{sel_st['duration_min_60']:.0f}分（災害時60m/分）",
             "risk": f"{risk_line}・未評価区間 {_pct(unevaluated)}",
             "compare": compare_line,
+            # 閾値を必ず出す。危険区間の閾値と、未評価の警告閾値の両方
             "condition": f"{spec['threshold_label']}を危険区間として集計。"
             f"{condition_note}。"
-            f"未評価区間 {_pct(unevaluated)}（最短経路 {_pct(base_unevaluated)}）",
+            f"未評価区間＝{scope}の外で、この経路 {_pct(unevaluated)}・"
+            f"最短経路 {_pct(base_unevaluated)}（警告閾値 {_pct(UNEVALUATED_WARN)}）",
         },
     }
 
@@ -200,6 +239,12 @@ def build(routes, selected_route_id, hazards, scenario_display) -> dict | None:
         )
         if e is not None:
             entries.append(e)
+
+    # 複数種別あるときは、**全区間評価済みの種別を先に述べ、未評価のある種別を
+    # 後に述べる。** 「確かなことから先に言う」ため。
+    # sort は安定なので、同じ段階の中では registry の並びが保たれる。
+    # ⚠️ 種別IDでは並べ替えないこと（種別が増えたときに効かなくなる）
+    entries.sort(key=lambda e: 0 if e["unevaluated_stage"] == "none" else 1)
 
     return {
         "baseline_route": "baseline",

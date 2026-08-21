@@ -16,7 +16,12 @@
  * **種別が増えてもこのファイルは無変更。**
  *
  * ⚠️ **未評価区間を落とさない。** カバー外は「安全」ではなく「判断材料が無い」。
- * 割合が大きいときは短文の下に警告を出す（`detail.risk` にも必ず入っている）。
+ * `unevaluated_note` は3段階とも必ず来るので、条件を付けて隠さないこと。
+ * 強さの出し分けは `unevaluated_stage` だけを見る。**割合と閾値をここで
+ * 比べ直さない**（閾値はAPI側にあり、詳細4行の「条件」にも出ている）。
+ *
+ * ⚠️ **並び順を変えない。** 「全区間評価済みの種別が先、未評価のある種別が後」に
+ * API側で並べてある。確かなことから先に述べるため。
  */
 import { useState } from 'react'
 
@@ -24,6 +29,14 @@ import type { Rationale, RationaleHazard } from '../types'
 
 /** 回避できたことが伝わる状態か。色分けにだけ使う */
 const GOOD = new Set(['avoided', 'already_safe'])
+
+/** 未評価の伝え方の強さ。**閾値はAPI側にあり、ここでは割合を比べ直さない。**
+ * none は「数値をそのまま信じてよい」ことの説明なので、警告色にしない */
+const UNEVALUATED_TONE = {
+  none: 'text-slate-500',
+  some: 'text-slate-600',
+  warn: 'text-amber-700',
+} as const
 
 function HazardRow({ h }: { h: RationaleHazard }) {
   const [open, setOpen] = useState(false)
@@ -52,9 +65,9 @@ function HazardRow({ h }: { h: RationaleHazard }) {
               （経路の重みには入れていません）
             </span>
           )}
-          {h.unevaluated_note && (
-            <span className="mt-0.5 block text-[10.5px] text-amber-700">{h.unevaluated_note}</span>
-          )}
+          <span className={`mt-0.5 block text-[10.5px] ${UNEVALUATED_TONE[h.unevaluated_stage]}`}>
+            {h.unevaluated_note}
+          </span>
         </span>
       </button>
       {open && (

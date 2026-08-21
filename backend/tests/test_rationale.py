@@ -97,7 +97,7 @@ def test_未評価区間を必ず返す():
     assert f["unevaluated_ratio"] == 0.45
     assert f["baseline_unevaluated_ratio"] == 0.0
     # カバー外を黙って「安全」に混ぜない。条件行に必ず出す
-    assert "未評価区間 45.0%" in f["detail"]["condition"]
+    assert "この経路 45.0%" in f["detail"]["condition"]
     assert "最短経路 0.0%" in f["detail"]["condition"]
     assert "未評価区間 45.0%" in f["detail"]["risk"]
 
@@ -108,20 +108,83 @@ def test_危険0mでも未評価が読める():
     assert "未評価区間 52.0%" in _flood(r)["detail"]["risk"]
 
 
-def test_未評価が多ければ短文と並べて警告する():
-    """『最短経路が最も安全でした』だけを見せると、判断材料が無いことが隠れる。
-    詳細を開かなくても分かるように、短文と同じ高さに警告を出す"""
-    r = _build(_stats(5000, 0.0, 0.0, cov=0.52), _stats(5100, 0.0, 0.0, cov=0.52))
+# ---------------- 未評価の3段階 ----------------
+#
+# ⚠️ **ここは3段階だけ。** 4条件の判定（VERDICTS）とは独立で、増やさない
+
+
+def test_段階は3つだけ():
+    assert R.UNEVALUATED_STAGES == ("none", "some", "warn")
+    assert set(R.UNEVALUATED_NOTES) == set(R.UNEVALUATED_STAGES)
+    # 未評価の段階を増やしても、経路の判定は4条件のまま
+    assert len(R.VERDICTS) == 4
+
+
+def test_全区間評価済みなら整備範囲の中だと述べる():
+    r = _build(_stats(5000, 1177.5, 100), _stats(5346, 0.0, 90))
+    f = _flood(r)
+    assert f["unevaluated_stage"] == "none"
+    assert f["unevaluated_note"] == "この経路は全区間が想定区域図の整備対象流域の中です"
+
+
+def test_閾値未満なら事実だけ述べる():
+    r = _build(_stats(5000, 1177.5, 100), _stats(5346, 0.0, 90, cov=0.08))
+    f = _flood(r)
+    assert f["unevaluated_stage"] == "some"
+    assert f["unevaluated_note"] == "この経路の8.0%は想定区域図の整備対象流域の外です"
+
+
+def test_閾値超なら安全ではないと明示する():
+    """『最短経路が最も安全でした』だけを見せると、判断材料が無いことが隠れる"""
+    r = _build(_stats(5000, 0.0, 0.0, cov=0.749), _stats(5100, 0.0, 0.0, cov=0.749))
     f = _flood(r)
     assert f["verdict"] == "already_safe"
+    assert f["unevaluated_stage"] == "warn"
     assert f["unevaluated_note"] == (
-        "この経路の52.0%は浸水の想定範囲外です。安全という意味ではありません"
+        "この経路の74.9%は想定区域図の整備対象流域の外です。安全という意味ではありません"
     )
 
 
-def test_未評価が少なければ警告は出さない():
+def test_地震の整備範囲は市街化区域だと述べる():
+    """⚠️ 地震も全域整備ではない。島嶼部・非市街化区域は調査対象外"""
+    r = _build(_stats(5000, 100, 1177.5), _stats(5346, 100, 108.5, qcov=0.3))
+    q = next(h for h in r["hazards"] if h["id"] == "quake")
+    assert q["unevaluated_stage"] == "warn"
+    assert q["unevaluated_note"] == (
+        "この経路の30.0%は地域危険度測定調査の対象区域（市街化区域）の外です。"
+        "安全という意味ではありません"
+    )
+
+
+def test_表示が0_0パーセントになる端数は全区間評価済み扱い():
+    """『0.0%が範囲外です』という、文と数字が食い違う表示を作らない"""
+    r = _build(_stats(5000, 1177.5, 100), _stats(5346, 0.0, 90, cov=0.0001))
+    assert _flood(r)["unevaluated_stage"] == "none"
+
+
+# ---------------- 述べる順 ----------------
+
+
+def test_全区間評価済みの種別を先に述べる():
+    """確かなことから先に言う。未評価のある種別は後ろへ回す"""
+    # 浸水に未評価があり、地震は全区間評価済み → 地震が先
+    r = _build(
+        _stats(5000, 1177.5, 100, cov=0.45), _stats(5346, 0.0, 90, cov=0.45, qcov=0.0)
+    )
+    assert [h["id"] for h in r["hazards"]] == ["quake", "flood"]
+
+
+def test_同じ段階なら登録順を保つ():
     r = _build(_stats(5000, 1177.5, 100), _stats(5346, 0.0, 90))
-    assert _flood(r)["unevaluated_note"] is None
+    assert [h["id"] for h in r["hazards"]] == ["flood", "quake"]
+
+
+def test_両方に未評価があれば登録順を保つ():
+    r = _build(
+        _stats(5000, 1177.5, 100, cov=0.45, qcov=0.3),
+        _stats(5346, 0.0, 90, cov=0.45, qcov=0.3),
+    )
+    assert [h["id"] for h in r["hazards"]] == ["flood", "quake"]
 
 
 # ---------------- 種別の扱い ----------------
@@ -167,6 +230,7 @@ def test_registryだけで種別を足せる(monkeypatch):
                 "coverage_key": "landslide_out_of_coverage_ratio",
                 "threshold_label": "土砂災害警戒区域",
                 "condition_note": "区域指定は都の公表値",
+                "scope": "急傾斜地崩壊危険箇所の調査対象区域",
             },
         },
     )
@@ -178,12 +242,19 @@ def test_registryだけで種別を足せる(monkeypatch):
     sel = _stats(5346, 0.0, 0.0) | {
         "landslide_m": 0.0,
         "landslide_ratio": 0.0,
-        "landslide_out_of_coverage_ratio": 0.0,
+        "landslide_out_of_coverage_ratio": 0.4,
     }
     r = _build(base, sel)
     got = next(h for h in r["hazards"] if h["id"] == "landslide")
     assert got["verdict"] == "avoided"
     assert got["text"] == "+346m の遠回りで、急傾斜地を 800m → 0m に"
+    # 整備範囲の名前も registry から来る。判定側は種別を知らない
+    assert got["unevaluated_note"] == (
+        "この経路の40.0%は急傾斜地崩壊危険箇所の調査対象区域の外です。"
+        "安全という意味ではありません"
+    )
+    # 未評価のある種別は後ろへ回る
+    assert [h["id"] for h in r["hazards"]][-1] == "landslide"
 
 
 def test_統計が無い種別は黙って外れる():
@@ -248,6 +319,10 @@ def test_詳細は4行固定():
         "浸水深0.3m超（歩行困難ライン）を危険区間として集計。"
     )
     assert "想定図は全河川（想定最大）" in d["condition"]
+    # 条件行には閾値を必ず出す。危険区間の閾値と、未評価の警告閾値の両方
+    assert "警告閾値 20.0%" in d["condition"]
+    # 「未評価」が何の外側なのかを名乗る
+    assert "未評価区間＝想定区域図の整備対象流域の外" in d["condition"]
 
 
 def test_地震の条件行は想定図を名乗らない():
@@ -256,6 +331,20 @@ def test_地震の条件行は想定図を名乗らない():
     q = next(h for h in r["hazards"] if h["id"] == "quake")
     assert "想定図" not in q["detail"]["condition"]
     assert "ランクは都内での相対評価" in q["detail"]["condition"]
+
+
+def test_全種別が整備範囲の名前を持つ():
+    """⚠️ 「この種別は全域だから scope は要らない」としないこと。
+    地震も島嶼部・非市街化区域は調査対象外で、全域整備ではない"""
+    for hid in registry.ids():
+        spec = registry.risk(hid)
+        if spec is None:
+            continue
+        assert isinstance(spec["scope"], str) and spec["scope"], hid
+    assert (
+        registry.risk("quake")["scope"] == "地域危険度測定調査の対象区域（市街化区域）"
+    )
+    assert registry.risk("flood")["scope"] == "想定区域図の整備対象流域"
 
 
 def test_閾値ラベルが実際の閾値と揃っている():

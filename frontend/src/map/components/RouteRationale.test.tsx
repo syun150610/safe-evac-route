@@ -24,7 +24,8 @@ const HAZARD: RationaleHazard = {
   after_ratio: 0.0187,
   unevaluated_ratio: 0.0,
   baseline_unevaluated_ratio: 0.0,
-  unevaluated_note: null,
+  unevaluated_stage: 'none',
+  unevaluated_note: 'この経路は全区間が想定区域図の整備対象流域の中です',
   text: '浸水30cm超を 1,178m → 109m。残り109mは迂回路がありません',
   detail: {
     route: '5.79km ・ 徒歩 約72分（平常時）/ 約96分（災害時60m/分）',
@@ -67,7 +68,7 @@ describe('RouteRationale', () => {
   })
 
   it('未評価の警告は、危険区間が0mでも落とさない', () => {
-    const note = 'この経路の52.0%は浸水の想定範囲外です。安全という意味ではありません'
+    const note = 'この経路の74.9%は想定区域図の整備対象流域の外です。安全という意味ではありません'
     const html = render([
       {
         ...HAZARD,
@@ -75,12 +76,33 @@ describe('RouteRationale', () => {
         after_m: 0,
         before_m: 0,
         text: '最短経路が最も安全でした（浸水30cm超なし）',
-        unevaluated_ratio: 0.52,
+        unevaluated_ratio: 0.749,
+        unevaluated_stage: 'warn',
         unevaluated_note: note,
       },
     ])
     expect(html).toContain('最短経路が最も安全でした（浸水30cm超なし）')
     expect(html).toContain(note)
+  })
+
+  it('全区間評価済みの説明も隠さず、警告色にはしない', () => {
+    const html = render([HAZARD])
+    expect(html).toContain('この経路は全区間が想定区域図の整備対象流域の中です')
+    expect(html).not.toContain('text-amber-700')
+  })
+
+  it('閾値超だけを警告色にする', () => {
+    expect(render([{ ...HAZARD, unevaluated_stage: 'warn' }])).toContain('text-amber-700')
+    expect(render([{ ...HAZARD, unevaluated_stage: 'some' }])).not.toContain('text-amber-700')
+  })
+
+  it('APIが並べた順をそのまま出す', () => {
+    // 全区間評価済みの地震が先、未評価のある浸水が後
+    const html = render([
+      { ...HAZARD, id: 'quake', risk_label: '危険度4以上', text: '地震の根拠' },
+      { ...HAZARD, unevaluated_stage: 'warn', text: '浸水の根拠' },
+    ])
+    expect(html.indexOf('地震の根拠')).toBeLessThan(html.indexOf('浸水の根拠'))
   })
 
   it('経路の重みに掛けていない種別はその旨を添える', () => {

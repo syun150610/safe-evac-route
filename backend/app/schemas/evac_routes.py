@@ -68,8 +68,13 @@ class RationaleHazard(BaseModel):
     # ⚠️ **大きいほど「安全」ではなく「評価できていない」。** 必ず併記する
     unevaluated_ratio: float
     baseline_unevaluated_ratio: float
-    # 未評価が多いときの警告文。閾値未満なら null。危険区間0mでも出る
-    unevaluated_note: str | None
+    # none=全区間が整備範囲の中 / some=一部が外 / warn=閾値超。
+    # フロントが閾値を持たずに強調を出し分けられるようにするためのもの
+    unevaluated_stage: str
+    # 未評価の伝え方。**3段階とも必ず入る（nullにならない）。**
+    # 整備範囲の名前（registry の `scope`）を差し込んである。
+    # ⚠️ 危険区間0mでも出る。「危険が無い」と「判断材料が無い」は別物
+    unevaluated_note: str
     text: str  # そのまま出せる短文
     detail: RationaleDetail
 
@@ -102,7 +107,9 @@ class Rationale(BaseModel):
     baseline_route: str
     selected_route: str
     distance: RationaleDistance
-    # 登録済み種別ぶん。`considered` で経路に掛けたかを区別する
+    # 登録済み種別ぶん。`considered` で経路に掛けたかを区別する。
+    # ⚠️ 並びは「全区間評価済みの種別が先、未評価のある種別が後」。
+    # 確かなことから先に述べるため、registry の並びより優先する
     hazards: list[RationaleHazard]
 
 

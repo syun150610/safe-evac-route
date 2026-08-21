@@ -82,8 +82,14 @@ export interface RationaleHazard {
   /** ⚠️ **大きいほど「安全」ではなく「評価できていない」。** 必ず出す */
   unevaluated_ratio: number
   baseline_unevaluated_ratio: number
-  /** 未評価が多いときの警告文。閾値未満なら null。危険区間0mでも来る */
-  unevaluated_note: string | null
+  /** none=全区間が整備範囲の中 / some=一部が外 / warn=閾値超。
+   *
+   * ⚠️ **フロントで割合と閾値を比べ直さないこと。** 閾値はAPI側にあり、
+   * ここは強調の出し分けにだけ使う */
+  unevaluated_stage: 'none' | 'some' | 'warn'
+  /** 未評価の伝え方。**3段階とも必ず入る（nullにならない）。**
+   * 整備範囲の名前（「想定区域図の整備対象流域」等）が差し込んである */
+  unevaluated_note: string
   text: string
   detail: RationaleDetail
 }
@@ -109,7 +115,10 @@ export interface Rationale {
   baseline_route: RouteId
   selected_route: RouteId
   distance: RationaleDistance
-  /** 登録済み種別ぶん。`considered` で経路に掛けたかを区別する */
+  /** 登録済み種別ぶん。`considered` で経路に掛けたかを区別する。
+   *
+   * ⚠️ **並び替えないこと。** 「全区間評価済みの種別が先、未評価のある種別が後」
+   * にAPI側で並べてある（確かなことから先に述べるため） */
   hazards: RationaleHazard[]
 }
 
