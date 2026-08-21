@@ -83,5 +83,5 @@ uv run --frozen --group prep python -m prep.hazard_sources.quake.build --force
 ## raw取得後の次工程
 
 現行3シナリオのタイル、グラフ、NPZ、プリセットを再生成する場合は
-[浸水データの入力と再生成](flood-data.md#既存成果物を上書きしない再生成)へ進む。
+[浸水データの入力と再生成](flood-data.md#探索範囲は2つある)へ進む。
 通常のAPI起動だけなら、Git追跡済みのNPZとプリセットを使うためraw取得は不要である。

@@ -61,17 +61,35 @@ uv run --frozen --group prep python -m prep.hazard_sources.quake.export
 明示的に作り直す場合の`--force`は[一次データの取得](raw-data.md)を参照する。一度も生成して
 いない端末でも、ここまででローカル表示確認には足りる。
 
-## 既存成果物を上書きしない再生成
+## 探索範囲は2つある
 
-ここから先は、raw・シナリオ・格子処理・重み・探索範囲を変更した場合や、本番採用する
-成果物を更新する場合の手順である。初回cloneしただけのチームメンバーは実行不要である。
+グラフ・NPZ・bundleは「成果物の種類 → 入力profile → **探索範囲**」で分ける。
+現在は範囲が2つあり、**本番が使うのは新しい方だけ**である。
 
-生成物は「成果物の種類 → 入力profile → 探索範囲」で分ける。浸水タイルは単一ハザード
-なので `flood/kensetsu`、地震属性も含むグラフ・NPZ・bundleは
-`flood-kensetsu_quake-risk9/scope-kitasenju-ueno` とする。
+| 範囲ディレクトリ | 内容 | 本番 |
+|---|---|---|
+| `scope-tokyo-23ku-tama-shigaika` | 23区＋多摩の市街化区域 1,324.85 km²（地域危険度の町丁目5,192件 / 51市区町村を融合）。652,828ノード / 1,905,380エッジ | **これを使う**（`app/core/config.py` の `RUNTIME_SCOPE_DIR`） |
+| `scope-kitasenju-ueno` | 北千住駅～上野駅のbbox＋片側1km、26.7 km²。27,144ノード / 82,586エッジ | 使わない（`gesuido` profileの成果物だけが残っている） |
 
-`scope-kitasenju-ueno` は北千住駅～上野駅を囲むbboxに片側1kmの余白を加えた範囲で、
-東京都全域を意味しない。正確なbboxと余白はグラフのmeta JSONにも記録する。
+⚠️ **2つの範囲でファイル名が同じ**（`kitasenju_ueno_envelope.npz` など）。
+名前は `prep/route_search/bundles.py` の `GRAPHS` のbasenameから決まるため、
+新スコープの成果物も旧スコープ時代の名前のままである。
+**範囲ディレクトリを間違えてコピーすると、本番のNPZ（39MB / 190万エッジ）を
+旧スコープのNPZ（1.6MB / 8.2万エッジ）で静かに上書きする。**
+コピー先のディレクトリ名を必ず確認すること。
+
+⚠️ `gesuido` profile には新スコープの成果物が無い。
+`HAZARD_DATA_PROFILE=gesuido` では `/api/evac-routes/presets` が503になる。
+
+## 旧スコープ（scope-kitasenju-ueno）の再生成
+
+⚠️ **この手順が作るのは旧スコープのグラフだけである。** 本番が使う
+新スコープは作れない（新スコープの手順は次章）。旧スコープの成果物を
+比較・検証のために作り直す場合にだけ使う。
+
+`prep/route_search/graph.py` はOverpassから北千住駅～上野駅のbbox＋片側1kmを
+取得する実装で、範囲は `prep/route_search/snap.py` の `ORIGIN_DEFAULT` /
+`DEST_DEFAULT` / `MARGIN_KM` で決まる。正確なbboxと余白はグラフのmeta JSONにも記録する。
 
 再生成結果を確認するまでは `backend/graph/`、`backend/bundles/`、R2の本番prefixを
 変更しない。採用時は後述のprofile別ディレクトリへ追加し、旧成果物も残す。
@@ -113,16 +131,81 @@ HAZARD_DATA_PROFILE=kensetsu \
 `flood-kensetsu_quake-risk9/scope-kitasenju-ueno` と識別する。本番採用時は両profileを
 保持し、利用者向け切替UIではなくデプロイ設定1つで選択できるようにする。
 
+## 新スコープ（scope-tokyo-23ku-tama-shigaika）の構築
+
+本番が使うグラフはこちらで作る。**Overpassは使わない**（2026-08-21の作業で
+実際にタイムアウトしたため、Geofabrikの配布pbfへ切り替えた）。
+
+工程は4つで、`backend/studies/graph_array/area_build/build_area_graph.py` が
+順に実行する。工程ごとに中間結果を残し、既に出力があればその工程を飛ばすので、
+途中で落ちても同じコマンドで再開できる。
+
+| 工程 | 内容 | 実測 |
+|---|---|---|
+| 1 area | 地域危険度GPKGの町丁目5,192件を融合して範囲GeoJSONにする（頂点は約20m許容差で39,956→2,253に簡略化、面積差 −0.003%） | 数秒 |
+| 2 cut | `osmium extract -p <範囲> --strategy complete_ways`。範囲境界をまたぐ道はway単位で丸ごと残るので `truncate_by_edge=True` と同じ扱いになる | 15秒 / 113MB |
+| 3 filter | osmnx 2.1.1 の `_get_network_filter("walk")` と同じ条件をpbfへ適用し `.osm` XMLを書く（pyosmium。Overpassの `!~` に合わせ、アンカー無し正規表現・キーが無ければ通す） | 60秒 / way 451,765・ノード1,660,045 |
+| 4 graph | `osmnx.graph_from_xml(bidirectional=True, simplify=True, retain_all=False)` | 413秒 / 652,828ノード・1,905,380エッジ |
+
+⚠️ 工程4の `bidirectional=True` を省略しないこと。osmnx は
+`settings.bidirectional_network_types = ["walk"]` により `graph_from_bbox` の
+walk では一方通行を無視するが、`graph_from_xml` の既定は `False` である。
+
+```bash
+cd "$(git rev-parse --show-toplevel)/backend"
+curl -L -o /tmp/kanto-latest.osm.pbf \
+  https://download.geofabrik.de/asia/japan/kanto-latest.osm.pbf
+
+uv run --frozen --group prep python -u \
+  -m studies.graph_array.area_build.build_area_graph --pbf /tmp/kanto-latest.osm.pbf
+
+# 浸水・地震の焼き込み（シナリオごと）。中間生成物は data/processed/graph_build/
+uv run --frozen --group prep python -u \
+  -m studies.graph_array.area_build.bake_area_graph --scenario envelope
+uv run --frozen --group prep python -u \
+  -m studies.graph_array.area_build.export_area_npz --scenario envelope
+```
+
+⚠️ **`osmium` コマンドと Python 3.12 が要る。** 工程2は osmium-tool（`/usr/bin/osmium`）、
+工程3は pyosmium を使う。pyosmium は Python 3.14 のプロジェクト環境へ入らないため、
+`uv run --no-project --python 3.12 --with osmium` で別環境を作って実行している
+（`build_area_graph.py` が内部で呼ぶ）。
+
+中間生成物は `data/processed/graph_build/` に出る（合計約2.7GB、Git管理外）。
+焼き上がりpickleは1本約663MB、書き出したNPZは envelope 39,168,253B /
+隅田川 33,824,074B / 神田川 32,991,255B である。
+
+プリセットは旧スコープと同じ `prep.route_search.bundles` を使う。ただし
+`--graph-dir` に渡すディレクトリのファイル名を `GRAPHS` のbasename
+（`kitasenju_ueno_envelope.pkl` 等）に合わせる必要がある。
+
+### この手順の置き場について（未決）
+
+新スコープの構築コードは現在 `backend/studies/graph_array/area_build/` にある。
+`studies/` は `tests/test_layering.py` が「本番（app / prep）から import されない」
+ことを機械で確認している検証専用の領域で、前処理の正式な置き場ではない。
+
+**提案（未実施）**: 本番の成果物を作る手順である以上、`backend/prep/route_search/`
+配下（例: `prep/route_search/area_graph/`）へ移し、`prep.route_search.graph` と
+並べるのが筋である。移す場合は、旧スコープ用の `graph.py` と新スコープ用が
+別物であることが名前から分かるようにする。判断はチームで行う。
+
 ## runtime成果物と切替設定
 
 Git・Dockerへ含める成果物は、次の2世代を同時に保持する。
 
 ```text
-backend/graph/{flood-gesuido_quake-risk9,flood-kensetsu_quake-risk9}/
-  scope-kitasenju-ueno/
-backend/bundles/{flood-gesuido_quake-risk9,flood-kensetsu_quake-risk9}/
-  scope-kitasenju-ueno/
+backend/graph/flood-kensetsu_quake-risk9/scope-tokyo-23ku-tama-shigaika/   ← 本番
+backend/graph/flood-kensetsu_quake-risk9/scope-kitasenju-ueno/
+backend/graph/flood-gesuido_quake-risk9/scope-kitasenju-ueno/
+backend/bundles/flood-kensetsu_quake-risk9/scope-tokyo-23ku-tama-shigaika/ ← 本番
+backend/bundles/flood-kensetsu_quake-risk9/scope-kitasenju-ueno/
+backend/bundles/flood-gesuido_quake-risk9/scope-kitasenju-ueno/
 ```
+
+⚠️ **2世代の同時保持は新スコープでは成立していない。** `gesuido` には
+新スコープの成果物が無いため、いまは `kensetsu` から戻す先が無い
+（`docs/dev/07_課題と作業計画.md` の P0-5）。
 
 本番の選択箇所は `worker/wrangler.jsonc` の `HAZARD_DATA_PROFILE` 1つだけ。
 
@@ -173,6 +256,9 @@ profile付きURLだけを返す。
 - タイル、pickle、NPZ、プリセットがすべて別出力にある
 - グラフ生成ログに地震5,192町丁目が読み込まれたことが出る
 - NPZ変換時の全12 OD・全ハザード条件の検証が成功する
+  （⚠️ これは旧スコープの `prep.route_search.export_npz` の話。新スコープの
+  `studies/.../export_area_npz.py` は `save_graph_npz` だけを呼び、
+  pickleとの一致検証を通していない。`docs/dev/07_課題と作業計画.md` の P0-6）
 - プリセットAPIの全36件が静的JSONとバイト一致する
 - 入力ファイル、SHA256、bbox、coverage、タイル数、経路統計を記録する
 - 旧版との差分は機械検証だけに使い、利用者向け比較UIは作らない
