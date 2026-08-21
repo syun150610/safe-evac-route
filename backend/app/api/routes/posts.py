@@ -35,7 +35,6 @@ async def list_posts(
         default=0,
         ge=0,
     ),
-
     # 投稿の並び順。
     # recent: 新しい順
     # helpful: 役立った数が多い順
@@ -44,7 +43,6 @@ async def list_posts(
         default="recent",
         pattern="^(recent|helpful|nearby)$",
     ),
-
     # "nearby" ソート時に使用する現在地。
     latitude: float | None = Query(
         default=None,
@@ -56,7 +54,6 @@ async def list_posts(
         ge=-180,
         le=180,
     ),
-
     # ユーザーごとの評価状態を判定するために使用する。
     user_id: str = Query(
         default="anonymous",

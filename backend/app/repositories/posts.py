@@ -39,10 +39,7 @@ class PostsRepository:
 
         # D1 APIに渡すクエリパラメータを組み立てる。
         # limit / offset / sort / user_id は常に指定する。
-        params = (
-            f"limit={limit}&offset={offset}&sort={sort}"
-            f"&user_id={user_id}"
-        )
+        params = f"limit={limit}&offset={offset}&sort={sort}&user_id={user_id}"
 
         # nearby検索では現在地が必要なため、
         # 緯度・経度の両方が指定されている場合のみ追加する。
