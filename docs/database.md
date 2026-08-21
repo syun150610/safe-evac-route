@@ -23,8 +23,8 @@
 | カラム名 | 型 | 制約 | 説明 |
 |---|---|---|---|
 | id | string | PK | ユーザーID |
-| name | string | | 表示名 |
-| email | string | UNIQUE | メールアドレス |
+| name | string | UNIQUE | 表示名（ログインIDとして使用） |
+| email | string | NULL許容 | メールアドレス（任意） |
 | password_hash | string | | ハッシュ化されたパスワード |
 | avatar_url | string | NULL許容 | アイコン画像のR2 URL |
 | created_at | datetime | | 登録日時 |
