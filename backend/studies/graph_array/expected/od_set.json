@@ -1,0 +1,305 @@
+{
+ "seed": 20260821,
+ "od": [
+  {
+   "id": "preset01",
+   "kind": "preset",
+   "origin": {
+    "lat": 35.7497,
+    "lon": 139.805,
+    "label": "北千住"
+   },
+   "dest": {
+    "lat": 35.7141,
+    "lon": 139.7774,
+    "label": "上野"
+   },
+   "note": "基準（タスクF で検証済みの組）"
+  },
+  {
+   "id": "preset02",
+   "kind": "preset",
+   "origin": {
+    "lat": 35.7141,
+    "lon": 139.7774,
+    "label": "上野"
+   },
+   "dest": {
+    "lat": 35.7497,
+    "lon": 139.805,
+    "label": "北千住"
+   },
+   "note": "逆方向（対称性の確認）"
+  },
+  {
+   "id": "preset03",
+   "kind": "preset",
+   "origin": {
+    "lat": 35.7331,
+    "lon": 139.7987,
+    "label": "南千住"
+   },
+   "dest": {
+    "lat": 35.7141,
+    "lon": 139.7774,
+    "label": "上野"
+   },
+   "note": "1.0m超地帯を正面から横断"
+  },
+  {
+   "id": "preset04",
+   "kind": "preset",
+   "origin": {
+    "lat": 35.7448,
+    "lon": 139.7817,
+    "label": "町屋"
+   },
+   "dest": {
+    "lat": 35.7111,
+    "lon": 139.7967,
+    "label": "浅草"
+   },
+   "note": "北西→南東に低地を縦断"
+  },
+  {
+   "id": "preset05",
+   "kind": "preset",
+   "origin": {
+    "lat": 35.7414,
+    "lon": 139.7987,
+    "label": "千住大橋"
+   },
+   "dest": {
+    "lat": 35.7207,
+    "lon": 139.7784,
+    "label": "鶯谷"
+   },
+   "note": "低地を斜めに横断"
+  },
+  {
+   "id": "preset06",
+   "kind": "preset",
+   "origin": {
+    "lat": 35.7477,
+    "lon": 139.8074,
+    "label": "牛田"
+   },
+   "dest": {
+    "lat": 35.7111,
+    "lon": 139.7967,
+    "label": "浅草"
+   },
+   "note": "北東端→南端の長距離横断"
+  },
+  {
+   "id": "preset07",
+   "kind": "preset",
+   "origin": {
+    "lat": 35.7497,
+    "lon": 139.805,
+    "label": "北千住"
+   },
+   "dest": {
+    "lat": 35.7098,
+    "lon": 139.7907,
+    "label": "田原町"
+   },
+   "note": "最長。低地を端から端まで"
+  },
+  {
+   "id": "preset08",
+   "kind": "preset",
+   "origin": {
+    "lat": 35.7274,
+    "lon": 139.7909,
+    "label": "三ノ輪"
+   },
+   "dest": {
+    "lat": 35.7278,
+    "lon": 139.7707,
+    "label": "日暮里"
+   },
+   "note": "低地→台地へ短距離で抜ける"
+  },
+  {
+   "id": "preset09",
+   "kind": "preset",
+   "origin": {
+    "lat": 35.7331,
+    "lon": 139.7987,
+    "label": "南千住"
+   },
+   "dest": {
+    "lat": 35.732,
+    "lon": 139.7668,
+    "label": "西日暮里"
+   },
+   "note": "低地→台地（やや長い）"
+  },
+  {
+   "id": "preset10",
+   "kind": "preset",
+   "origin": {
+    "lat": 35.7207,
+    "lon": 139.7883,
+    "label": "入谷"
+   },
+   "dest": {
+    "lat": 35.7497,
+    "lon": 139.805,
+    "label": "北千住"
+   },
+   "note": "低地内を南→北"
+  },
+  {
+   "id": "preset11",
+   "kind": "preset",
+   "origin": {
+    "lat": 35.7111,
+    "lon": 139.7967,
+    "label": "浅草"
+   },
+   "dest": {
+    "lat": 35.7278,
+    "lon": 139.7707,
+    "label": "日暮里"
+   },
+   "note": "南端→台地へ、深部を通りうる"
+  },
+  {
+   "id": "preset12",
+   "kind": "preset",
+   "origin": {
+    "lat": 35.7278,
+    "lon": 139.7707,
+    "label": "日暮里"
+   },
+   "dest": {
+    "lat": 35.7141,
+    "lon": 139.7774,
+    "label": "上野"
+   },
+   "note": "対照: 台地側のみ。浸水域をほぼ通らない想定"
+  },
+  {
+   "id": "random01",
+   "kind": "random",
+   "origin": {
+    "lat": 35.71116,
+    "lon": 139.805344,
+    "label": "任意地点1a"
+   },
+   "dest": {
+    "lat": 35.737878,
+    "lon": 139.780801,
+    "label": "任意地点1b"
+   },
+   "note": "bbox内の乱数点（seed=20260821）"
+  },
+  {
+   "id": "random02",
+   "kind": "random",
+   "origin": {
+    "lat": 35.734917,
+    "lon": 139.796533,
+    "label": "任意地点2a"
+   },
+   "dest": {
+    "lat": 35.757931,
+    "lon": 139.778853,
+    "label": "任意地点2b"
+   },
+   "note": "bbox内の乱数点（seed=20260821）"
+  },
+  {
+   "id": "random03",
+   "kind": "random",
+   "origin": {
+    "lat": 35.737198,
+    "lon": 139.789194,
+    "label": "任意地点3a"
+   },
+   "dest": {
+    "lat": 35.737768,
+    "lon": 139.777217,
+    "label": "任意地点3b"
+   },
+   "note": "bbox内の乱数点（seed=20260821）"
+  },
+  {
+   "id": "random04",
+   "kind": "random",
+   "origin": {
+    "lat": 35.722217,
+    "lon": 139.801229,
+    "label": "任意地点4a"
+   },
+   "dest": {
+    "lat": 35.71191,
+    "lon": 139.80169,
+    "label": "任意地点4b"
+   },
+   "note": "bbox内の乱数点（seed=20260821）"
+  },
+  {
+   "id": "random05",
+   "kind": "random",
+   "origin": {
+    "lat": 35.748997,
+    "lon": 139.795081,
+    "label": "任意地点5a"
+   },
+   "dest": {
+    "lat": 35.731343,
+    "lon": 139.814801,
+    "label": "任意地点5b"
+   },
+   "note": "bbox内の乱数点（seed=20260821）"
+  },
+  {
+   "id": "random06",
+   "kind": "random",
+   "origin": {
+    "lat": 35.729954,
+    "lon": 139.793772,
+    "label": "任意地点6a"
+   },
+   "dest": {
+    "lat": 35.740882,
+    "lon": 139.81462,
+    "label": "任意地点6b"
+   },
+   "note": "bbox内の乱数点（seed=20260821）"
+  },
+  {
+   "id": "random07",
+   "kind": "random",
+   "origin": {
+    "lat": 35.758605,
+    "lon": 139.789991,
+    "label": "任意地点7a"
+   },
+   "dest": {
+    "lat": 35.729744,
+    "lon": 139.772284,
+    "label": "任意地点7b"
+   },
+   "note": "bbox内の乱数点（seed=20260821）"
+  },
+  {
+   "id": "random08",
+   "kind": "random",
+   "origin": {
+    "lat": 35.750156,
+    "lon": 139.77279,
+    "label": "任意地点8a"
+   },
+   "dest": {
+    "lat": 35.735963,
+    "lon": 139.800707,
+    "label": "任意地点8b"
+   },
+   "note": "bbox内の乱数点（seed=20260821）"
+  }
+ ]
+}

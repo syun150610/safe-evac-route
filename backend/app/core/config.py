@@ -23,7 +23,11 @@ PROFILE_DIRS: dict[HazardDataProfile, str] = {
     "gesuido": "flood-gesuido_quake-risk9",
     "kensetsu": "flood-kensetsu_quake-risk9",
 }
-RUNTIME_SCOPE_DIR = "scope-kitasenju-ueno"
+# 探索グラフの対象範囲。2026-08-21に 23区+多摩（市街化区域 1,324.85 km²、
+# 地域危険度の町丁目5,192件を融合した範囲）へ切り替えた。
+# ⚠️ 浸水は現行4流域のままなので、この範囲の大半でエッジのcoverageは0になる。
+#    「0m」ではなく「未評価」として応答に出る（rationale の3段階表示）。
+RUNTIME_SCOPE_DIR = "scope-tokyo-23ku-tama-shigaika"
 
 
 class Settings(BaseSettings):

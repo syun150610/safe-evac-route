@@ -228,7 +228,7 @@ curl --fail --silent --show-error \
 |---|---|---|
 | 通常のフロント・API・任意地点探索開発 | 不要 | 不要 |
 | ローカルで浸水・地震レイヤーも表示 | `data/processed/tiles/`のみ必要 | 不要 |
-| raw・シナリオ・格子処理・重み・探索範囲を変更 | 必要 | 必要 |
+| raw・シナリオ・格子処理・[重み](#重みコスト表を変えたときの確認)・探索範囲を変更 | 必要 | 必要 |
 | 本番採用するタイル・NPZ・プリセットを更新 | 必要 | 必要 |
 
 表示確認だけなら、チームで共有した `data/processed/tiles/` を配置するのが最短である。
@@ -252,7 +252,8 @@ data/raw/hazard/hazard.gpkg
 ```
 
 3シナリオを既存成果物と別の場所へ生成する完全なコマンドは、データ成果物の更新担当が
-[浸水データの入力と再生成](prep/flood-data.md#既存成果物を上書きしない再生成)を使う。
+[浸水データの入力と再生成](prep/flood-data.md#探索範囲は2つある)を使う。
+**探索範囲が2つあり、成果物のファイル名が同じなので、コピー先を必ず確認すること。**
 生成後は最低限、次を確認する。
 
 ```bash
@@ -268,6 +269,100 @@ npm run tiles:upload -- /absolute/path/to/data/processed/tiles --check
 `--check`は4,985件と公開キーだけを検証し、R2へ書き込まない。`--check`を外す操作は
 本番R2を書き換えるため、レビューと実行許可の後に行う。
 
+## 重み・コスト表を変えたときの確認
+
+`prep/hazard_sources/flood/cost.py` や `prep/hazard_sources/quake/cost.py` の
+係数を変えた場合、**コードを直しただけでは経路は変わらない。**
+
+### なぜ変わらないか
+
+浸水深と地域危険度ランクは、前処理でエッジ属性 `cost_flood` / `cost_quake` へ
+**焼き込んである**（決定 D-101）。実行時の `prep/route_search/weights.py` は
+その値を読んで `length × Π cost` を計算するだけで、`hazard_cost()` も
+`QUAKE_COST` も呼ばない。したがってグラフを焼き直すまで探索結果は変わらない。
+
+⚠️ **`QUAKE_COST` だけは応答にそのまま載る。** `app/services/evac_routes/search.py`
+が応答の `quake_cost` フィールドへ実行時に入れているため、**焼き直していなくても
+新しい係数が表示される。** ここを見て「反映された」と判断しないこと。
+判断は経路そのものと `routes[].stats`（`quake_weighted_avg_rank` /
+`quake_r4plus_m` / `ratio_over_03` など）で行う。
+
+実行時に効くもの／焼き直しが要るものは次のとおり。
+
+| 変更箇所 | 探索への反映 |
+|---|---|
+| `flood/cost.py` の `hazard_cost()` の閾値・係数 | 焼き直しが要る |
+| `flood/cost.py` の `COVERAGE_PENALTY` | 焼き直しが要る |
+| `quake/cost.py` の `QUAKE_COST` | 焼き直しが要る（応答の `quake_cost` だけ即時に変わる） |
+| `quake/cost.py` の `QUAKE_COVERAGE_PENALTY` | 焼き直しが要る |
+| `flood/cost.py` の `IMPASSABLE_FINITE` | 再起動だけでよい（実行時に読む） |
+| `route_search/weights.py` の掛け合わせ | 再起動だけでよい |
+
+### 焼き直しコマンドが黙って終了する場合がある
+
+新スコープ用の `studies/graph_array/area_build/bake_area_graph.py` は、
+**出力pickleが既にあると `既にある -> ...` と1行出して正常終了する**
+（中断からの再開のための挙動で、上書きフラグは無い）。
+係数を変えて焼き直すときは、先に対象を消すこと。
+
+```bash
+rm ../data/processed/graph_build/area_envelope.pkl        # 焼き直す対象だけ
+```
+
+旧スコープの `prep.route_search.graph` にこのスキップは無く、毎回上書きする。
+
+### 焼き直したNPZをローカルで読ませる
+
+⚠️ **再生成の出力先と、APIが読む場所は別である。**
+
+| | 場所 |
+|---|---|
+| 再生成の出力先 | `data/processed/graph/`（pickle）、`data/processed/runtime_graph/`（NPZ） |
+| APIが読む既定 | `backend/graph/{profile-id}/{scope}/` |
+
+既定が `backend/` 配下なのは意図的である。`data/` はGitにもDockerイメージにも
+入らないため、既定をそちらにすると本番Containerで任意地点探索が503になる
+（PR #13 以前に実際に起きた）。あわせて、**検証していない焼き直し結果が黙って
+本番配布物にならないようにする関門**でもある。
+
+そのため、**`data/processed/` を更新しただけではAPIの結果は変わらない。**
+エクスプローラー上でタイムスタンプが新しくなっていても同じである。
+
+まずどちらを読んでいるかを確定させる。
+
+```bash
+cd backend
+uv run --frozen python -c \
+  "from app.services.evac_routes import search as S; import os; print(os.path.abspath(S._graph_file('envelope')))"
+```
+
+確認方法は2つある。どちらか一方でよい。
+
+```bash
+# 方法1: 焼き直した成果物を読ませる（backend/graph は触らない）
+cd backend
+GRAPH_DIR=../data/processed/runtime_graph \
+BUNDLES_DIR=../data/processed/bundles \
+uv run --frozen uvicorn app.main:app --reload
+```
+
+```bash
+# 方法2: 数値を確認したうえで本番配布物として採用する
+cd backend
+cp ../data/processed/runtime_graph/{profile-id}/{scope}/*.npz \
+   graph/{profile-id}/{scope}/
+```
+
+どちらの場合も**APIの再起動が要る**。グラフはプロセス内にキャッシュされ、
+`--reload` はコード変更では効くがNPZの差し替えは検知しない。
+
+### 確認する対象
+
+- **任意地点探索（`POST /api/evac-routes/search`）で見る。**
+  プリセット（初期表示と12OD）は静的JSONをバイト列のまま返す契約なので、
+  `prep.route_search.bundles` を再実行するまで絶対に変わらない。
+- ブラウザの強制リロードでは変わらない。応答はAPIが返している。
+
 ## よくある症状
 
 | 症状 | 主な原因 | 確認 |
@@ -280,6 +375,8 @@ npm run tiles:upload -- /absolute/path/to/data/processed/tiles --check
 | Dockerでタイル404 | mountまたは`TILES_DIR`なし | Dockerの`--mount`と環境変数 |
 | Wranglerでタイル404 | ローカルR2が空 | API故障と混同しない。A/Bで画面確認 |
 | profile変更が反映されない | 起動済みグラフのメモリキャッシュ | API・Containerを再起動 |
+| 重み・コスト表の変更が反映されない | コスト値はグラフへ焼き込み済み。または焼き直したNPZが `data/processed/` にあり、APIは `backend/graph/` を読んでいる | 上の「重み・コスト表を変えたときの確認」 |
+| 応答の `quake_cost` だけ新しい値になる | `QUAKE_COST` は実行時に応答へ載るが、経路は焼き込み済みの `cost_quake` を使う | 同上。経路と `routes[].stats` で判断する |
 | Google地図だけ表示できない | ローカルAPIキーなし | MapLibreを使うか`.env.local`を設定 |
 
 ## 本番反映前の境界
