@@ -3,7 +3,13 @@
   "data/raw/tokyoto_kensetsukyoku/shinsui_sumidagawa.csv",
   "data/raw/tokyoto_kensetsukyoku/shinsui_kandagawa.csv",
   "data/raw/tokyoto_kensetsukyoku/shinsui_nakagawa.csv",
-  "data/raw/tokyoto_kensetsukyoku/shinsui_koutounaibu.csv"
+  "data/raw/tokyoto_kensetsukyoku/shinsui_koutounaibu.csv",
+  "data/raw/tokyoto_kensetsukyoku/shinsui_asakawa.csv",
+  "data/raw/tokyoto_kensetsukyoku/shinsui_tamagawa.csv",
+  "data/raw/tokyoto_kensetsukyoku/shinsui_nogawa.csv",
+  "data/raw/tokyoto_kensetsukyoku/shinsui_syakujiigawa.csv",
+  "data/raw/tokyoto_kensetsukyoku/shinsui_jyounantiku.csv",
+  "data/raw/tokyoto_kensetsukyoku/shinsui_akikawa.csv"
  ],
  "scenario": "envelope",
  "source_profile": "flood-kensetsu_quake-risk9",
@@ -15,7 +21,13 @@
     "data/raw/tokyoto_kensetsukyoku/shinsui_sumidagawa.csv",
     "data/raw/tokyoto_kensetsukyoku/shinsui_kandagawa.csv",
     "data/raw/tokyoto_kensetsukyoku/shinsui_nakagawa.csv",
-    "data/raw/tokyoto_kensetsukyoku/shinsui_koutounaibu.csv"
+    "data/raw/tokyoto_kensetsukyoku/shinsui_koutounaibu.csv",
+    "data/raw/tokyoto_kensetsukyoku/shinsui_asakawa.csv",
+    "data/raw/tokyoto_kensetsukyoku/shinsui_tamagawa.csv",
+    "data/raw/tokyoto_kensetsukyoku/shinsui_nogawa.csv",
+    "data/raw/tokyoto_kensetsukyoku/shinsui_syakujiigawa.csv",
+    "data/raw/tokyoto_kensetsukyoku/shinsui_jyounantiku.csv",
+    "data/raw/tokyoto_kensetsukyoku/shinsui_akikawa.csv"
    ]
   },
   "quake": {
@@ -40,22 +52,22 @@
  "edges": 1905380,
  "sample_points": 9480826,
  "total_length_km": 81313.4,
- "impassable_edges": 145110,
+ "impassable_edges": 214028,
  "edge_depth_pct_length_weighted": {
-  ">0.0": 25.399336047132078,
-  ">0.2": 20.36252415803209,
-  ">0.3": 18.11995708187569,
-  ">0.5": 13.99739373622895,
-  ">1.0": 5.755080052848364,
-  ">2.0": 1.2519461873275852
+  ">0.0": 61.50966448920086,
+  ">0.2": 37.964398034426786,
+  ">0.3": 32.02851421242136,
+  ">0.5": 23.591101091225973,
+  ">1.0": 10.615795397793214,
+  ">2.0": 2.6516805334642233
  },
  "coverage_stats": {
   "flood": {
-   "edges_fully_covered": 778786,
-   "edges_partially_covered": 7270,
-   "edges_out_of_coverage": 1119324,
-   "edge_ratio_covered": 0.4125,
-   "length_weighted_coverage": 0.3604
+   "edges_fully_covered": 1588262,
+   "edges_partially_covered": 8594,
+   "edges_out_of_coverage": 308524,
+   "edge_ratio_covered": 0.8381,
+   "length_weighted_coverage": 0.8077
   },
   "quake": {
    "edges_fully_covered": 1899982,
