@@ -228,7 +228,7 @@ curl --fail --silent --show-error \
 |---|---|---|
 | 通常のフロント・API・任意地点探索開発 | 不要 | 不要 |
 | ローカルで浸水・地震レイヤーも表示 | `data/processed/tiles/`のみ必要 | 不要 |
-| raw・シナリオ・格子処理・重み・探索範囲を変更 | 必要 | 必要 |
+| raw・シナリオ・格子処理・[重み](#重みコスト表を変えたときの確認)・探索範囲を変更 | 必要 | 必要 |
 | 本番採用するタイル・NPZ・プリセットを更新 | 必要 | 必要 |
 
 表示確認だけなら、チームで共有した `data/processed/tiles/` を配置するのが最短である。
@@ -297,6 +297,19 @@ npm run tiles:upload -- /absolute/path/to/data/processed/tiles --check
 | `quake/cost.py` の `QUAKE_COVERAGE_PENALTY` | 焼き直しが要る |
 | `flood/cost.py` の `IMPASSABLE_FINITE` | 再起動だけでよい（実行時に読む） |
 | `route_search/weights.py` の掛け合わせ | 再起動だけでよい |
+
+### 焼き直しコマンドが黙って終了する場合がある
+
+新スコープ用の `studies/graph_array/area_build/bake_area_graph.py` は、
+**出力pickleが既にあると `既にある -> ...` と1行出して正常終了する**
+（中断からの再開のための挙動で、上書きフラグは無い）。
+係数を変えて焼き直すときは、先に対象を消すこと。
+
+```bash
+rm ../data/processed/graph_build/area_envelope.pkl        # 焼き直す対象だけ
+```
+
+旧スコープの `prep.route_search.graph` にこのスキップは無く、毎回上書きする。
 
 ### 焼き直したNPZをローカルで読ませる
 
