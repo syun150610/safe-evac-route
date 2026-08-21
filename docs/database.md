@@ -60,6 +60,8 @@
 | evaluation_type | string | | 評価種別（例: 信頼できる・役に立った等） |
 | created_at | datetime | | 評価日時 |
 
+「役に立った」は `evaluation_type = 'helpful'` として保存する。
+
 ---
 
 ### NOTIFICATIONS
