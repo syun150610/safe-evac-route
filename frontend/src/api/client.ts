@@ -10,6 +10,8 @@ import type {
   ShelterCollection,
 } from '../map/types'
 
+import type { CreatePostRequest, Post, PostList } from '../posts/types'
+
 const BASE = import.meta.env.VITE_API_BASE ?? '/api'
 
 /** APIが返した `detail`（辞書）を持ったままのエラー。
@@ -99,3 +101,33 @@ export const getShelters = (params?: { bbox?: string; type?: string }) => {
   const qs = q.toString()
   return get<ShelterCollection>(`/shelters${qs ? `?${qs}` : ''}`)
 }
+/** 投稿一覧を取得する。 */
+export const getPosts = (params: {
+  limit?: number
+  offset?: number
+  sort?: 'recent' | 'nearby' | 'helpful'
+  latitude?: number | null
+  longitude?: number | null
+  userId: string
+}) => {
+  const query = new URLSearchParams({
+    limit: String(params.limit ?? 10),
+    offset: String(params.offset ?? 0),
+    sort: params.sort ?? 'recent',
+    user_id: params.userId,
+  })
+
+  if (params.latitude != null && params.longitude != null) {
+    query.set('latitude', String(params.latitude))
+    query.set('longitude', String(params.longitude))
+  }
+
+  return get<PostList>(`/posts?${query}`)
+}
+
+/** 投稿を作成する。 */
+export const createPost = (req: CreatePostRequest) => post<Post>('/posts', req)
+
+/** 投稿に評価を付ける。 */
+export const markPostHelpful = (postId: string, userId: string) =>
+  post<Post>(`/posts/${encodeURIComponent(postId)}/helpful`, { user_id: userId })
