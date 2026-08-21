@@ -1,4 +1,4 @@
-CREATE TABLE USERS (
+CREATE TABLE IF NOT EXISTS USERS (
   id            TEXT NOT NULL PRIMARY KEY,
   name          TEXT NOT NULL UNIQUE,
   email         TEXT UNIQUE,
@@ -7,7 +7,7 @@ CREATE TABLE USERS (
   created_at    TEXT NOT NULL
 );
 
-CREATE TABLE POSTS (
+CREATE TABLE IF NOT EXISTS POSTS (
   id         TEXT NOT NULL PRIMARY KEY,
   user_id    TEXT NOT NULL REFERENCES USERS(id),
   content    TEXT NOT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE POSTS (
   created_at TEXT NOT NULL
 );
 
-CREATE TABLE POST_EVALUATIONS (
+CREATE TABLE IF NOT EXISTS POST_EVALUATIONS (
   id              TEXT NOT NULL PRIMARY KEY,
   post_id         TEXT NOT NULL REFERENCES POSTS(id),
   user_id         TEXT NOT NULL REFERENCES USERS(id),
@@ -45,7 +45,7 @@ CREATE TABLE CONNECTIONS (
   UNIQUE(requester_id, recipient_id)
 );
 
-CREATE TABLE REFRESH_TOKENS (
+CREATE TABLE IF NOT EXISTS REFRESH_TOKENS (
   id         TEXT    NOT NULL PRIMARY KEY,
   user_id    TEXT    NOT NULL REFERENCES USERS(id),
   token_hash TEXT    NOT NULL UNIQUE,
@@ -54,7 +54,7 @@ CREATE TABLE REFRESH_TOKENS (
   created_at TEXT    NOT NULL
 );
 
-CREATE TABLE STRUCTURES (
+CREATE TABLE IF NOT EXISTS STRUCTURES (
   id        TEXT NOT NULL PRIMARY KEY,
   name      TEXT NOT NULL,
   type      TEXT NOT NULL,
@@ -62,10 +62,10 @@ CREATE TABLE STRUCTURES (
   longitude REAL NOT NULL
 );
 
-CREATE INDEX idx_posts_user_id           ON POSTS(user_id);
-CREATE INDEX idx_post_evals_post_id      ON POST_EVALUATIONS(post_id);
-CREATE INDEX idx_notifications_recipient ON NOTIFICATIONS(recipient_id);
-CREATE INDEX idx_connections_requester   ON CONNECTIONS(requester_id);
-CREATE INDEX idx_connections_recipient   ON CONNECTIONS(recipient_id);
-CREATE INDEX idx_refresh_tokens_user_id  ON REFRESH_TOKENS(user_id);
-CREATE INDEX idx_refresh_tokens_hash     ON REFRESH_TOKENS(token_hash);
+CREATE INDEX IF NOT EXISTS idx_posts_user_id           ON POSTS(user_id);
+CREATE INDEX IF NOT EXISTS idx_post_evals_post_id      ON POST_EVALUATIONS(post_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON NOTIFICATIONS(recipient_id);
+CREATE INDEX IF NOT EXISTS idx_connections_requester   ON CONNECTIONS(requester_id);
+CREATE INDEX IF NOT EXISTS idx_connections_recipient   ON CONNECTIONS(recipient_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id  ON REFRESH_TOKENS(user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash     ON REFRESH_TOKENS(token_hash);
