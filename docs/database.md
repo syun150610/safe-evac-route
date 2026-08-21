@@ -24,8 +24,9 @@
 |---|---|---|---|
 | id | string | PK | ユーザーID |
 | name | string | | 表示名 |
-| email | string | | メールアドレス |
+| email | string | UNIQUE | メールアドレス |
 | password_hash | string | | ハッシュ化されたパスワード |
+| avatar_url | string | NULL許容 | アイコン画像のR2 URL |
 | created_at | datetime | | 登録日時 |
 
 ---
