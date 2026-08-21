@@ -25,6 +25,8 @@ COPY graph/ ./graph/
 # 初期表示と固定OD比較に使う事前計算済みプリセット。
 # data/processed/bundles はgitignore対象なので、本番配布用を明示的に同梱する。
 COPY bundles/ ./bundles/
+# 避難所・避難場所データ（GeoJSON）。
+COPY shelters/ ./shelters/
 
 ENV PATH="/app/.venv/bin:$PATH"
 
