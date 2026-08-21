@@ -1,4 +1,12 @@
-"""本番同梱NPZが読み込め、任意地点探索に使えることを確認する。"""
+"""本番同梱NPZが読み込め、任意地点探索に使えることを確認する。
+
+⚠️ 2026-08-21に探索範囲を 23区+多摩（市街化区域）へ切り替えたので、
+形の期待値もその実測値（652,828ノード / 1,905,380エッジ）にしてある。
+北千住→上野の統計値は現行スコープ時代と同じ（同じ道・同じデータのため）。
+
+⚠️ profile は `kensetsu` だけを見る。`gesuido` には新スコープの成果物が無く、
+旧世代へのロールバック手段が現状ない（`docs/dev/07_課題と作業計画.md` の負債）。
+"""
 
 import os
 
@@ -14,7 +22,7 @@ GRAPH_NAMES = (
     "kitasenju_ueno",
     "kitasenju_ueno_kandagawa",
 )
-PROFILES = ("gesuido", "kensetsu")
+PROFILES = ("kensetsu",)  # gesuido は新スコープの成果物が無い（上の注記）
 
 
 def graph_path(name: str) -> str:
@@ -30,14 +38,14 @@ def test_committed_npz_has_expected_shape_and_no_pickle(monkeypatch, profile, na
     assert os.path.exists(path)
     with np.load(path, allow_pickle=False) as data:
         assert int(data["schema_version"][0]) == 1
-        assert data["node_id"].shape == (27_144,)
-        assert data["edge_u"].shape == (82_586,)
+        assert data["node_id"].shape == (652_828,)
+        assert data["edge_u"].shape == (1_905_380,)
         assert all(array.dtype.kind != "O" for array in data.values())
 
 
 @pytest.mark.parametrize(
     ("profile", "combined_distance_m"),
-    [("gesuido", 5563.1), ("kensetsu", 5791.5)],
+    [("kensetsu", 5791.5)],
 )
 def test_npz_rebuilds_graph_and_searches_route(
     monkeypatch, profile, combined_distance_m
@@ -45,8 +53,8 @@ def test_npz_rebuilds_graph_and_searches_route(
     monkeypatch.setenv("HAZARD_DATA_PROFILE", profile)
     get_settings.cache_clear()
     graph = load_graph_npz(graph_path("kitasenju_ueno_envelope"))
-    assert graph.number_of_nodes() == 27_144
-    assert graph.number_of_edges() == 82_586
+    assert graph.number_of_nodes() == 652_828
+    assert graph.number_of_edges() == 1_905_380
 
     route_search._graphs.clear()
     result = route_search.search(

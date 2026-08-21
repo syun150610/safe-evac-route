@@ -1,11 +1,20 @@
-"""現行スコープの回帰テスト。**配列版へ置き換えた探索が、置き換え前と同じ答えを返すか。**
+"""探索エンジンの回帰テスト。**正しさの証明ではなく、変化の検知。**
 
-期待値は移植前のNetworkX実装で固定したもの（`studies/graph_array/expected/`）。
-ここでは時間の都合で primary の先頭12ケースだけを見る。全240ケースは
+⚠️ **期待値はいまの実装（CSR配列版）自身の出力から作った自己参照である。**
+比較対象のNetworkX版は、新スコープのグラフ（652,828ノード / 1,905,380エッジ）
+ではメモリに載らないため、新スコープで「同じ答えか」を確かめる相手がいない。
 
-    cd backend && python -m studies.graph_array.verify --impl prod
+移植の正しさを担保しているのは**現行スコープ（北千住↔上野）の240ケース**で、
+そちらはNetworkX版の出力と1e-9まで完全一致することを確認済みである
+（`studies/graph_array/expected/nx_*.json.gz`、コミット 39ee7c8）。
+**あの期待値ファイルは削除しないこと。**
 
-で回す。⚠️ 期待値を作り直さないこと。作り直すと回帰テストの意味が無くなる。
+このテストの役割は、今後の変更が意図せず経路・統計・rationaleを
+変えていないかを検知することだけである。
+
+全ケースを回す場合:
+
+    cd backend && python -m studies.graph_array.verify --impl prod   # 現行スコープ用
 """
 
 import gzip
@@ -19,21 +28,21 @@ sys.path.insert(0, str(BACKEND))
 from studies.graph_array import compare  # noqa: E402
 from studies.graph_array.verify import run_prod  # noqa: E402
 
-EXPECTED = BACKEND / "studies/graph_array/expected/nx_primary.json.gz"
+EXPECTED = BACKEND / "studies/graph_array/expected/csr_newscope_primary.json.gz"
+N_OD = 4
 N_CASES = 12
 
 
-def test_primary_cases_match_pre_migration_expectations():
+def test_primary_cases_are_unchanged():
     from studies.graph_array import od_set
 
     with gzip.open(EXPECTED, "rt", encoding="utf-8") as f:
-        expected = json.load(f)["cases"]
+        payload = json.load(f)
+    expected = payload["cases"]
+    assert payload["scope"] == "tokyo-23ku-tama-shigaika"
 
-    od_list = od_set.load()[:4]  # 4組 × 3シナリオ = 12ケース
-    actual = run_prod("primary", od_list)
+    actual = run_prod("primary", od_set.load()[:N_OD])
     assert len(actual) == N_CASES
 
-    bad, lines = compare.report(
-        {k: v for k, v in expected.items() if k in actual}, actual
-    )
+    bad, lines = compare.report(expected, actual)
     assert bad == 0, "\n".join(lines)
