@@ -11,5 +11,5 @@ api_router.include_router(auth.router)
 # 変わる頻度・キャッシュ戦略・担当が違うので、同じファイルを触らないようにするため
 api_router.include_router(evac_routes.router)
 api_router.include_router(hazards.router)
-api_router.include_router(shelters.router)
 api_router.include_router(posts.router)
+api_router.include_router(shelters.router)

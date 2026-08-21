@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.repositories.posts import PostsRepository, get_posts_repository
 from app.schemas.posts import CreatePostRequest, HelpfulRequest, Post, PostList
 
-
 # 投稿関連APIのルーター。
 # "/api/posts" を共通のプレフィックスとして付与する。
 router = APIRouter(
