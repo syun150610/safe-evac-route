@@ -28,6 +28,7 @@ import { useBundle, usePresets } from './hooks/useBundle'
 import { tileUrlOf, useHazards, vectorUrlOf } from './hooks/useHazards'
 import { type Platform, useMapAdapter } from './hooks/useMapAdapter'
 import { useSearch } from './hooks/useSearch'
+import { useShelters } from './hooks/useShelters'
 import { useVector } from './hooks/useVector'
 import { nearestSegment, routeBounds } from './lib/geo'
 import type { Place } from './lib/gsi'
@@ -65,6 +66,8 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   // ③ 地図に表示する災害
   const [layer, setLayer] = useState<ShownHazard>(null)
   const [opacity, setOpacity] = useState(0.7)
+  // ④ 避難所・避難場所の表示トグル
+  const [showShelters, setShowShelters] = useState(false)
 
   const { bundle: presetBundle, error: presetError } = useBundle(
     mode === 'preset' ? od : null,
@@ -204,6 +207,24 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       a.setLayerVisible('quake', false)
     }
   }, [adapter, ready, quakeData, opacity])
+
+  // 避難所・避難場所ピン
+  const { data: shelterData, error: shelterError } = useShelters(showShelters, area?.bbox)
+  useEffect(() => {
+    const a = adapter.current
+    if (!a || !ready) return
+    if (!shelterData) {
+      a.setShelterMarkers([])
+      return
+    }
+    a.setShelterMarkers(
+      shelterData.features.map((f) => ({
+        lngLat: f.geometry.coordinates,
+        label: `【${f.properties.type_label}】${f.properties.name}`,
+        shelterType: f.properties.type,
+      })),
+    )
+  }, [adapter, ready, shelterData])
 
   // マーカー。探索モードでは、まだ引いていなくても選んだ2点を出す
   useEffect(() => {
@@ -414,6 +435,29 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
           {quakeError && (
             <p className="mt-1 text-[11px] text-slate-600 text-[12px] text-red-700">{quakeError}</p>
           )}
+
+          <div className="mt-2 flex flex-col gap-1">
+            <p className="text-[11px] text-slate-600">避難所・避難場所</p>
+            <label className="flex cursor-pointer items-center gap-2 text-[12.5px]">
+              <input
+                type="checkbox"
+                checked={showShelters}
+                onChange={(e) => setShowShelters(e.target.checked)}
+                className="h-4 w-4"
+              />
+              <span className="flex items-center gap-2">
+                <span className="inline-block h-3 w-3 rounded-full bg-[#16a34a]" />
+                指定緊急避難場所
+                <span className="inline-block h-3 w-3 rounded-full bg-[#ca8a04]" />
+                指定避難所
+              </span>
+            </label>
+            {shelterError && (
+              <p className="mt-1 text-[11px] text-red-700">
+                避難所の読み込みに失敗しました: {shelterError}
+              </p>
+            )}
+          </div>
 
           {bundle && (
             <>

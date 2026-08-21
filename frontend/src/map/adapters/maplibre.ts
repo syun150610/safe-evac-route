@@ -31,6 +31,7 @@ import type {
   Padding,
   RasterOptions,
   RouteClick,
+  ShelterMarkerSpec,
 } from './types'
 
 // ⚠️ **これが無いと経路の線が1本も描かれない。** maplibre-gl v6 は Worker を本体とは
@@ -65,6 +66,7 @@ export function createMapLibreAdapter(): MapAdapter {
   let areaClickCb: ((e: AreaClick) => void) | null = null
   let locked: string[] | null = null
   const markers: Marker[] = []
+  const shelterMarkers: Marker[] = []
 
   const handler = (n: string) => (map as unknown as Record<string, Handler>)[n]
 
@@ -373,6 +375,20 @@ export function createMapLibreAdapter(): MapAdapter {
       for (const m of list) {
         markers.push(
           new Marker({ color: '#2b6cb0' })
+            .setLngLat(m.lngLat)
+            .setPopup(new Popup().setText(m.label))
+            .addTo(map),
+        )
+      }
+    },
+
+    setShelterMarkers(list: ShelterMarkerSpec[]) {
+      for (const m of shelterMarkers) m.remove()
+      shelterMarkers.length = 0
+      for (const m of list) {
+        const color = m.shelterType === 'urgent' ? '#16a34a' : '#ca8a04'
+        shelterMarkers.push(
+          new Marker({ color })
             .setLngLat(m.lngLat)
             .setPopup(new Popup().setText(m.label))
             .addTo(map),
