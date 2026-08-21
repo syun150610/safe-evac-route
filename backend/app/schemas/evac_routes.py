@@ -36,6 +36,76 @@ class Bundle(BaseModel):
     model_config = {"extra": "allow"}
 
 
+class RationaleDetail(BaseModel):
+    """詳細表示（タップ後）の4行。**行数も順番も固定。**"""
+
+    route: str  # 距離と所要時間
+    risk: str  # 危険区間の長さと未評価区間
+    compare: str  # 最短経路との差
+    condition: str  # 閾値・想定図・未評価区間
+
+
+class RationaleHazard(BaseModel):
+    """種別1つぶんの根拠。
+
+    ⚠️ **種別ごとに変わるのは `risk_label` だけ。** 判定も文言テンプレも共通で、
+    定義は `prep.hazard_sources.registry` の `risk` ブロックにある。
+    """
+
+    id: str  # "flood" / "quake" / …
+    label: str  # 種別名（"浸水"）
+    risk_label: str  # 危険区間の呼び名（"浸水30cm超"）
+    # 経路の重みに掛けた種別か。False でも数値は出す
+    # （registry.py「他種別での評価値も併記する」）
+    considered: bool
+    # avoided=回避成功 / already_safe=最短が既に安全 / partial=部分回避
+    # / unavoidable=回避不可
+    verdict: str
+    before_m: float  # 最短経路の危険区間(m)
+    after_m: float  # 選ばれた経路の危険区間(m)
+    before_ratio: float
+    after_ratio: float
+    # ⚠️ **大きいほど「安全」ではなく「評価できていない」。** 必ず併記する
+    unevaluated_ratio: float
+    baseline_unevaluated_ratio: float
+    # 未評価が多いときの警告文。閾値未満なら null。危険区間0mでも出る
+    unevaluated_note: str | None
+    text: str  # そのまま出せる短文
+    detail: RationaleDetail
+
+
+class RationaleDistance(BaseModel):
+    baseline_m: float
+    selected_m: float
+    delta_m: float  # 遠回りぶん。baseline は距離最小なので 0 以上
+    delta_ratio: float
+    baseline_min_80: float
+    selected_min_80: float
+    baseline_min_60: float
+    selected_min_60: float
+
+
+class Rationale(BaseModel):
+    """POST /search の `rationale`。「なぜこの経路なのか」。
+
+    ⚠️ **文言はAPIが単一の出所。** フロントにテンプレートを持たせない
+    （2026-08-21にユーザーと確認）。数値も併せて返すので、強調表示は
+    フロント側で自由にできる。
+
+    ⚠️ 種別を1つも選んでいない（＝最短しか引いていない）ときは **null**。
+    比較対象が無いのに判定文を出すと誤読になる。
+
+    ⚠️ **プリセットAPIには付かない。** あちらは静的JSONをバイト列のまま返す
+    契約で、`tests/test_api.py` がバイト一致を検証している（決定 D-301）。
+    """
+
+    baseline_route: str
+    selected_route: str
+    distance: RationaleDistance
+    # 登録済み種別ぶん。`considered` で経路に掛けたかを区別する
+    hazards: list[RationaleHazard]
+
+
 class Point(BaseModel):
     """緯度経度。`label` は表示名（住所検索の結果や「現在地」）"""
 
@@ -49,6 +119,7 @@ class SearchRequest(BaseModel):
 
     ⚠️ **レスポンスの形はプリセットと同じ**（routes[] / geojson / …）。
     フロントの表示コードを1本化するため。
+    唯一の差が `rationale`（→ `Rationale`）で、プリセットには付かない。
 
         {
           "origin": {"lat": 35.7497, "lon": 139.8050},

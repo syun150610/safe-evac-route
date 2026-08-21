@@ -30,6 +30,7 @@ import threading
 import networkx as nx
 
 from app.core.config import get_settings
+from app.services.evac_routes import rationale as rationale_svc
 from prep.hazard_sources import registry
 from prep.hazard_sources.quake.cost import QUAKE_COST
 from prep.paths import rel
@@ -347,6 +348,13 @@ def search(
 
     meta = B.SCENARIO_META[sc]
     settings = get_settings()
+    # 「なぜこの経路なのか」。最短しか引いていないときは None
+    # （比較対象が無いのに判定文を出すと誤読になる）。
+    # ⚠️ プリセットAPIには付けない。あちらは静的JSONをバイト列のまま返す契約で、
+    #    tests/test_api.py がバイト一致を検証している（決定 D-301）
+    rationale = rationale_svc.build(
+        routes, COMBO_ID[hs], hazards or {}, meta["display"]
+    )
     return {
         "data_profile": settings.hazard_data_profile,
         "scenario": sc,
@@ -387,6 +395,7 @@ def search(
         "quake_cost": {str(k): v for k, v in QUAKE_COST.items()},
         "hazards": dict(hazards or {}),
         "selected_route": COMBO_ID[hs],
+        "rationale": rationale,
         "routes": routes,
         "geojson": {"type": "FeatureCollection", "features": feats},
     }
