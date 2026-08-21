@@ -118,9 +118,6 @@ def search(
     unknown = [x for x in inc if x not in ("baseline", "selected", "minimax")]
     if unknown:
         raise S.BadRequest(f"include に未知の値: {unknown}")
-    if "minimax" in inc:
-        raise NotImplementedError("minimax の移植は段階4")
-
     wanted = []
     if "baseline" in inc:
         wanted.append(())
@@ -137,6 +134,51 @@ def search(
             "edges": [[int(u), int(v), int(k)] for u, v, k in edges],
             "ambiguous_parallel_edges": info["ambiguous_parallel_edges"],
         }
+
+    floor = None
+    if "minimax" in inc:
+        floor, mm_path, mask = A.min_achievable_max_depth(csr, o, d)
+        if mm_path is not None:
+            # ⚠️ 復元は**閾値で絞った見え方**で行い、統計とジオメトリは絞らない側で取る
+            #    （本番 min_achievable_max_depth / search() と同じ）
+            mm_edges, _ = resolve_path_edges(view.filtered(mask), mm_path, "length")
+            rid, no, _w, label, role, desc = B.MINIMAX
+            st = route_stats(view, mm_edges)
+            feats.append(
+                B.feature(
+                    stitch(view, mm_edges),
+                    {
+                        "kind": "route",
+                        "route": rid,
+                        "no": no,
+                        "label": label,
+                        "role": role,
+                        "desc": desc,
+                        "weight": "minimax",
+                        **st,
+                    },
+                )
+            )
+            if with_segments:
+                feats += B.segment_features(view, mm_edges, rid)
+            routes.append(
+                {
+                    "id": rid,
+                    "no": no,
+                    "label": label,
+                    "role": role,
+                    "desc": desc,
+                    "weight": "minimax",
+                    "stats": st,
+                    "ambiguous_parallel_edges": 0,
+                    "hazards": [],
+                }
+            )
+            paths[rid] = {
+                "nodes": [int(n) for n in mm_path],
+                "edges": [[int(u), int(v), int(k)] for u, v, k in mm_edges],
+                "ambiguous_parallel_edges": 0,
+            }
 
     meta = B.SCENARIO_META[sc]
     settings = get_settings()
@@ -170,7 +212,7 @@ def search(
             "note": "地図で指定した2地点",
             "role": None,
         },
-        "minimax_floor_m": None,
+        "minimax_floor_m": round(floor, 2) if floor is not None else None,
         "depth_threshold_m": DEPTH_THRESHOLD,
         "walk_speed_m_per_min": {
             "normal": WALK_SPEED_NORMAL,

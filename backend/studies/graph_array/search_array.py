@@ -47,8 +47,13 @@ def edge_costs(g: CsrGraph, hazards) -> np.ndarray:
     return np.where(inf, length * IMPASSABLE_FINITE, out)
 
 
-def dijkstra(g: CsrGraph, source: int, target: int, cost: np.ndarray) -> list[int]:
-    """ノード添字で最短経路を返す。networkx の Dijkstra と同じ順序で緩和する。"""
+def dijkstra(
+    g: CsrGraph, source: int, target: int, cost: np.ndarray, mask=None
+) -> list[int]:
+    """ノード添字で最短経路を返す。networkx の Dijkstra と同じ順序で緩和する。
+
+    `mask` を渡すと False のエッジは**無いものとして**扱う（部分グラフ相当）。
+    """
     node_offset = g.node_offset
     edge_to = g.edge_to
     dist: dict[int, float] = {}
@@ -67,6 +72,8 @@ def dijkstra(g: CsrGraph, source: int, target: int, cost: np.ndarray) -> list[in
         #    スロット単位で押し込むと同着の順序が変わるので、必ずまとめる。
         best: dict[int, float] = {}
         for i in range(int(node_offset[v]), int(node_offset[v + 1])):
+            if mask is not None and not mask[i]:
+                continue
             u = int(edge_to[i])
             w = float(cost[i])
             if u not in best or w < best[u]:
@@ -115,3 +122,56 @@ def snap_m(g: CsrGraph, node_id: int, lat: float, lon: float) -> float:
     dx = (float(g.node_x[i]) - lon) * 111_320.0 * math.cos(math.radians(lat))
     dy = (float(g.node_y[i]) - lat) * 111_320.0
     return math.hypot(dx, dy)
+
+
+def _reachable(g: CsrGraph, source: int, target: int, mask: np.ndarray) -> bool:
+    """mask が True のエッジだけで source から target へ到達できるか（有向）。"""
+    if source == target:
+        return True
+    seen = np.zeros(g.n_nodes, dtype=bool)
+    seen[source] = True
+    stack = [source]
+    node_offset = g.node_offset
+    edge_to = g.edge_to
+    while stack:
+        v = stack.pop()
+        for i in range(int(node_offset[v]), int(node_offset[v + 1])):
+            if not mask[i]:
+                continue
+            u = int(edge_to[i])
+            if not seen[u]:
+                if u == target:
+                    return True
+                seen[u] = True
+                stack.append(u)
+    return False
+
+
+def min_achievable_max_depth(g: CsrGraph, source_id: int, target_id: int):
+    """`prep.route_search.search.min_achievable_max_depth` と同じ二分探索。
+
+    深さの候補値を昇順に並べ、「その閾値以下のエッジだけで連結するか」を二分探索し、
+    決まった閾値の中で length 最短の経路を取る。
+    ⚠️ 閾値を超えるエッジは**存在しないものとして扱う**（重みを大きくするのではない）。
+    `nx.subgraph_view(filter_edge=...)` と同じ扱いにするため。
+    """
+    depth = g.edge_float["depth_max"].astype(np.float64)
+    vals = np.unique(depth)
+    source = g.node_index(source_id)
+    target = g.node_index(target_id)
+    if not _reachable(g, source, target, depth <= vals[-1]):
+        return None, None, None
+
+    lo, hi = 0, len(vals) - 1
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if _reachable(g, source, target, depth <= vals[mid]):
+            hi = mid
+        else:
+            lo = mid + 1
+    thr = float(vals[lo])
+
+    mask = depth <= thr
+    length = g.edge_float["length"].astype(np.float64)
+    path = dijkstra(g, source, target, length, mask)
+    return thr, [int(g.node_id[i]) for i in path], mask

@@ -34,11 +34,20 @@ class _Nodes:
 
 
 class CsrGraphView:
-    """NetworkX の MultiDiGraph と同じ読み方ができる、配列バックの窓口。"""
+    """NetworkX の MultiDiGraph と同じ読み方ができる、配列バックの窓口。
 
-    def __init__(self, g: CsrGraph):
+    `edge_mask` を渡すと `nx.subgraph_view(filter_edge=...)` と同じ見え方になる。
+    ⚠️ 残るエッジが1本も無い隣接ノードは**現れない**（networkx の
+    `FilterMultiInner` が同じ扱いをする）。minimax の復元で効く。
+    """
+
+    def __init__(self, g: CsrGraph, edge_mask=None):
         self.csr = g
         self.nodes = _Nodes(g)
+        self.edge_mask = edge_mask
+
+    def filtered(self, edge_mask) -> CsrGraphView:
+        return CsrGraphView(self.csr, edge_mask)
 
     # ---- NetworkX 互換の最小限 ----
 
@@ -56,7 +65,10 @@ class CsrGraphView:
         g = self.csr
         ui = g.node_index(u)
         out: dict[int, dict[int, dict]] = {}
+        mask = self.edge_mask
         for i in range(*self.csr.out_slice(ui).indices(g.n_edges)):
+            if mask is not None and not mask[i]:
+                continue
             v = int(g.node_id[int(g.edge_to[i])])
             out.setdefault(v, {})[int(g.edge_key[i])] = self.edge_attrs(i)
         return out

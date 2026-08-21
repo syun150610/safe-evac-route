@@ -61,6 +61,28 @@ def route_paths(G, o, d, hazards_tuple_list) -> dict:
     return out
 
 
+def minimax_paths(G, o, d) -> dict:
+    """minimax 経路のノード列・エッジ列。**本番の関数をそのまま使う。**"""
+    import networkx as nx
+
+    from prep.route_search.search import min_achievable_max_depth
+
+    thr, edges = min_achievable_max_depth(G, o, d)
+    if edges is None:
+        return {}
+    view = nx.subgraph_view(
+        G, filter_edge=lambda u, v, k: G[u][v][k]["depth_max"] <= thr
+    )
+    path = nx.shortest_path(view, o, d, weight="length")
+    return {
+        "minimax": {
+            "nodes": [int(n) for n in path],
+            "edges": [[int(u), int(v), int(k)] for u, v, k in edges],
+            "ambiguous_parallel_edges": 0,
+        }
+    }
+
+
 def run_set(set_name: str, od_list: list[dict]) -> dict:
     result = {}
     t0 = time.perf_counter()
@@ -75,7 +97,10 @@ def run_set(set_name: str, od_list: list[dict]) -> dict:
         hs = S._normalize(hz)
         if hs != ():
             wanted.append(hs)
-        result[cid] = {"response": res, "paths": route_paths(G, o, d, wanted)}
+        paths = route_paths(G, o, d, wanted)
+        if "minimax" in include:
+            paths.update(minimax_paths(G, o, d))
+        result[cid] = {"response": res, "paths": paths}
     print(f"  {set_name}: {len(result)}ケース / {time.perf_counter() - t0:.1f}s")
     return result
 
