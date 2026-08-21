@@ -26,7 +26,7 @@ const HAZARD: RationaleHazard = {
   baseline_unevaluated_ratio: 0.0,
   unevaluated_stage: 'none',
   unevaluated_note: 'この経路は全区間が想定区域図の整備対象流域の中です',
-  text: '浸水30cm超を 1,178m → 109m。残り109mは迂回路がありません',
+  text: '浸水30cm超の区間が 1,178m → 109m。残り109mは迂回路がありません',
   detail: {
     route: '5.79km ・ 徒歩 約72分（平常時）/ 約96分（災害時60m/分）',
     risk: '浸水30cm超 109m（経路の1.9%）・未評価区間 0.0%',

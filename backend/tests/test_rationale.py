@@ -71,7 +71,7 @@ def test_部分回避():
     r = _build(_stats(5000, 1177.5, 100), _stats(5346, 108.5, 90))
     f = _flood(r)
     assert f["verdict"] == "partial"
-    assert f["text"] == "浸水30cm超を 1,178m → 109m。残り109mは迂回路がありません"
+    assert f["text"] == "浸水30cm超の区間が 1,178m → 109m。残り109mは迂回路がありません"
 
 
 def test_回避不可():

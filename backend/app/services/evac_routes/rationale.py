@@ -69,7 +69,7 @@ UNEVALUATED_NOTES = {
 TEMPLATES = {
     "avoided": "+{delta} の遠回りで、{label}を {before} → {after} に",
     "already_safe": "最短経路が最も安全でした（{label}なし）",
-    "partial": "{label}を {before} → {after}。残り{after}は迂回路がありません",
+    "partial": "{label}の区間が {before} → {after}。残り{after}は迂回路がありません",
     # 「最短」は最短経路のことなので baseline 側の値を出す（2026-08-21 確認済み）
     "unavoidable": "どの経路も{label}を通ります（最短 {before}）",
 }
