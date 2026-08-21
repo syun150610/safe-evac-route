@@ -175,6 +175,10 @@ def route_stats(G, edges):
             {
                 "quake_max_rank": int(qmax),
                 "quake_r4plus_ratio": round(q4 / total, 4) if total else 0.0,
+                # 浸水の length_over_03_m と対称にしておく。根拠提示が
+                # 「危険区間を{前}m → {後}m」と書くのに実距離が要る
+                # （ratio×distance で代用すると丸め誤差がm級で乗る）
+                "quake_r4plus_m": round(q4, 1),
                 "quake_weighted_avg_rank": round(qsum / total, 3) if total else 0.0,
                 "quake_out_of_coverage_ratio": round(qnocov / total, 4)
                 if total

@@ -71,6 +71,9 @@ def test_npz_rebuilds_graph_and_searches_route(
         "n_impassable_edges": 6,
         "quake_max_rank": 5,
         "quake_r4plus_ratio": 0.302,
+        # 経路選択の根拠が「危険区間を{前}m → {後}m」と書くのに要る実距離。
+        # ratio×distance（0.302 × 5445.9 = 1644.7m）と丸めの範囲で一致する
+        "quake_r4plus_m": 1644.5,
         "quake_weighted_avg_rank": 2.765,
         "quake_out_of_coverage_ratio": 0.0,
     }

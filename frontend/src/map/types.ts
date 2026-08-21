@@ -22,6 +22,8 @@ export interface RouteStats {
   ratio_over_03: number
   /** 地域危険度ランク4以上の町丁目を通る割合 */
   quake_r4plus_ratio: number
+  /** 同 実距離(m)。**静的プリセットには無い**（POST /search のみ） */
+  quake_r4plus_m?: number
   /** **大きいほど「安全」ではなく「評価できていない」** */
   out_of_coverage_ratio: number
   n_edges?: number
@@ -38,6 +40,86 @@ export interface RouteInfo {
   ambiguous_parallel_edges: number
   /** POST /search のときだけ。この経路が掛け合わせた種別 */
   hazards?: string[]
+}
+
+/** 4条件の判定。
+ *
+ * avoided=回避成功 / already_safe=最短が既に安全 / partial=部分回避 /
+ * unavoidable=回避不可
+ */
+export type RationaleVerdict = 'avoided' | 'already_safe' | 'partial' | 'unavoidable'
+
+/** 詳細表示（タップ後）の4行。**行数も順番も固定。** */
+export interface RationaleDetail {
+  route: string
+  risk: string
+  compare: string
+  condition: string
+}
+
+/** 種別1つぶんの根拠。
+ *
+ * ⚠️ **文言(`text` / `detail`)はAPIが単一の出所。** フロントにテンプレートを
+ * 持たせないこと（2026-08-21にユーザーと確認）。種別が増えても、増えるのは
+ * `backend/prep/hazard_sources/registry.py` の `risk` ブロックだけで、
+ * ここは無変更で済む。数値を強調表示したいときのために数値も来る。
+ */
+export interface RationaleHazard {
+  id: string
+  /** 種別名（"浸水"） */
+  label: string
+  /** 危険区間の呼び名（"浸水30cm超" / "危険度4以上"） */
+  risk_label: string
+  /** 経路の重みに掛けた種別か。false でも数値は来る */
+  considered: boolean
+  verdict: RationaleVerdict
+  /** 最短経路の危険区間(m) */
+  before_m: number
+  /** 選ばれた経路の危険区間(m) */
+  after_m: number
+  before_ratio: number
+  after_ratio: number
+  /** ⚠️ **大きいほど「安全」ではなく「評価できていない」。** 必ず出す */
+  unevaluated_ratio: number
+  baseline_unevaluated_ratio: number
+  /** none=全区間が整備範囲の中 / some=一部が外 / warn=閾値超。
+   *
+   * ⚠️ **フロントで割合と閾値を比べ直さないこと。** 閾値はAPI側にあり、
+   * ここは強調の出し分けにだけ使う */
+  unevaluated_stage: 'none' | 'some' | 'warn'
+  /** 未評価の伝え方。**3段階とも必ず入る（nullにならない）。**
+   * 整備範囲の名前（「想定区域図の整備対象流域」等）が差し込んである */
+  unevaluated_note: string
+  text: string
+  detail: RationaleDetail
+}
+
+export interface RationaleDistance {
+  baseline_m: number
+  selected_m: number
+  /** 遠回りぶん。baseline は距離最小なので 0 以上 */
+  delta_m: number
+  delta_ratio: number
+  baseline_min_80: number
+  selected_min_80: number
+  baseline_min_60: number
+  selected_min_60: number
+}
+
+/** 「なぜこの経路なのか」。
+ *
+ * ⚠️ **POST /search のときだけ来る。** プリセットには付かない（静的JSONを
+ * バイト列のまま返す契約のため）。種別を1つも選んでいないときも null。
+ */
+export interface Rationale {
+  baseline_route: RouteId
+  selected_route: RouteId
+  distance: RationaleDistance
+  /** 登録済み種別ぶん。`considered` で経路に掛けたかを区別する。
+   *
+   * ⚠️ **並び替えないこと。** 「全区間評価済みの種別が先、未評価のある種別が後」
+   * にAPI側で並べてある（確かなことから先に述べるため） */
+  hazards: RationaleHazard[]
 }
 
 export interface SegmentProps {
@@ -93,6 +175,8 @@ export interface Bundle {
   hazards?: Record<string, string>
   /** POST /search のときだけ。掛け合わせで出した経路のID */
   selected_route?: RouteId
+  /** POST /search のときだけ。比較対象が無ければ null（→ 根拠を出さない） */
+  rationale?: Rationale | null
 }
 
 /** GET /api/evac-routes/area

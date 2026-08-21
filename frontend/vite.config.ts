@@ -20,6 +20,8 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    include: ['src/**/*.test.ts'],
+    // ⚠️ .tsx も拾うこと。ここが .test.ts だけだと、コンポーネントの
+    // テストを置いても**黙って実行されない**（緑に見えるが走っていない）
+    include: ['src/**/*.test.{ts,tsx}'],
   },
 })
