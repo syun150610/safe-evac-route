@@ -21,6 +21,7 @@ import { DataAttribution } from './components/DataAttribution'
 import { HazardPicker, type HazardSelection } from './components/HazardPicker'
 import { LayerPicker, type ShownHazard } from './components/LayerPicker'
 import { PlaceInput } from './components/PlaceInput'
+import { RouteRationale } from './components/RouteRationale'
 import { RouteTable } from './components/RouteTable'
 import { DRAW_ORDER, INITIAL_ON, STYLE } from './constants'
 import { inArea, useArea } from './hooks/useArea'
@@ -464,6 +465,11 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               <p className="rounded-md bg-slate-50 px-2 py-1.5 text-[11px] text-slate-600">
                 {bundle.scenario_note.replace(/\*\*/g, '')}
               </p>
+              {/* 指標表より先に「なぜこの経路なのか」を出す。表だけだと
+                  数字の読み方が利用者に委ねられてしまう。
+                  ⚠️ プリセットには rationale が付かない（静的JSONをバイト列の
+                  まま返す契約）ので、任意地点探索のときだけ出る */}
+              {bundle.rationale && <RouteRationale rationale={bundle.rationale} />}
               <RouteTable
                 bundle={bundle}
                 shown={shown}
