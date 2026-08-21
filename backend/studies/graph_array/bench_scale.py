@@ -20,11 +20,11 @@ import threading
 import time
 
 from prep.route_search import bundles as B
+from prep.route_search import csr_search as A
+from prep.route_search.csr_graph import load_csr
+from prep.route_search.csr_view import CsrGraphView
 from prep.route_search.search import resolve_path_edges, route_stats, stitch
 from prep.route_search.weights import edge_cost
-from studies.graph_array import search_array as A
-from studies.graph_array.csr import load_csr
-from studies.graph_array.csr_view import CsrGraphView
 from studies.graph_array.replicate import NODE_ID_STRIDE
 
 HAZARDS = ("flood", "quake")

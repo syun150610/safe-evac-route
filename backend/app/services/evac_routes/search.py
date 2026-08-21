@@ -6,20 +6,28 @@
 
 ## 対象エリア
 
-経路探索は**事前に焼いたグラフの中でしか動かない。** いま焼いてあるのは
-北千住↔上野の bbox + 1km だけで、外の地点は `OutOfArea` で弾く。
-東京都内へ広げる場合は、より大きいグラフの保持方法または地域分割の設計が別途必要になる。
+経路探索は**事前に焼いたグラフの中でしか動かない。** 対象範囲はNPZに付いている
+`*_meta.json` の bbox で決まり、外の地点は `OutOfArea` で弾く。
+
+## グラフの持ち方
+
+⚠️ **NPZは配列（CSR）のまま持ち、NetworkXへ展開しない。**
+MultiDiGraph は実測 1,267 B/edge で、東京都規模（190万エッジ級）では
+Containerの6GiBに載らない。CSRなら 62 B/edge。
+探索は `prep.route_search.csr_search`、統計・ジオメトリの取り出しは
+`prep.route_search.csr_view.CsrGraphView` が経路上のエッジだけ辞書に起こす。
 
 ## 重い依存を持ち込まない
 
 `prep.route_search.graph` は osmnx を import しているので**触らない**。
-探索に要るものは `prep.route_search.snap` に分離してある。
-API に増える依存は networkx / numpy / shapely（NPZからのグラフ復元に要る）だけ。
+探索に要るものは `prep.route_search.snap` / `csr_*` に分離してある。
+API に増える依存は numpy / shapely だけ。
 
 ## 掛け合わせ
 
-`weights.edge_weight(G, hazards)` が `length × Π cost_h` を探索時に計算する。
-事前計算した `weight_combined` などと一致することは tests/test_weights.py が担保。
+`weights.edge_cost(hazards)` と同じ式（`length × Π cost_h`）を
+`csr_search.edge_costs` が配列で計算する。**リクエストのたびに掛ける**ので、
+組み合わせごとの重み配列は持たない。
 """
 
 from __future__ import annotations
@@ -27,26 +35,25 @@ from __future__ import annotations
 import os
 import threading
 
-import networkx as nx
-
 from app.core.config import get_settings
 from app.services.evac_routes import rationale as rationale_svc
 from prep.hazard_sources import registry
 from prep.hazard_sources.quake.cost import QUAKE_COST
 from prep.paths import rel
 from prep.route_search import bundles as B
-from prep.route_search.npz_graph import load_graph_npz
+from prep.route_search import csr_search as CS
+from prep.route_search.csr_graph import load_csr
+from prep.route_search.csr_view import CsrGraphView
 from prep.route_search.search import (
     DEPTH_THRESHOLD,
     WALK_SPEED_DISASTER,
     WALK_SPEED_NORMAL,
-    min_achievable_max_depth,
     resolve_path_edges,
     route_stats,
     stitch,
 )
-from prep.route_search.snap import graph_bbox, load_meta, nearest_node, snap_m
-from prep.route_search.weights import baked_weight, edge_cost, edge_weight
+from prep.route_search.snap import graph_bbox, load_meta
+from prep.route_search.weights import baked_weight, edge_cost
 
 
 class NotGenerated(Exception):
@@ -89,7 +96,7 @@ MAX_SNAP_M = 300.0
 DEFAULT_SCENARIO = "envelope"
 DEFAULT_INCLUDE = ("baseline", "selected")
 
-_graphs: dict[tuple[str, str], nx.MultiDiGraph] = {}
+_graphs: dict[tuple[str, str], CsrGraphView] = {}
 _lock = threading.Lock()
 
 
@@ -107,8 +114,15 @@ def _graph_file(scenario: str) -> str:
     return p
 
 
-def _graph(scenario: str) -> nx.MultiDiGraph:
-    """圧縮NPZを読み、MultiDiGraphとしてプロセス内に持つ。
+def _graph(scenario: str) -> CsrGraphView:
+    """圧縮NPZを**CSR配列のまま**読み、プロセス内に持つ。
+
+    ⚠️ NetworkX の MultiDiGraph へは展開しない。実測で 1,267 B/edge かかり、
+    東京都規模（190万エッジ級）ではContainerのメモリに載らないため。
+    配列のままなら 62 B/edge で、ロードも 0.35us/edge（NetworkX復元は 15.4us/edge）。
+
+    ジオメトリと道路名は探索が触らないので、`CsrGraphView` が応答を組み立てる
+    ときに初めて読む。
 
     シナリオは3つしかないので単純な辞書で足りる。エリアを設定値化して増やすときは
     ここに上限を入れること（05 §13 段11）。
@@ -119,7 +133,7 @@ def _graph(scenario: str) -> nx.MultiDiGraph:
         key = (profile, scenario)
         G = _graphs.get(key)
         if G is None:
-            G = load_graph_npz(p)
+            G = CsrGraphView(load_csr(p))
             _graphs[key] = G
         return G
 
@@ -213,12 +227,11 @@ def _route_meta(route_id: str):
 def _one_route(G, o, d, hazards, with_segments):
     """1本ぶんの (Feature群, routes[]の1件)"""
     route_id = COMBO_ID[hazards]
-    w = edge_weight(G, hazards)
-    path = nx.shortest_path(G, o, d, weight=w)
+    path = CS.shortest_path(G.csr, o, d, hazards)
     # 平行エッジの復元は**探索に使ったのと同じ重み**で。
-    # 文字列の重み（length）ならそのまま、掛け合わせなら1本ぶんの関数を渡す
+    # 種別なしは length、掛け合わせなら1本ぶんの関数を渡す
     edges, ambiguous = resolve_path_edges(
-        G, path, w if isinstance(w, str) else edge_cost(hazards)
+        G, path, "length" if not hazards else edge_cost(hazards)
     )
     st = route_stats(G, edges)
     no, label, role, desc = _route_meta(route_id)
@@ -274,10 +287,10 @@ def search(
     _check_area(graph_bbox(_graph_file(sc)), (o_lat, o_lon), (d_lat, d_lon))
 
     G = _graph(sc)
-    o = nearest_node(G, o_lat, o_lon)
-    d = nearest_node(G, d_lat, d_lon)
-    snap_o = snap_m(G, o, o_lat, o_lon)
-    snap_d = snap_m(G, d, d_lat, d_lon)
+    o = CS.nearest_node(G.csr, o_lat, o_lon)
+    d = CS.nearest_node(G.csr, d_lat, d_lon)
+    snap_o = CS.snap_m(G.csr, o, o_lat, o_lon)
+    snap_d = CS.snap_m(G.csr, d, d_lat, d_lon)
     for name, s in (("出発地", snap_o), ("目的地", snap_d)):
         if s > MAX_SNAP_M:
             raise BadRequest(
@@ -311,7 +324,13 @@ def search(
 
     floor = None
     if "minimax" in inc:
-        floor, mm_edges = min_achievable_max_depth(G, o, d)
+        floor, mm_path, mm_mask = CS.min_achievable_max_depth(G.csr, o, d)
+        mm_edges = None
+        if mm_path is not None:
+            # ⚠️ 復元は閾値で絞った見え方で、統計とジオメトリは絞らない側で取る
+            mm_edges, _mm_amb = resolve_path_edges(
+                G.filtered(mm_mask), mm_path, "length"
+            )
         if mm_edges is not None:
             rid, no, _w, label, role, desc = B.MINIMAX
             st = route_stats(G, mm_edges)

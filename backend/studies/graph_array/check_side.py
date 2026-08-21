@@ -14,13 +14,13 @@ from __future__ import annotations
 import numpy as np
 
 from app.services.evac_routes.search import _graph_file
+from prep.route_search import csr_search as A
+from prep.route_search.csr_graph import load_csr
+from prep.route_search.csr_view import CsrGraphView
 from prep.route_search.npz_graph import load_graph_npz
 from prep.route_search.snap import graph_bbox
 from prep.route_search.snap import nearest_node as nx_nearest
 from prep.route_search.snap import snap_m as nx_snap
-from studies.graph_array import search_array as A
-from studies.graph_array.csr import load_csr
-from studies.graph_array.csr_view import CsrGraphView
 
 SCENARIO = "envelope"
 SEED = 20260821

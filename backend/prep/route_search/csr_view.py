@@ -15,7 +15,7 @@ from __future__ import annotations
 import numpy as np
 from shapely.geometry import LineString
 
-from studies.graph_array.csr import COORD_SCALE, CsrGraph
+from prep.route_search.csr_graph import COORD_SCALE, CsrGraph
 
 
 class _Nodes:

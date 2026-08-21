@@ -21,7 +21,7 @@ from itertools import count
 import numpy as np
 
 from prep.hazard_sources.flood.cost import IMPASSABLE_FINITE
-from studies.graph_array.csr import CsrGraph
+from prep.route_search.csr_graph import CsrGraph
 
 # `weights.cost_key` と同じ並び（sorted された種別ID → cost_<id>）
 COST_FIELD = {"flood": "cost_flood", "quake": "cost_quake"}

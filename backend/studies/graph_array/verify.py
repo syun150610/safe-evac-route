@@ -28,27 +28,63 @@ def load_expected(set_name: str) -> dict:
         return json.load(f)
 
 
-def run_nx(set_name: str, od_list: list[dict]) -> dict:
-    from studies.graph_array.freeze_nx import run_set
+def _paths(sc: str, o: int, d: int, hazards_tuples, with_minimax: bool) -> dict:
+    """経路のノード列・エッジ列。応答には入らないので本番の内部関数で取り直す。
 
-    return run_set(set_name, od_list)
+    ⚠️ 本番 `_one_route` と同じ手順（同じ重み・同じ復元）で辿る。
+    """
+    from app.services.evac_routes import search as S
+    from prep.route_search import csr_search as CS
+    from prep.route_search.search import resolve_path_edges
+    from prep.route_search.weights import edge_cost
+
+    G = S._graph(sc)
+    out = {}
+    for hs in hazards_tuples:
+        path = CS.shortest_path(G.csr, o, d, hs)
+        edges, ambiguous = resolve_path_edges(
+            G, path, "length" if not hs else edge_cost(hs)
+        )
+        out[S.COMBO_ID[hs]] = {
+            "nodes": [int(n) for n in path],
+            "edges": [[int(u), int(v), int(k)] for u, v, k in edges],
+            "ambiguous_parallel_edges": ambiguous,
+        }
+    if with_minimax:
+        _thr, mm_path, mask = CS.min_achievable_max_depth(G.csr, o, d)
+        if mm_path is not None:
+            mm_edges, _ = resolve_path_edges(G.filtered(mask), mm_path, "length")
+            out["minimax"] = {
+                "nodes": [int(n) for n in mm_path],
+                "edges": [[int(u), int(v), int(k)] for u, v, k in mm_edges],
+                "ambiguous_parallel_edges": 0,
+            }
+    return out
 
 
-def run_array(set_name: str, od_list: list[dict]) -> dict:
-    from studies.graph_array import service_array as SA
+def run_prod(set_name: str, od_list: list[dict]) -> dict:
+    """いまの本番実装（CSR配列版）で全ケースを回す。"""
+    from app.services.evac_routes import search as S
 
     result = {}
     t0 = time.perf_counter()
-    for cid, od, _sc, hz, include, scenario_arg in C.iter_cases(od_list, set_name):
-        res, paths = SA.search(
+    for cid, od, sc, hz, include, scenario_arg in C.iter_cases(od_list, set_name):
+        res = S.search(
             od["origin"], od["dest"], hazards=hz, include=include, scenario=scenario_arg
         )
-        result[cid] = {"response": res, "paths": paths}
+        o = int(res["od"]["origin"]["node"])
+        d = int(res["od"]["dest"]["node"])
+        hs = S._normalize(hz)
+        wanted = [()] + ([hs] if hs != () else [])
+        result[cid] = {
+            "response": res,
+            "paths": _paths(sc, o, d, wanted, "minimax" in include),
+        }
     print(f"  {set_name}: {len(result)}ケース / {time.perf_counter() - t0:.1f}s")
     return result
 
 
-RUNNERS = {"nx": run_nx, "array": run_array}
+RUNNERS = {"prod": run_prod}
 
 
 def _perturb(cases: dict) -> dict:

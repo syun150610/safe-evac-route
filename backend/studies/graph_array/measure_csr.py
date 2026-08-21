@@ -15,7 +15,7 @@ import time
 import numpy as np
 
 from app.services.evac_routes.search import _graph_file
-from studies.graph_array.csr import load_csr
+from prep.route_search.csr_graph import load_csr
 
 SCENARIO = "envelope"
 
