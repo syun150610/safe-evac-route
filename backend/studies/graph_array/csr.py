@@ -8,6 +8,7 @@ NetworkX の `MultiDiGraph` は 1エッジあたり Python オブジェクトを
     node_id[N]              昇順に並べたノードID（元のOSM ID）
     node_x[N], node_y[N]    経度・緯度（float64。NPZ の e6 整数を復元したもの）
     node_offset[N+1]        CSR の行頭。u の出エッジは [offset[u], offset[u+1])
+    node_orig[N]            NPZ内の元の並び順。最寄りノードの同着の決め方を合わせる
     edge_to[E]              行き先の**ノード添字**（ノードIDではない）
     edge_src[E]             出発の**ノード添字**（統計・逆引き用）
     edge_key[E]             平行エッジのkey（元のMultiDiGraphのkey）
@@ -84,6 +85,7 @@ class CsrGraph:
     node_x: np.ndarray
     node_y: np.ndarray
     node_offset: np.ndarray
+    node_orig: np.ndarray
     edge_to: np.ndarray
     edge_src: np.ndarray
     edge_key: np.ndarray
@@ -144,6 +146,7 @@ class CsrGraph:
             "node_x": self.node_x.nbytes,
             "node_y": self.node_y.nbytes,
             "node_offset": self.node_offset.nbytes,
+            "node_orig": self.node_orig.nbytes,
             "edge_to": self.edge_to.nbytes,
             "edge_src": self.edge_src.nbytes,
             "edge_key": self.edge_key.nbytes,
@@ -195,6 +198,7 @@ def load_csr(path: str) -> CsrGraph:
             node_x=node_x,
             node_y=node_y,
             node_offset=node_offset,
+            node_orig=order.astype(np.int32),
             edge_to=v[csr_order],
             edge_src=u[csr_order],
             edge_key=d["edge_key"][csr_order].astype(np.int32, copy=False),

@@ -9,9 +9,9 @@ from __future__ import annotations
 
 # --- 実測（現行 82,586エッジ / 27,144ノード, envelope）---
 EDGE_BYTES = 50  # int32×10 + float64×1 + int8×2
-NODE_BYTES = 32  # int64×2(node_id/node_offset) + float64×2(x/y)
+NODE_BYTES = 36  # int64×2(node_id/node_offset) + float64×2(x/y) + int32(node_orig)
 SIDE_BYTES_PER_EDGE = 21.96  # ジオメトリ + 道路名（遅延ロード）
-CSR_US_PER_EDGE = 0.43  # CSR構築（NPZ解凍を含む）
+CSR_US_PER_EDGE = 0.35  # CSR構築（NPZ解凍を含む）
 NX_US_PER_EDGE = 15.4  # NetworkX復元（既測）
 CONTAINER_FACTOR = 1.8  # 本番Container / このローカル機（既測の比）
 

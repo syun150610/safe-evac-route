@@ -35,7 +35,17 @@ def run_nx(set_name: str, od_list: list[dict]) -> dict:
 
 
 def run_array(set_name: str, od_list: list[dict]) -> dict:
-    raise SystemExit("配列版はまだ実装していない（段階3）")
+    from studies.graph_array import service_array as SA
+
+    result = {}
+    t0 = time.perf_counter()
+    for cid, od, _sc, hz, include, scenario_arg in C.iter_cases(od_list, set_name):
+        res, paths = SA.search(
+            od["origin"], od["dest"], hazards=hz, include=include, scenario=scenario_arg
+        )
+        result[cid] = {"response": res, "paths": paths}
+    print(f"  {set_name}: {len(result)}ケース / {time.perf_counter() - t0:.1f}s")
+    return result
 
 
 RUNNERS = {"nx": run_nx, "array": run_array}
