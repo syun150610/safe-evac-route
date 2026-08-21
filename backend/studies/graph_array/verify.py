@@ -107,7 +107,20 @@ def main() -> None:
     ap.add_argument(
         "--selftest", action="store_true", help="わざと差を入れて照合器を試す"
     )
+    ap.add_argument(
+        "--scope",
+        help="対象範囲ディレクトリを一時的に差し替える"
+        "（240ケースの期待値は現行スコープ scope-kitasenju-ueno で作ったもの）",
+    )
     args = ap.parse_args()
+
+    if args.scope:
+        # ⚠️ 実行時に差し替えるだけ。設定ファイルは書き換えない。
+        from app.core import config as app_config
+
+        app_config.RUNTIME_SCOPE_DIR = args.scope
+        app_config.get_settings.cache_clear()
+        print(f"対象範囲を {args.scope} へ差し替えて実行する")
 
     od_list = od_set.load()
     sets = args.set or sorted(C.SETS)
