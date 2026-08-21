@@ -1,0 +1,102 @@
+{
+ "csv": [
+  "data/raw/tokyoto_kensetsukyoku/shinsui_kandagawa.csv"
+ ],
+ "scenario": "kandagawa",
+ "source_profile": "flood-kensetsu_quake-risk9",
+ "sources": {
+  "flood": {
+   "id": "kensetsu",
+   "label": "東京都建設局 浸水予想区域図",
+   "files": [
+    "data/raw/tokyoto_kensetsukyoku/shinsui_kandagawa.csv"
+   ]
+  },
+  "quake": {
+   "id": "risk9",
+   "label": "東京都 第9回地域危険度測定調査",
+   "file": "data/raw/hazard/hazard.gpkg"
+  }
+ },
+ "scope": {
+  "id": "tokyo-23ku-tama-shigaika",
+  "margin_km": 0.0
+ },
+ "bbox_left_bottom_right_top": [
+  139.1468793,
+  35.4983129,
+  139.9177598,
+  35.8507659
+ ],
+ "network_type": "walk",
+ "sample_interval_m": 10.0,
+ "nodes": 652828,
+ "edges": 1905380,
+ "sample_points": 9480826,
+ "total_length_km": 81313.4,
+ "impassable_edges": 49478,
+ "edge_depth_pct_length_weighted": {
+  ">0.0": 3.0545449076864752,
+  ">0.2": 2.647938613285444,
+  ">0.3": 2.554502231851158,
+  ">0.5": 2.4857349591346867,
+  ">1.0": 0.6726063636852248,
+  ">2.0": 0.24195457339262652
+ },
+ "coverage_stats": {
+  "flood": {
+   "edges_fully_covered": 289734,
+   "edges_partially_covered": 3682,
+   "edges_out_of_coverage": 1611964,
+   "edge_ratio_covered": 0.154,
+   "length_weighted_coverage": 0.1237
+  },
+  "quake": {
+   "edges_fully_covered": 1899982,
+   "edges_partially_covered": 3974,
+   "edges_out_of_coverage": 1424,
+   "edge_ratio_covered": 0.9993,
+   "length_weighted_coverage": 0.9922
+  }
+ },
+ "quake": {
+  "quake_cost": {
+   "1": 1.0,
+   "2": 1.2,
+   "3": 1.5,
+   "4": 2.0,
+   "5": 3.0
+  },
+  "quake_coverage_penalty": 1.2,
+  "edges_fully_out_of_coverage": 1424,
+  "mean_coverage": 0.9982,
+  "sample_points_out_of_coverage_pct": 0.69,
+  "rank_distribution": {
+   "quake_rank_building": {
+    "1": 826682,
+    "2": 609866,
+    "3": 305788,
+    "4": 120316,
+    "5": 41304,
+    "out_of_coverage": 1424
+   },
+   "quake_rank_fire": {
+    "1": 810302,
+    "2": 584884,
+    "3": 332998,
+    "4": 132782,
+    "5": 42990,
+    "out_of_coverage": 1424
+   },
+   "quake_rank_total": {
+    "1": 842200,
+    "2": 568008,
+    "3": 327976,
+    "4": 125602,
+    "5": 40170,
+    "out_of_coverage": 1424
+   }
+  }
+ },
+ "flood_note": "浸水は現行4流域（隅田川・神田川・中川・江東内部）のみ。対象範囲の大半は浸水想定図の整備範囲外で、coverage=0 として持つ。"
+}
