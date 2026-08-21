@@ -61,6 +61,10 @@ uv run --frozen --group prep python -m prep.hazard_sources.quake.export
 明示的に作り直す場合の`--force`は[一次データの取得](raw-data.md)を参照する。一度も生成して
 いない端末でも、ここまででローカル表示確認には足りる。
 
+⚠️ **重み・コスト表だけを変えた場合**は、この章の再生成に加えて
+「どのNPZをAPIに読ませるか」の指定が要る。落とし穴は
+[ローカル実行・検証runbook](../local-runbook.md#重みコスト表を変えたときの確認)を参照。
+
 ## 探索範囲は2つある
 
 グラフ・NPZ・bundleは「成果物の種類 → 入力profile → **探索範囲**」で分ける。
