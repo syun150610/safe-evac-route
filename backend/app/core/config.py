@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     # タイルURLの組み立て先。ローカルFastAPIと本番Worker/R2を環境設定で切り替える
     tile_base_url: str = "/tiles"
 
+    # ---- 認証まわり ----
+    jwt_secret_key: str = "dev-secret-change-in-production"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 30
+
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",
         env_file_encoding="utf-8",

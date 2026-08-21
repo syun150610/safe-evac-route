@@ -22,6 +22,18 @@ class D1Client:
 
         return response
 
+    async def post(self, path: str, json: dict) -> httpx.Response:
+        """D1ゲートウェイの指定パスへPOSTリクエストを送る。"""
+
+        normalized_path = path if path.startswith("/") else f"/{path}"
+        async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
+            response = await client.post(
+                f"{self._gateway_url}{normalized_path}", json=json
+            )
+            response.raise_for_status()
+
+        return response
+
 
 async def get_d1_client() -> D1Client:
     """FastAPIの依存性注入で使用するD1クライアントを生成する。"""
