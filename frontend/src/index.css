@@ -18,6 +18,14 @@ body,
   background: repeating-linear-gradient(45deg, #fff 0 3px, #b9bec6 3px 4px);
 }
 
+.timeline-card {
+  border: 1px solid #e3e5ee;
+  border-radius: 16px;
+  background: #fff;
+  padding: 18px;
+  box-shadow: 0 6px 18px rgb(7 20 95 / 6%);
+}
+
 /* MapLibre の帰属表示は地図コンテナ内の絶対配置。
    スマホでは折りたたんだシートの上へ逃がし、常に読める状態を保つ。 */
 @media (max-width: 700px) {
@@ -25,6 +33,18 @@ body,
   body {
     overflow: hidden;
     overscroll-behavior: none;
+  }
+
+  body:has(.timeline-page),
+  body:has(.new-post-page) {
+    overflow: auto;
+    overscroll-behavior: auto;
+  }
+
+  #root:has(.timeline-page),
+  #root:has(.new-post-page) {
+    height: auto;
+    min-height: 100%;
   }
 
   .maplibregl-ctrl-bottom-right,
