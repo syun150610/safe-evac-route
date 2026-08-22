@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { postShelterSearch } from '../api/client'
 import { BottomSheet, useMobileLayout } from './components/BottomSheet'
 import { DataAttribution } from './components/DataAttribution'
 import { HazardLegend } from './components/HazardLegend'
@@ -9,6 +8,7 @@ import { PlaceInput } from './components/PlaceInput'
 import { RouteRationale } from './components/RouteRationale'
 import { RouteTable } from './components/RouteTable'
 import { SafeShelterSearchButton } from './components/SafeShelterSearchButton'
+import { ShelterResult } from './components/ShelterResult'
 import { DRAW_ORDER, STYLE } from './constants'
 import { POSTS } from './fixtures/posts'
 import { inArea, useArea } from './hooks/useArea'
@@ -24,7 +24,7 @@ import { currentPosition, type Place } from './lib/gsi'
 import { buildRouteSearchRequest, buildShelterSearchRequest } from './lib/search-request'
 import { shelterIsVisible } from './lib/shelter-viewport'
 import { initialSafeState, type PlaceField, safeReducer } from './state/evac-route-state'
-import type { Rationale, ShelterFeature } from './types'
+import type { Rationale, ShelterCandidate, ShelterFeature } from './types'
 
 const CENTER: [number, number] = [139.792, 35.733]
 const EMPTY = { type: 'FeatureCollection' as const, features: [] }
@@ -185,8 +185,23 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       setShelterSearchLoading(true)
       try {
         const request = buildShelterSearchRequest(origin, hazards, state.scenario)
-        await postShelterSearch(request)
-        flash('安全な避難先を取得しました')
+        const result = await search.runShelter(request)
+        // 失敗（範囲外・該当避難先なし）のときは `search.error` に本文が入る。
+        // ⚠️ ここで search.error を読むと**1つ前のレンダーの値**なので読まない。
+        //    表示はシート上部の search.error に任せる
+        if (!result?.shelter) return
+        // 推奨した避難先を目的地として扱う。以降の表示は2点探索と同じ
+        dispatch({
+          type: 'select_place',
+          field: 'destination',
+          place: {
+            title: result.shelter.name,
+            lat: result.shelter.latlon[0],
+            lon: result.shelter.latlon[1],
+          },
+        })
+        dispatch({ type: 'route_ready', routes: result.routes.map((route) => route.id) })
+        setSheetOpen(true)
       } catch (error) {
         flash((error as Error).message)
       } finally {
@@ -194,7 +209,21 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         setShelterSearchLoading(false)
       }
     },
-    [area, flash, hazards, state.origin.place, state.scenario],
+    [area, flash, hazards, search.runShelter, state.origin.place, state.scenario],
+  )
+
+  /** 候補をタップしたとき。その避難所を目的地にして普通の2点探索へ切り替える。
+   * ⚠️ 避難先探索をやり直すと推奨が選び直されて別の場所へ飛ぶので、
+   *    ここは `runRoute`（目的地指定）を使う */
+  const chooseCandidate = useCallback(
+    (candidate: ShelterCandidate) => {
+      void runRoute({
+        title: candidate.name,
+        lat: candidate.latlon[0],
+        lon: candidate.latlon[1],
+      })
+    },
+    [runRoute],
   )
 
   const requestLocation = useCallback(async () => {
@@ -661,7 +690,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   {search.loading ? '経路を検索中…' : 'この条件で経路を検索する'}
                 </button>
               )}
-              {!shelterSearchMode && search.error && (
+              {search.error && (
                 <p className="mx-3 my-2.5 rounded-lg bg-red-50 px-3 py-2 text-[10px] leading-normal text-red-700">
                   {search.error}
                 </p>
@@ -768,6 +797,17 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                     ...(bundle?.rationale as Rationale),
                     hazards: consideredHazards,
                   }}
+                />
+              )}
+              {/* 避難先探索のときだけ。推奨1件と比較材料。
+                  ⚠️ 候補に通し番号の順位を振らないこと（ShelterResult 冒頭） */}
+              {bundle?.shelter && bundle.shelter_candidates && bundle.shelter_query && (
+                <ShelterResult
+                  candidates={bundle.shelter_candidates}
+                  onSelect={chooseCandidate}
+                  query={bundle.shelter_query}
+                  risk={hazardMeta?.risk}
+                  shelter={bundle.shelter}
                 />
               )}
               {hazardMeta?.legend && (

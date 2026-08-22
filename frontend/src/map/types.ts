@@ -184,6 +184,80 @@ export interface Bundle {
   selected_route?: RouteId
   /** POST /search のときだけ。比較対象が無ければ null（→ 根拠を出さない） */
   rationale?: Rationale | null
+  /** POST /search/shelter のときだけ。推奨した避難先。
+   * ⚠️ 中身は `shelter_candidates` の該当行から `stats` を抜いたもので、
+   * `basis` / `cost` / `rank` も付いてくる。同じ避難所は `id` で突き合わせる */
+  shelter?: Omit<ShelterCandidate, 'stats'>
+  /** 同。比較材料。**通し番号の順位として見せないこと**（下記） */
+  shelter_candidates?: ShelterCandidate[]
+  /** 同。どう絞って何で足切りしたか */
+  shelter_query?: ShelterQuery
+}
+
+/** POST /search/shelter が推奨した避難先。 */
+export interface ShelterInfo {
+  id: string
+  name: string
+  type: 'urgent' | 'designated'
+  type_label: string
+  address: string
+  municipality: string
+  /** ⚠️ 空でも「対応していない」ではなく「元データに情報が無い」 */
+  hazard_types: string[]
+  /** [lat, lon] */
+  latlon: [number, number]
+  /** 出発地からの直線距離(m)。歩く距離ではない */
+  straight_m: number
+  node: number
+  /** 施設から最寄りの道までの距離(m) */
+  snap_m: number
+}
+
+/** 避難先の候補1件。
+ *
+ * ⚠️ **`cost` を候補どうしで比べないこと。** `basis` が違うと単位が違う。
+ * `length` はメートル、`hazard` は `距離 × ハザード係数` で、
+ * APIは同じ探索から出たものどうしでしか比べていない
+ * （`backend/app/services/evac_routes/shelter_search.py`）。
+ *
+ * ⚠️ **`rank` は「APIが返した表示順」であって順位ではない。**
+ * 並びは 推奨 → 危険が小さい順（`basis: 'hazard'`）→ 近い順（`basis: 'length'`）の
+ * 連結で、**全体を貫く一つのものさしが無い**。1位2位…と振ると、
+ * 別々のものさしで並べたものを一列の優劣として見せることになる。
+ * 画面では `basis` で群を分けて出す。
+ */
+export interface ShelterCandidate extends ShelterInfo {
+  rank: number
+  /** その候補へ実際に引いた経路の統計（距離・危険区間・未評価区間） */
+  stats: RouteStats
+  /** `length`=最短で引いた / `hazard`=ハザード重みで引いた */
+  basis: 'length' | 'hazard'
+  cost: number
+  /** 最短で引いたときの距離(m)。ハザード側だけに出た候補では null */
+  baseline_distance_m: number | null
+  /** 迂回の上限（`shelter_query.detour_limit_m`）の内側か */
+  within_limit: boolean
+}
+
+export interface ShelterQuery {
+  limit: number
+  type: string
+  hazard_types: string[]
+  /** 直線距離で絞ったあとの候補数 */
+  pool: number
+  /** そのうち経路が引けた数 */
+  reachable: number
+  radius_m: number
+  /** 最短で行ける避難所までの距離(m)。迂回上限の基準 */
+  nearest_distance_m: number
+  detour_limit_m: number
+  detour_ratio: number
+  detour_slack_m: number
+  /** ⚠️ true = 上限の内側に危険の小さい候補が無く、最短の避難先へ戻した。
+   * 「近所に安全な避難先がある」と読ませないため、画面でも触れること */
+  fell_back_to_nearest: boolean
+  /** 出発地と同じ地点に乗っていた避難場所（すでにその場にいる） */
+  at_origin: string[]
 }
 
 /** GET /api/evac-routes/area
@@ -219,7 +293,11 @@ export interface SearchRequest {
   scenario?: string
 }
 
-/** POST /api/search/shelter。通常検索と同じ条件から目的地だけを除く。 */
+/** POST /api/evac-routes/search/shelter。通常検索から目的地だけを除いた形。
+ *
+ * ⚠️ **バックの `ShelterSearchRequest` と対になっている**
+ * （あちらは `SearchRequest` がこれを継承する）。片方だけ増やさないこと。
+ */
 export type ShelterSearchRequest = Omit<SearchRequest, 'dest'>
 
 export interface PresetIndex {
