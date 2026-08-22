@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { postShelterSearch } from '../api/client'
 import { BottomSheet, useMobileLayout } from './components/BottomSheet'
 import { DataAttribution } from './components/DataAttribution'
 import { HazardPicker } from './components/HazardPicker'
 import { LayerPicker } from './components/LayerPicker'
 import { PlaceInput } from './components/PlaceInput'
 import { RouteTable } from './components/RouteTable'
+import { SafeShelterSearchButton } from './components/SafeShelterSearchButton'
 import { DRAW_ORDER, STYLE } from './constants'
 import { POSTS } from './fixtures/posts'
 import { inArea, useArea } from './hooks/useArea'
@@ -17,6 +19,7 @@ import { useVector } from './hooks/useVector'
 import { distanceKm } from './lib/distance'
 import { nearestSegment, routeBounds } from './lib/geo'
 import { currentPosition, type Place } from './lib/gsi'
+import { buildRouteSearchRequest, buildShelterSearchRequest } from './lib/search-request'
 import { shelterIsVisible } from './lib/shelter-viewport'
 import { initialSafeState, type PlaceField, safeReducer } from './state/evac-route-state'
 import type { ShelterFeature } from './types'
@@ -40,8 +43,10 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const [state, dispatch] = useReducer(safeReducer, initialSafeState)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [layersOpen, setLayersOpen] = useState(false)
+  const [shelterSearchLoading, setShelterSearchLoading] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const requestedLocation = useRef(false)
+  const shelterSearchRunning = useRef(false)
   const floodAdded = useRef(false)
   const quakeAdded = useRef(false)
   const layersButtonRef = useRef<HTMLButtonElement>(null)
@@ -71,7 +76,8 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
 
   function openScreen(screen: 'home' | 'search' | 'route') {
     setLayersOpen(false)
-    dispatch({ type: 'open', screen })
+    if (screen === 'search') dispatch({ type: 'open_search', purpose: 'route' })
+    else dispatch({ type: 'open', screen })
     setSheetOpen(screen !== 'home')
   }
 
@@ -94,22 +100,6 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     document.addEventListener('pointerdown', closeOnOutsidePointer, true)
     return () => document.removeEventListener('pointerdown', closeOnOutsidePointer, true)
   }, [layersOpen])
-
-  const requestLocation = useCallback(async () => {
-    try {
-      const place = await currentPosition()
-      dispatch({ type: 'select_place', field: 'origin', place })
-      adapter.current?.flyTo([place.lon, place.lat], 15)
-    } catch (error) {
-      flash((error as Error).message)
-    }
-  }, [adapter, flash])
-
-  useEffect(() => {
-    if (requestedLocation.current) return
-    requestedLocation.current = true
-    void requestLocation()
-  }, [requestLocation])
 
   const shelters = useMemo(() => {
     const origin = state.origin.place
@@ -137,7 +127,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       dispatch({ type: 'select_place', field: 'destination', place: destination })
       search.clear()
       if (!origin) {
-        dispatch({ type: 'open', screen: 'search' })
+        dispatch({ type: 'open_search', purpose: 'route' })
         setSheetOpen(true)
         dispatch({ type: 'activate_field', field: 'origin' })
         flash('出発地を指定してください')
@@ -147,18 +137,13 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         !inArea(area, origin.lat, origin.lon) ||
         !inArea(area, destination.lat, destination.lon)
       ) {
-        dispatch({ type: 'open', screen: 'search' })
+        dispatch({ type: 'open_search', purpose: 'route' })
         setSheetOpen(true)
         flash('対象エリア内の地点を指定してください')
         return
       }
-      const result = await search.run({
-        origin: { lat: origin.lat, lon: origin.lon, label: origin.title },
-        dest: { lat: destination.lat, lon: destination.lon, label: destination.title },
-        hazards,
-        include: ['baseline', 'selected'],
-        scenario: state.scenario,
-      })
+      const base = buildShelterSearchRequest(origin, hazards, state.scenario)
+      const result = await search.run(buildRouteSearchRequest(base, destination))
       if (result) {
         dispatch({ type: 'route_ready', routes: result.routes.map((route) => route.id) })
         setSheetOpen(true)
@@ -166,6 +151,55 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     },
     [area, flash, hazards, search.clear, search.run, state.origin.place, state.scenario],
   )
+
+  const runShelterSearch = useCallback(
+    async (selectedOrigin?: Place) => {
+      if (shelterSearchRunning.current) return
+      const origin = selectedOrigin ?? state.origin.place
+      if (!origin) {
+        dispatch({ type: 'open_search', purpose: 'shelter' })
+        setSheetOpen(true)
+        flash('出発地を指定してください')
+        return
+      }
+      if (!inArea(area, origin.lat, origin.lon)) {
+        dispatch({ type: 'open_search', purpose: 'shelter' })
+        setSheetOpen(true)
+        flash('対象エリア内の出発地を指定してください')
+        return
+      }
+
+      shelterSearchRunning.current = true
+      setShelterSearchLoading(true)
+      try {
+        const request = buildShelterSearchRequest(origin, hazards, state.scenario)
+        await postShelterSearch(request)
+        flash('安全な避難先を取得しました')
+      } catch (error) {
+        flash((error as Error).message)
+      } finally {
+        shelterSearchRunning.current = false
+        setShelterSearchLoading(false)
+      }
+    },
+    [area, flash, hazards, state.origin.place, state.scenario],
+  )
+
+  const requestLocation = useCallback(async () => {
+    try {
+      const place = await currentPosition()
+      dispatch({ type: 'select_place', field: 'origin', place })
+      adapter.current?.flyTo([place.lon, place.lat], 15)
+    } catch (error) {
+      flash((error as Error).message)
+    }
+  }, [adapter, flash])
+
+  useEffect(() => {
+    if (requestedLocation.current) return
+    requestedLocation.current = true
+    void requestLocation()
+  }, [requestLocation])
 
   function choosePlace(place: Place) {
     const field = state.activeField
@@ -181,7 +215,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         type: 'activate_field',
         field: state.origin.place ? 'destination' : 'origin',
       })
-      dispatch({ type: 'open', screen: 'search' })
+      dispatch({ type: 'open_search', purpose: 'route' })
       setSheetOpen(true)
     },
     [search.clear, state.origin.place],
@@ -319,6 +353,10 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
 
   const floodScenarios = catalog?.hazards.find((hazard) => hazard.id === 'flood')?.scenarios ?? []
   const error = areaError ?? hazardError ?? shelterError
+  const shelterSearchMode = state.searchPurpose === 'shelter'
+  const searchFields: readonly PlaceField[] = shelterSearchMode
+    ? ['origin']
+    : ['origin', 'destination']
   const mapPoint =
     state.destination.place?.title === '地図上の指定地点' ? state.destination.place : null
 
@@ -485,6 +523,10 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   <h2>近くの避難先</h2>
                   <span>{sheltersLoading ? '読込中…' : `${nearbyShelters.length}件表示`}</span>
                 </div>
+                <SafeShelterSearchButton
+                  loading={shelterSearchLoading}
+                  onSearch={runShelterSearch}
+                />
                 <div className="grid gap-1.5">
                   {nearbyShelters.map(({ feature, distance }) => (
                     <article
@@ -529,8 +571,13 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                 <button type="button" onClick={() => openScreen('home')} aria-label="戻る">
                   ←
                 </button>
-                <h2>目的地を検索</h2>
+                <h2>{shelterSearchMode ? '安全な避難先を探す' : '目的地を検索'}</h2>
               </div>
+              {shelterSearchMode && (
+                <p className="mb-3 rounded-lg bg-blue-50 px-3 py-2 text-[10px] leading-relaxed text-[#07156f]">
+                  安全な避難先を探すため、現在地または出発地を指定してください。
+                </p>
+              )}
               <section className="mb-2.5 flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 [&>strong]:mr-auto [&>strong]:text-[10px]">
                 <strong>考慮する災害</strong>
                 <HazardPicker
@@ -557,7 +604,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   </label>
                 )}
               </section>
-              {(['origin', 'destination'] as const).map((field) => {
+              {searchFields.map((field) => {
                 const value = state[field]
                 return (
                   <PlaceInput
@@ -579,19 +626,29 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               >
                 ◎ 現在地を出発地にする
               </button>
-              <button
-                type="button"
-                className="mb-2.5 min-h-9 w-full cursor-pointer rounded-md border-0 bg-[#07156f] text-[10px] font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-                disabled={
-                  state.origin.place === null || state.destination.place === null || search.loading
-                }
-                onClick={() => {
-                  if (state.destination.place) void runRoute(state.destination.place)
-                }}
-              >
-                {search.loading ? '経路を検索中…' : 'この条件で経路を検索する'}
-              </button>
-              {search.error && (
+              {shelterSearchMode ? (
+                <SafeShelterSearchButton
+                  loading={shelterSearchLoading}
+                  disabled={state.origin.place === null}
+                  onSearch={runShelterSearch}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="mb-2.5 min-h-9 w-full cursor-pointer rounded-md border-0 bg-[#07156f] text-[10px] font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                  disabled={
+                    state.origin.place === null ||
+                    state.destination.place === null ||
+                    search.loading
+                  }
+                  onClick={() => {
+                    if (state.destination.place) void runRoute(state.destination.place)
+                  }}
+                >
+                  {search.loading ? '経路を検索中…' : 'この条件で経路を検索する'}
+                </button>
+              )}
+              {!shelterSearchMode && search.error && (
                 <p className="mx-3 my-2.5 rounded-lg bg-red-50 px-3 py-2 text-[10px] leading-normal text-red-700">
                   {search.error}
                 </p>
@@ -636,12 +693,22 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                     ⌕
                   </span>
                   <strong>
-                    {state.activeField === 'origin'
-                      ? '出発地を入力してください'
-                      : '目的地を入力してください'}
+                    {shelterSearchMode && state.origin.place
+                      ? '出発地を設定しました'
+                      : state.activeField === 'origin'
+                        ? '出発地を入力してください'
+                        : '目的地を入力してください'}
                   </strong>
-                  <p>施設名、駅名、住所から検索できます</p>
-                  <small>地図の長押しでも指定できます</small>
+                  <p>
+                    {shelterSearchMode && state.origin.place
+                      ? '上のボタンから安全な避難先を検索できます'
+                      : '施設名、駅名、住所から検索できます'}
+                  </p>
+                  <small>
+                    {shelterSearchMode && state.origin.place
+                      ? state.origin.place.title
+                      : '地図の長押しでも指定できます'}
+                  </small>
                 </div>
               )}
             </section>

@@ -28,6 +28,13 @@ describe('safeReducer', () => {
     expect(safeReducer(layers, { type: 'close_layers' }).screen).toBe('route')
   })
 
+  it('避難先検索を開くと出発地入力へ切り替わる', () => {
+    const state = safeReducer(initialSafeState, { type: 'open_search', purpose: 'shelter' })
+    expect(state.screen).toBe('search')
+    expect(state.searchPurpose).toBe('shelter')
+    expect(state.activeField).toBe('origin')
+  })
+
   it('経路終了時は出発地と条件を保ち、目的地だけ解除する', () => {
     let state = safeReducer(initialSafeState, {
       type: 'select_place',
