@@ -7,12 +7,8 @@ UIごとに書き写すと必ず表現がズレる。ここから配る。
 種別の登録は prep 側の registry を単一の出所にする（二重に持たない）。
 """
 
-import json
-import os
-
 from app.core.config import get_settings
 from prep.hazard_sources import registry
-from prep.paths import TILES_DIR
 
 # 浸水タイルのズーム範囲（prep.tile_render.render の ZOOMS と揃える）。
 # ⚠️ maxz は「焼いてある上限」で、拡大の上限ではない。超えた分は地図側が引き伸ばす。
@@ -64,28 +60,37 @@ def _flood_scenarios():
 
 
 def _quake_scenarios():
-    """地震はベクタ。凡例は書き出し済みの GeoJSON に同梱してある"""
+    """地震はベクタ。凡例はシナリオ共通なので種別の階層で返す（浸水と同じ形）。
+
+    ⚠️ **以前はここで書き出し済みGeoJSONを読んでいた。** 本番Containerに
+    `data/processed/tiles/` は無いので必ず None になり、地震の凡例が
+    `/api/hazards` から取れていなかった。開発環境では凡例数行のために
+    4.6MBのGeoJSONを丸ごとパースしていた。
+    """
     from prep.hazard_sources.quake.source import SCENARIOS
 
-    out = []
-    for s in SCENARIOS:
-        legend = None
-        p = os.path.join(str(TILES_DIR), "quake", f"{s['id']}.geojson")
-        if os.path.exists(p):
-            # 凡例だけ読む（本体は数MBあるので配信はファイルごと）
-            with open(p, "rb") as f:
-                legend = json.load(f).get("legend")
-        out.append(
-            {
-                "id": s["id"],
-                "label": s["label"],
-                "kind": "rank",
-                "note": s["note"],
-                "vector_url": f"{_tile_base()}/quake/{s['id']}.geojson",
-                "legend": legend,
-            }
-        )
-    return out
+    return [
+        {
+            "id": s["id"],
+            "label": s["label"],
+            "kind": "rank",
+            "note": s["note"],
+            "vector_url": f"{_tile_base()}/quake/{s['id']}.geojson",
+        }
+        for s in SCENARIOS
+    ]
+
+
+def _quake_legend():
+    """ランク1〜5と調査対象外。**係数は載せない。**
+
+    係数はグラフへ焼き込み済みで、生成物に残った値は焼き直しで古くなりうる
+    （実際に配信中のGeoJSONの凡例は PR #33 以前の係数のまま）。
+    画面に出さない値を配らない。
+    """
+    from prep.hazard_sources.quake.source import legend_items
+
+    return legend_items()
 
 
 def catalog():
@@ -106,6 +111,7 @@ def catalog():
             h["zoom"] = {"min": FLOOD_MINZ, "max": FLOOD_MAXZ}
         elif hid == "quake":
             h["scenarios"] = _quake_scenarios()
+            h["legend"] = _quake_legend()
         hazards.append(h)
     return {
         "data_profile": settings.hazard_data_profile,

@@ -67,6 +67,7 @@ def main():
     h = client.get("/api/hazards").json()
     ids = [x["id"] for x in h["hazards"]]
     flood = next(x for x in h["hazards"] if x["id"] == "flood")
+    quake = next(x for x in h["hazards"] if x["id"] == "quake")
     env = next(s for s in flood["scenarios"] if s["id"] == "envelope")
     checks = [
         ("選択中profileを返す", h["data_profile"] == settings.hazard_data_profile),
@@ -92,6 +93,31 @@ def main():
         (
             "タイルURLに var が出ていない",
             all("var" not in s["tile_url"] for s in flood["scenarios"]),
+        ),
+        # ⚠️ 地震の凡例は**本番で黙って null になっていた**。書き出し済みGeoJSONを
+        #    読む作りで、Containerにそのファイルが無かったため。種別の階層に
+        #    載っていることを機械で押さえる（浸水と同じ形）。
+        ("地震の凡例が種別の階層にある", bool(quake.get("legend"))),
+        (
+            "地震の凡例にランク1〜5が揃っている",
+            sum(1 for x in quake.get("legend", []) if x.get("color")) == 5,
+        ),
+        (
+            "地震の凡例にも『判断材料がない』",
+            any(
+                "判断材料がない" in (x.get("note", "") + x["label"])
+                for x in quake.get("legend", [])
+            ),
+        ),
+        # ⚠️ 係数は焼き込み済みで、生成物に残った値は焼き直しで古くなる。
+        #    画面に出さない値をAPIから配らない（2026-08-22にユーザーと確認）。
+        (
+            "凡例に係数を載せていない",
+            all(
+                "cost_factor" not in x
+                for h_ in h["hazards"]
+                for x in (h_.get("legend") or [])
+            ),
         ),
         (
             "タイルURLも同じprofile",

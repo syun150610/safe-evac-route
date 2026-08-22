@@ -19,6 +19,53 @@ import os
 #    このモジュールの COLUMNS と SCENARIOS は API（/api/hazards の凡例）も読むので、
 #    モジュール先頭で重い依存を引くとAPIの実行時依存にpandas等が混ざる。
 
+# ランク → 色。**凡例もここから作る。UIにもタイル生成側にも書き写さない。**
+# ⚠️ 地図の塗り（export.py）と凡例（/api/hazards）が同じ表を読むことで、
+#    「凡例の色と実際の色が違う」を構造的に起こせなくする。
+PALETTE = {
+    1: "#4d9221",
+    2: "#a6d96a",
+    3: "#fee08b",
+    4: "#f46d43",
+    5: "#a50026",
+}
+RANK_LABEL = {
+    1: "ランク1（相対的に低い）",
+    2: "ランク2",
+    3: "ランク3",
+    4: "ランク4",
+    5: "ランク5（相対的に高い）",
+}
+
+
+def legend_items(cost_factor: dict | None = None) -> list[dict]:
+    """UIがそのまま描く凡例。
+
+    ⚠️ **末尾のハッチ項目を落とさない。** 調査対象外は「危険度が低い」ではなく
+    「評価されていない」。これを消すと、データが無いだけの場所が安全に見える
+    （`hazard_sources/base.py` が禁じている読み違え）。
+
+    `cost_factor` を渡すと各ランクへ係数を添える。**APIでは渡さない**
+    （画面に出さない値なので配らない。係数は焼き込み済みで、
+    生成物に残った値が古くなりうる）。
+    """
+    items: list[dict] = []
+    for rank in sorted(PALETTE):
+        item = {"color": PALETTE[rank], "label": RANK_LABEL[rank]}
+        if cost_factor is not None:
+            item["cost_factor"] = cost_factor[rank]
+        items.append(item)
+    items.append(
+        {
+            "hatch": True,
+            "label": "調査の範囲外（判断材料がない）",
+            "note": "このデータは51市区町村ぶんしかない。"
+            "「危険度が低い」ではなく「評価されていない」",
+        }
+    )
+    return items
+
+
 # GPKGの列名 → エッジ属性名。3つの「シナリオ」に相当する
 COLUMNS = {
     "quake_rank_building": "建物_ラ",
