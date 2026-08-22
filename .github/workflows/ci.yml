@@ -85,6 +85,8 @@ jobs:
         run: uv run ruff format --check .
 
       - name: Run tests
+        env:
+          JWT_SECRET_KEY: ci-dummy-secret-not-for-production
         run: uv run pytest
 
   frontend:
@@ -173,6 +175,7 @@ jobs:
       - name: Smoke test backend image
         run: |
           docker run --detach --name safe-evac-route-backend-test \
+            --env JWT_SECRET_KEY=ci-dummy-secret-not-for-production \
             --publish 8000:8000 safe-evac-route-backend:test
           trap 'docker rm --force safe-evac-route-backend-test' EXIT
 

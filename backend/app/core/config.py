@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AnyHttpUrl
+from pydantic import AnyHttpUrl, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # ⚠️ 生成物の置き場は prep.paths が単一の出所。ここで二重に定義しない
@@ -52,6 +52,13 @@ class Settings(BaseSettings):
     tiles_dir: str = str(TILES_DIR)
     # タイルURLの組み立て先。ローカルFastAPIと本番Worker/R2を環境設定で切り替える
     tile_base_url: str = "/tiles"
+
+    # ---- 認証まわり ----
+    # デフォルトなし。未設定のまま起動するとValidationErrorで落ちる
+    jwt_secret_key: SecretStr
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 30
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",
