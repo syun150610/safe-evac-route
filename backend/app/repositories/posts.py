@@ -130,6 +130,16 @@ class PostsRepository:
     async def mark_helpful(self, post_id: str, request: HelpfulRequest) -> Post:
         """指定された投稿に「役立った」評価を登録または取り消す。"""
 
+        post_resp = await self._d1.post(
+            "/query",
+            {"sql": "SELECT id FROM POSTS WHERE id = ?", "params": [post_id]},
+        )
+        if not post_resp.json()["results"]:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Post not found",
+            )
+
         user_resp = await self._d1.post(
             "/query",
             {"sql": "SELECT id FROM USERS WHERE id = ?", "params": [request.user_id]},

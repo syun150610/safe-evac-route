@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { getPosts, markPostHelpful } from '../api/client'
 import { reverseGeocode } from './geocode'
@@ -15,7 +15,8 @@ function getUserId() {
 }
 
 function relativeDate(value: string) {
-  const date = new Date(value.replace(' ', 'T') + (value.endsWith('Z') ? '' : 'Z'))
+  const iso = value.replace(' ', 'T')
+  const date = new Date(/[Z+]/.test(iso.slice(-6)) ? iso : iso + 'Z')
   const minutes = Math.floor((Date.now() - date.getTime()) / 60000)
   if (minutes < 1) return 'たった今'
   if (minutes < 60) return `${minutes}分前`
@@ -39,6 +40,7 @@ export function TimelinePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [locationNames, setLocationNames] = useState<Record<string, string>>({})
+  const geocodedIds = useRef(new Set<string>())
 
   function load(reset: boolean) {
     setLoading(true)
@@ -77,15 +79,18 @@ export function TimelinePage() {
   }, [sort, position])
 
   useEffect(() => {
-    const pending = posts.filter((post) => post.latitude != null && !locationNames[post.id])
+    const pending = posts.filter(
+      (post) => post.latitude != null && !geocodedIds.current.has(post.id),
+    )
     for (const post of pending.slice(0, 10)) {
+      geocodedIds.current.add(post.id)
       void reverseGeocode(post)
         .then((name) => {
           if (name) setLocationNames((current) => ({ ...current, [post.id]: name }))
         })
         .catch(() => undefined)
     }
-  }, [posts, locationNames])
+  }, [posts])
 
   function nearby() {
     if (!navigator.geolocation) {

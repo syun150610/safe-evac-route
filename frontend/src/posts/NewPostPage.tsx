@@ -115,7 +115,7 @@ export function NewPostPage() {
         />
         <label className="mt-8 flex min-h-48 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#c5c5d8] text-center text-slate-600">
           <span className="text-3xl">▧</span>
-          <span className="mt-2 font-semibold">写真や動画を追加</span>
+          <span className="mt-2 font-semibold">写真を追加</span>
           <input className="sr-only" type="file" accept="image/*" onChange={selectImage} />
           {form.image_url && (
             <img className="mt-3 max-h-32 rounded-lg" src={form.image_url} alt="選択した画像" />
