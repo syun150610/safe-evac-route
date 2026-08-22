@@ -15,6 +15,11 @@ import type { Area } from '../types'
 /** 候補の表示件数。並べ替えたあとに切る */
 const SHOW_MAX = 8
 
+/** エリア外のときの文言。**範囲の説明はAPI（`Area.note`）が単一の出所。** */
+function outsideMessage(area: Area | null): string {
+  return `この地点は対象エリアの外です。${area?.note ?? ''}`
+}
+
 interface Props {
   id: string
   label: string
@@ -158,7 +163,11 @@ export function PlaceInput({ id, label, value, onChange, area, rejected }: Props
           className={`mt-1 text-[11px] ${outside || rejected ? 'text-red-700' : 'text-slate-600'}`}
         >
           {outside || rejected
-            ? 'この地点は対象エリアの外です。北千住↔上野の範囲で指定してください。'
+            ? // ⚠️ **引ける範囲の呼び名をここに書かない。** APIの `note` を出す。
+              // フロントに書くと、探索範囲を広げたときにここだけ古い範囲名が残る
+              // （実際に「北千住↔上野」が残っていた）。areaがまだ来ていないときは
+              // 範囲名に触れない一文だけにする。
+              outsideMessage(area)
             : `${value.lat.toFixed(5)}, ${value.lon.toFixed(5)}`}
         </p>
       )}

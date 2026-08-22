@@ -28,6 +28,11 @@ PROFILE_DIRS: dict[HazardDataProfile, str] = {
 # ⚠️ 浸水は現行4流域のままなので、この範囲の大半でエッジのcoverageは0になる。
 #    「0m」ではなく「未評価」として応答に出る（rationale の3段階表示）。
 RUNTIME_SCOPE_DIR = "scope-tokyo-23ku-tama-shigaika"
+# 上の範囲の**利用者向けの呼び名**。`/api/evac-routes/area` の説明文と、
+# 範囲外エラー(422)の本文がここを読む。
+# ⚠️ `RUNTIME_SCOPE_DIR` を変えたら必ず一緒に変えること。ズレると
+#    「引ける範囲」を実態と違う名前で案内する（旧スコープの名前が残っていた）。
+RUNTIME_SCOPE_LABEL = "23区＋多摩の市街化区域"
 
 
 class Settings(BaseSettings):
