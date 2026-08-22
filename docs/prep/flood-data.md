@@ -80,12 +80,17 @@ uv run --frozen --group prep python -m prep.tile_render.render \
 | `scope-tokyo-23ku-tama-shigaika` | 23区＋多摩の市街化区域 1,324.85 km²（地域危険度の町丁目5,192件 / 51市区町村を融合）。652,828ノード / 1,905,380エッジ | **これを使う**（`app/core/config.py` の `RUNTIME_SCOPE_ID`。定義は `prep/route_search/scopes.py`） |
 | `scope-kitasenju-ueno` | 北千住駅～上野駅のbbox＋片側1km、26.7 km²。27,144ノード / 82,586エッジ | 使わない（`gesuido` profileの成果物だけが残っている） |
 
-⚠️ **2つの範囲でファイル名が同じ**（`kitasenju_ueno_envelope.npz` など）。
-名前は `prep/route_search/bundles.py` の `GRAPHS` のbasenameから決まるため、
-新スコープの成果物も旧スコープ時代の名前のままである。
-**範囲ディレクトリを間違えてコピーすると、本番のNPZ（39MB / 190万エッジ）を
-旧スコープのNPZ（1.6MB / 8.2万エッジ）で静かに上書きする。**
-コピー先のディレクトリ名を必ず確認すること。
+**範囲ごとにファイル名の幹が違う**（`prep/route_search/scopes.py` の `stem`）。
+
+| 範囲 | ファイル名 |
+|---|---|
+| `scope-tokyo-23ku-tama-shigaika` | `tokyo23ku_tama_{シナリオ}.npz` |
+| `scope-kitasenju-ueno` | `kitasenju_ueno_{シナリオ}.npz` |
+
+⚠️ かつては両方とも `kitasenju_ueno*` で**同名**だった。コピー先のディレクトリを
+間違えると、本番のNPZ（39MB / 190万エッジ）を旧スコープのNPZ（1.6MB / 8.2万エッジ）で
+**静かに上書きできた**。幹を分けたので、いまは取り違えると「存在しない名前」になり、
+探索が503で落ちて気づける。
 
 ⚠️ `gesuido` profile には新スコープの成果物が無い。
 `HAZARD_DATA_PROFILE=gesuido` では `/api/evac-routes/presets` が503になる。
@@ -115,12 +120,11 @@ BUNDLE_OUT=../data/processed/bundles/$PROFILE/$SCOPE
 uv run --frozen --group prep python -m prep.tile_render.render \
   --all --out-root "$TILE_OUT"
 
-uv run --frozen --group prep python -m prep.route_search.graph \
-  --scenario envelope --out "$GRAPH_OUT/kitasenju_ueno_envelope.pkl"
-uv run --frozen --group prep python -m prep.route_search.graph \
-  --scenario kandagawa --out "$GRAPH_OUT/kitasenju_ueno_kandagawa.pkl"
-uv run --frozen --group prep python -m prep.route_search.graph \
-  --scenario sumidagawa --out "$GRAPH_OUT/kitasenju_ueno.pkl"
+# --out を省くと Scope が決めた名前（kitasenju_ueno_{シナリオ}.pkl）で出る
+for SC in envelope kandagawa sumidagawa; do
+  uv run --frozen --group prep python -m prep.route_search.graph \
+    --scenario "$SC" --out "$GRAPH_OUT/kitasenju_ueno_$SC.pkl"
+done
 
 uv run --frozen --group prep python -m prep.route_search.export_npz \
   --source-dir "$GRAPH_OUT" --outdir "$NPZ_OUT"
@@ -189,30 +193,27 @@ uv run --frozen --group prep python -u \
 ### NPZを本番配布ディレクトリへ置く（**スクリプトが無い手作業**）
 
 ⚠️ **ここはスクリプトが無い。手で置く。** 生成物の名前（`area_*.npz`）と
-本番配布物の名前（`kitasenju_ueno*.npz`）が違うので、次のように対応させる。
-`kitasenju_ueno.npz` が**隅田川**であることに注意（接尾辞なしが既定シナリオ）。
+本番配布物の名前（`tokyo23ku_tama_*.npz`）が違うので、対応させる。
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
 SRC=data/processed/graph_build/tokyo-23ku-tama-shigaika
 DST=backend/graph/flood-kensetsu_quake-risk9/scope-tokyo-23ku-tama-shigaika
 
-cp $SRC/area_envelope.npz        $DST/kitasenju_ueno_envelope.npz
-cp $SRC/area_envelope_meta.json  $DST/kitasenju_ueno_envelope_meta.json
-cp $SRC/area_sumidagawa.npz      $DST/kitasenju_ueno.npz
-cp $SRC/area_sumidagawa_meta.json $DST/kitasenju_ueno_meta.json
-cp $SRC/area_kandagawa.npz       $DST/kitasenju_ueno_kandagawa.npz
-cp $SRC/area_kandagawa_meta.json $DST/kitasenju_ueno_kandagawa_meta.json
+for SC in envelope sumidagawa kandagawa; do
+  cp "$SRC/area_$SC.npz"       "$DST/tokyo23ku_tama_$SC.npz"
+  cp "$SRC/area_${SC}_meta.json" "$DST/tokyo23ku_tama_${SC}_meta.json"
+done
 ```
 
-⚠️ コピー先のディレクトリ名を必ず確認する。旧スコープ（`scope-kitasenju-ueno`）は
-**同じファイル名で 1.6MB** なので、間違えても気づかずに上書きできてしまう。
+⚠️ 旧スコープは幹が `kitasenju_ueno` なので、ディレクトリを取り違えても
+**上書きにはならず**、探索が503で落ちて気づける（段階5でそう変えた）。
 
 ### プリセットを作る（**pickleのリネームが要る**）
 
 プリセットは旧スコープと同じ `prep.route_search.bundles` を使う。ただし
-`--graph-dir` に渡すディレクトリのファイル名を `GRAPHS` のbasename
-（`kitasenju_ueno_envelope.pkl` 等）に合わせる必要がある。
+`--graph-dir` に渡すディレクトリのファイル名を、**その範囲の `stem`**
+（新スコープなら `tokyo23ku_tama_envelope.pkl` 等）に合わせる必要がある。
 
 ⚠️ **pickleをコピーしない。1本663MBある。** ハードリンクで別名を作る
 （同じファイルシステムなので実体は増えない）。中間pickleを退避してある場合も、
@@ -221,9 +222,9 @@ cp $SRC/area_kandagawa_meta.json $DST/kitasenju_ueno_kandagawa_meta.json
 ```bash
 cd "$(git rev-parse --show-toplevel)/data/processed/graph_build/tokyo-23ku-tama-shigaika"
 mkdir -p asnames
-ln -f area_envelope.pkl   asnames/kitasenju_ueno_envelope.pkl
-ln -f area_sumidagawa.pkl asnames/kitasenju_ueno.pkl          # 接尾辞なしが隅田川
-ln -f area_kandagawa.pkl  asnames/kitasenju_ueno_kandagawa.pkl
+for SC in envelope sumidagawa kandagawa; do
+  ln -f "area_$SC.pkl" "asnames/tokyo23ku_tama_$SC.pkl"
+done
 
 cd "$(git rev-parse --show-toplevel)/backend"
 BUNDLE_OUT=../data/processed/bundles/flood-kensetsu_quake-risk9/scope-tokyo-23ku-tama-shigaika

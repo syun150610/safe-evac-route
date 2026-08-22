@@ -16,7 +16,8 @@ import networkx as nx
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1]))
 
-from prep.paths import graph_path  # noqa: E402
+from prep.paths import graph_path
+from prep.route_search import scopes  # noqa: E402
 from prep.route_search.od import P  # noqa: E402
 from prep.route_search.weights import (  # noqa: E402
     baked_weight,
@@ -24,7 +25,8 @@ from prep.route_search.weights import (  # noqa: E402
     equals_baked,
 )
 
-GRAPH = graph_path("kitasenju_ueno_envelope.pkl")
+# 旧スコープの前処理pickle。名前は Scope が決める（段階5）
+GRAPH = graph_path(scopes.get("kitasenju-ueno").pickle_name("envelope"))
 COMBOS = [("flood",), ("quake",), ("flood", "quake")]
 
 
