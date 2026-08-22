@@ -1,5 +1,6 @@
 import { type ChangeEvent, type FormEvent, useState } from 'react'
 
+import { useAuth } from '../auth/AuthProvider'
 import { createPost } from '../api/client'
 import { reverseGeocode } from './geocode'
 import type { CreatePostRequest } from './types'
@@ -13,11 +14,10 @@ const initialForm: CreatePostRequest = {
 }
 
 export function NewPostPage() {
-  const [form, setForm] = useState<CreatePostRequest>(() => {
-    const saved = localStorage.getItem('safe-evac-route-user-id')
-    const userId = saved ?? 'demo-user'
-    localStorage.setItem('safe-evac-route-user-id', userId)
-    return { ...initialForm, user_id: userId }
+  const { user } = useAuth()
+  const [form, setForm] = useState<CreatePostRequest>({
+    ...initialForm,
+    user_id: user?.id ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)

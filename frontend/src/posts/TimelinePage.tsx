@@ -1,18 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { useAuth } from '../auth/AuthProvider'
 import { getPosts, markPostHelpful } from '../api/client'
 import { reverseGeocode } from './geocode'
 import type { Post } from './types'
-
-const USER_ID_KEY = 'safe-evac-route-user-id'
-
-function getUserId() {
-  const saved = localStorage.getItem(USER_ID_KEY)
-  if (saved) return saved
-  const id = 'demo-user'
-  localStorage.setItem(USER_ID_KEY, id)
-  return id
-}
 
 function relativeDate(value: string) {
   const iso = value.replace(' ', 'T')
@@ -33,6 +24,8 @@ function relativeDate(value: string) {
 }
 
 export function TimelinePage() {
+  const { user } = useAuth()
+  const userId = user?.id ?? ''
   const [posts, setPosts] = useState<Post[]>([])
   const [sort, setSort] = useState<'recent' | 'nearby' | 'helpful'>('recent')
   const [position, setPosition] = useState<{ latitude: number; longitude: number } | null>(null)
@@ -50,7 +43,7 @@ export function TimelinePage() {
       sort,
       latitude: position?.latitude,
       longitude: position?.longitude,
-      userId: getUserId(),
+      userId: userId,
     })
       .then((result) => {
         setPosts((current) => (reset ? result.items : [...current, ...result.items]))
@@ -68,7 +61,7 @@ export function TimelinePage() {
       sort,
       latitude: position?.latitude,
       longitude: position?.longitude,
-      userId: getUserId(),
+      userId: userId,
     })
       .then((result) => {
         setPosts(result.items)
@@ -108,7 +101,7 @@ export function TimelinePage() {
 
   async function helpful(post: Post) {
     try {
-      const updated = await markPostHelpful(post.id, getUserId())
+      const updated = await markPostHelpful(post.id, userId)
       setPosts((current) => current.map((item) => (item.id === updated.id ? updated : item)))
     } catch {
       setError('評価を保存できませんでした')
