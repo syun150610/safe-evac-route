@@ -1,4 +1,11 @@
-# 浸水データの入力と再生成
+# 浸水データ（flood）
+
+東京都建設局の浸水予想区域図から、表示タイルと経路探索グラフを作る手順。
+
+⚠️ **この文書は浸水だけを扱う。** 地震（地域危険度）は工程が違うので
+[地震データ](quake-data.md)にある。ただし**経路への焼き込みは両方まとめて行う**ので、
+グラフ構築の節（[旧スコープ](#旧スコープscope-kitasenju-uenoの再生成) /
+[新スコープ](#新スコープscope-tokyo-23ku-tama-shigaikaの構築)）は地震にも効く。
 
 ## 一次入力
 
@@ -32,30 +39,28 @@ data/raw/hazard/hazard.gpkg
 
 ## 表示タイルだけ必要な場合
 
-通常のAPI・探索開発にはrawもタイルも不要である。Dockerバックエンドとnpmフロントで
-浸水・地震レイヤーまで表示したい場合だけ、次を実行する。pickle・NPZ・プリセットの
-生成は不要である。
+通常のAPI・探索開発にはrawもタイルも不要である。ローカルで浸水レイヤーまで表示したい
+場合だけ、次を実行する。pickle・NPZ・プリセットの生成は不要である。
 
-最初に、東京都の公式配布元から建設局CSV 17件と地域危険度SHPを取得する。
+まず建設局CSV 17件を取得する。
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-./scripts/prep/download-raw.sh all
+./scripts/prep/download-raw.sh flood
 ```
 
-次に、地震SHPを共通入力のGPKGへ正規化し、浸水PNGと地震GeoJSONを生成する。
+浸水PNGを生成する。
 
 ```bash
 cd "$(git rev-parse --show-toplevel)/backend"
 uv sync --frozen --group prep
 
-uv run --frozen --group prep python -m prep.hazard_sources.quake.build
-
 uv run --frozen --group prep python -m prep.tile_render.render \
   --all --out-root ../data/processed/tiles/flood/kensetsu
-
-uv run --frozen --group prep python -m prep.hazard_sources.quake.export
 ```
+
+⚠️ **地震レイヤーはこの手順では出ない。** 地震はタイルを焼かずGeoJSONで配るので、
+手順が別である（[地震データ](quake-data.md)）。両方見たい場合はそちらも実行する。
 
 取得済みの空でないrawと既存GPKGは既定で再取得・上書きしない。取得物、公式URL、検証内容、
 明示的に作り直す場合の`--force`は[一次データの取得](raw-data.md)を参照する。一度も生成して
@@ -63,7 +68,7 @@ uv run --frozen --group prep python -m prep.hazard_sources.quake.export
 
 ⚠️ **重み・コスト表だけを変えた場合**は、この章の再生成に加えて
 「どのNPZをAPIに読ませるか」の指定が要る。落とし穴は
-[ローカル実行・検証runbook](../local-runbook.md#重みコスト表を変えたときの確認)を参照。
+[ローカル実行・検証runbook](../local-runbook.md#5-6-重みコスト表を変えたとき)を参照。
 
 ## 探索範囲は2つある
 
@@ -109,8 +114,6 @@ BUNDLE_OUT=../data/processed/bundles/$PROFILE/$SCOPE
 
 uv run --frozen --group prep python -m prep.tile_render.render \
   --all --out-root "$TILE_OUT"
-
-uv run --frozen --group prep python -m prep.hazard_sources.quake.export
 
 uv run --frozen --group prep python -m prep.route_search.graph \
   --scenario envelope --out "$GRAPH_OUT/kitasenju_ueno_envelope.pkl"
