@@ -235,6 +235,19 @@ API_TARGET=http://127.0.0.1:8000 npm run dev -- --strictPort
 
 ## 2. Docker で本番Containerに近づける
 
+⚠️ **素のDockerでは認証・投稿は動かない。** コンテナは既定で `http://d1.internal` を
+見るが、この仮想ホストを提供しているのは**Workerの Container binding だけ**である
+（`worker/src/index.ts` の `FastAPIContainer.outboundByHost`）。`docker run` 単体には
+存在しないので、認証で `Name or service not known` になる。
+
+**いまはマップ全体が認証の内側にある**ので、素のDockerだと画面はログインから先へ進めない。
+
+| 見たいもの | 使う章 |
+|---|---|
+| API・経路探索（curl で叩く） | ここ（2章） |
+| 認証・投稿を含む画面 | [1章](#1-いちばん短い起動uvicorn--vite) または [3章](#3-wrangler-で結合確認workerd1r2container) |
+| どうしてもDockerで画面を見たい | [2-2](#2-2-表示タイルも確認する)（Workerへ橋渡しする設定が要る） |
+
 ### 2-0. まずビルドする（2-1・2-2 のどちらに進む場合も先に実行）
 
 ⚠️ **タグを使い回すので、古いイメージが黙って動く。** `docker run` は成功し、
@@ -291,6 +304,24 @@ NPZとプリセットはイメージへ同梱されるため、`data/`なしで�
 > 実施する場合は先に[表示タイルだけ必要な場合](prep/flood-data.md#表示タイルだけ必要な場合)の手順で公式rawを
 > 取得し、`data/processed/tiles/`を生成しておく。
 
+⚠️ **認証を通すには、コンテナからホストのWorkerへ橋渡しする設定が要る**（上記のとおり
+`d1.internal` は素のDockerに無い）。**3つ揃わないと通らない。**
+
+1. Workerを**全インターフェースで**待ち受けさせる。`npm run dev` では `--ip` を渡せない
+
+   ```bash
+   cd "$(git rev-parse --show-toplevel)/worker"
+   npx wrangler dev --ip 0.0.0.0
+   ```
+
+   `ss -ltn | grep 8787` が `0.0.0.0:8787` になっていること。`127.0.0.1:8787` のままだと
+   コンテナから届かず `All connection attempts failed` になる。
+
+   ⚠️ `0.0.0.0` は同じネットワークの他端末からも届く。共有Wi-Fiでは注意する。
+
+2. コンテナに `--add-host=host.docker.internal:host-gateway` を付ける
+3. `D1_GATEWAY_URL` と `R2_GATEWAY_URL` をホスト側のWorkerへ向ける
+
 ターミナル1でバックエンドを起動する。
 
 ```bash
@@ -300,8 +331,11 @@ if test -f "$TASK_TILES_DIR/quake/total.geojson" && \
    test -d "$TASK_TILES_DIR/flood/kensetsu/envelope"; then
   docker run --rm \
     --publish 8000:8000 \
+    --add-host=host.docker.internal:host-gateway \
     --env HAZARD_DATA_PROFILE=kensetsu \
     --env JWT_SECRET_KEY="$(openssl rand -hex 32)" \
+    --env D1_GATEWAY_URL=http://host.docker.internal:8787/d1 \
+    --env R2_GATEWAY_URL=http://host.docker.internal:8787/r2 \
     --env TILES_DIR=/tiles-data \
     --mount type=bind,src="$TASK_TILES_DIR",dst=/tiles-data,readonly \
     safe-evac-route-backend:local
@@ -622,7 +656,9 @@ cp ../data/processed/runtime_graph/{profile-id}/{scope}/*.npz \
 | Dockerでタイル404 | mountまたは`TILES_DIR`なし | Dockerの`--mount`と環境変数 |
 | Wranglerでタイル404 | ローカルR2が空 | API故障と混同しない。1/2で画面確認 |
 | **Dockerで一部のエンドポイントだけ404**（`/api/health` は200なのに `/api/auth/*` が404） | イメージが古い。タグを使い回すので黙って前のコードが動く | `docker images safe-evac-route-backend:local --format '{{.CreatedAt}}'` で作成日時を見て、[2-0](#2-0-まずビルドする2-12-2-のどちらに進む場合も先に実行)で再ビルド |
-| `Name or service not known`（認証・投稿） | `.env` の `D1_GATEWAY_URL` が `d1.internal` のまま。本番Container用の値で、uvicornからは解決できない | [0-2b](#0-2b-すでに-env-がある人設定が古いと-name-or-service-not-known-になる) |
+| `Name or service not known`（**uvicorn**の認証・投稿） | `.env` の `D1_GATEWAY_URL` が `d1.internal` のまま。本番Container用の値で、uvicornからは解決できない | [0-2b](#0-2b-すでに-env-がある人設定が古いと-name-or-service-not-known-になる) |
+| `Name or service not known`（**コンテナ内**。トレースが `/app/...`） | 素の `docker run` に `d1.internal` は無い。原因はuvicornの同名エラーと**別** | [2章の冒頭](#2-docker-で本番containerに近づける)。認証は1章か3章で見る |
+| `All connection attempts failed`（コンテナ内） | 名前は引けたがWorkerが `127.0.0.1` 限定で待ち受け | `npx wrangler dev --ip 0.0.0.0` |
 | 認証・投稿が `Connection refused` | Workerが起動していない（uvicornはWorker経由でD1へ行く） | 別ターミナルで `cd worker && npm run dev` |
 | profile変更が反映されない | 起動済みグラフのメモリキャッシュ | API・Containerを再起動 |
 | 重み・コスト表の変更が反映されない | コスト値はグラフへ焼き込み済み。または焼き直したNPZが `data/processed/` にあり、APIは `backend/graph/` を読んでいる | 上の「5-6. 重み・コスト表を変えたとき」 |
