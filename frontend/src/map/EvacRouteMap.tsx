@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { BottomSheet, useMobileLayout } from './components/BottomSheet'
 import { DataAttribution } from './components/DataAttribution'
+import { type Condition, HazardCondition } from './components/HazardCondition'
 import { HazardLegend } from './components/HazardLegend'
-import { HazardPicker } from './components/HazardPicker'
 import { LayerPicker } from './components/LayerPicker'
 import { PlaceInput } from './components/PlaceInput'
 import { RouteRationale } from './components/RouteRationale'
@@ -21,7 +21,11 @@ import { useVector } from './hooks/useVector'
 import { distanceKm } from './lib/distance'
 import { nearestSegment, routeBounds } from './lib/geo'
 import { currentPosition, type Place } from './lib/gsi'
-import { buildRouteSearchRequest, buildShelterSearchRequest } from './lib/search-request'
+import {
+  buildHazards,
+  buildRouteSearchRequest,
+  buildShelterSearchRequest,
+} from './lib/search-request'
 import { shelterIsVisible } from './lib/shelter-viewport'
 import { initialSafeState, type PlaceField, safeReducer } from './state/evac-route-state'
 import type { Rationale, ShelterCandidate, ShelterFeature } from './types'
@@ -128,16 +132,26 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
 
   const nearbyShelters = useMemo(() => shelters.slice(0, 8), [shelters])
 
-  const hazards = useMemo<Record<string, string>>(() => {
-    const selection: Record<string, string> = {}
-    selection[state.hazard] = state.hazard === 'quake' ? 'total' : state.scenario
-    return selection
-  }, [state.hazard, state.scenario])
+  /** いま画面が選んでいる条件。**再検索へはこれをそのまま渡す。** */
+  const condition = useMemo<Condition>(
+    () => ({ hazard: state.hazard, scenario: state.scenario }),
+    [state.hazard, state.scenario],
+  )
 
   const runRoute = useCallback(
-    async (destination: Place, origin = state.origin.place) => {
+    async (
+      destination: Place,
+      {
+        origin = state.origin.place,
+        // ⚠️ **条件は引数で受ける。** 切り替え直後に state を読むと
+        //    更新前の値になり、古い条件で引き直してしまう
+        with: cond = condition,
+        keepPrevious = false,
+      }: { origin?: Place | null; with?: Condition; keepPrevious?: boolean } = {},
+    ) => {
       dispatch({ type: 'select_place', field: 'destination', place: destination })
-      search.clear()
+      // 条件の切り替えでは前の結果を消さない（消すと画面が一瞬空になる）
+      if (!keepPrevious) search.clear()
       if (!origin) {
         dispatch({ type: 'open_search', purpose: 'route' })
         setSheetOpen(true)
@@ -154,18 +168,18 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         flash('対象エリア内の地点を指定してください')
         return
       }
-      const base = buildShelterSearchRequest(origin, hazards, state.scenario)
+      const base = buildShelterSearchRequest(origin, buildHazards(cond), cond.scenario)
       const result = await search.run(buildRouteSearchRequest(base, destination))
       if (result) {
         dispatch({ type: 'route_ready', routes: result.routes.map((route) => route.id) })
         setSheetOpen(true)
       }
     },
-    [area, flash, hazards, search.clear, search.run, state.origin.place, state.scenario],
+    [area, condition, flash, search.clear, search.run, state.origin.place],
   )
 
   const runShelterSearch = useCallback(
-    async (selectedOrigin?: Place) => {
+    async (selectedOrigin?: Place | null, cond: Condition = condition) => {
       if (shelterSearchRunning.current) return
       const origin = selectedOrigin ?? state.origin.place
       if (!origin) {
@@ -184,7 +198,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       shelterSearchRunning.current = true
       setShelterSearchLoading(true)
       try {
-        const request = buildShelterSearchRequest(origin, hazards, state.scenario)
+        const request = buildShelterSearchRequest(origin, buildHazards(cond), cond.scenario)
         const result = await search.runShelter(request)
         // 失敗（範囲外・該当避難先なし）のときは `search.error` に本文が入る。
         // ⚠️ ここで search.error を読むと**1つ前のレンダーの値**なので読まない。
@@ -209,7 +223,38 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         setShelterSearchLoading(false)
       }
     },
-    [area, flash, hazards, search.runShelter, state.origin.place, state.scenario],
+    [area, condition, flash, search.runShelter, state.origin.place],
+  )
+
+  /** 考慮する災害を切り替える。**検索後なら、同じ探索を新しい条件で引き直す。**
+   *
+   * 以前は検索画面でしか選べず、結果画面は「何を考慮したか」を表示するだけ
+   * だった。災害を変えると経路も避難先も変わるのに、変えるには最初から
+   * やり直す必要があった。
+   *
+   * ⚠️ **避難先探索は推奨が選び直される。** 種別が変われば「一番安全に
+   *    着ける先」も変わるので、目的地を固定して引き直してはいけない。
+   *    候補から選んだ経路（＝目的地指定）は、その目的地のまま引き直す。
+   */
+  const applyCondition = useCallback(
+    (next: Condition) => {
+      dispatch({ type: 'set_hazard', hazard: next.hazard })
+      dispatch({ type: 'set_scenario', scenario: next.scenario })
+      if (state.screen !== 'route') return
+      if (bundle?.shelter) {
+        void runShelterSearch(state.origin.place, next)
+      } else if (state.destination.place) {
+        void runRoute(state.destination.place, { with: next, keepPrevious: true })
+      }
+    },
+    [
+      bundle?.shelter,
+      runRoute,
+      runShelterSearch,
+      state.destination.place,
+      state.origin.place,
+      state.screen,
+    ],
   )
 
   /** 候補をタップしたとき。その避難所を目的地にして普通の2点探索へ切り替える。
@@ -565,6 +610,15 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   <h2>近くの避難先</h2>
                   <span>{sheltersLoading ? '読込中…' : `${nearbyShelters.length}件表示`}</span>
                 </div>
+                {/* ⚠️ ここは出発地が既にあると**押した瞬間に検索が走る**ので、
+                    先に災害を選べるようにしておく。検索画面へ入らないと
+                    選べないままだと、既定（地震）で探したことに気づけない */}
+                <HazardCondition
+                  hazard={state.hazard}
+                  onChange={applyCondition}
+                  scenario={state.scenario}
+                  scenarios={floodScenarios}
+                />
                 <SafeShelterSearchButton
                   loading={shelterSearchLoading}
                   onSearch={runShelterSearch}
@@ -620,32 +674,12 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   安全な避難先を探すため、現在地または出発地を指定してください。
                 </p>
               )}
-              <section className="mb-2.5 flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 [&>strong]:mr-auto [&>strong]:text-[10px]">
-                <strong>考慮する災害</strong>
-                <HazardPicker
-                  compact
-                  value={state.hazard}
-                  onChange={(hazard) => dispatch({ type: 'set_hazard', hazard })}
-                />
-                {state.hazard === 'flood' && (
-                  <label className="ml-auto min-w-28 flex-1 text-[9px] text-slate-600 min-[420px]:max-w-36 [&_select]:min-h-7 [&_select]:w-full [&_select]:rounded-md [&_select]:border [&_select]:border-slate-200 [&_select]:bg-white [&_select]:px-1.5 [&_select]:text-[9px]">
-                    <span className="sr-only">浸水想定</span>
-                    <select
-                      aria-label="浸水想定"
-                      value={state.scenario}
-                      onChange={(event) =>
-                        dispatch({ type: 'set_scenario', scenario: event.target.value })
-                      }
-                    >
-                      {floodScenarios.map((scenario) => (
-                        <option value={scenario.id} key={scenario.id}>
-                          {scenario.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-              </section>
+              <HazardCondition
+                hazard={state.hazard}
+                onChange={applyCondition}
+                scenario={state.scenario}
+                scenarios={floodScenarios}
+              />
               {searchFields.map((field) => {
                 const value = state[field]
                 return (
@@ -767,17 +801,25 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   <h2>{state.destination.place?.title}</h2>
                 </div>
               </div>
-              <section className="mb-3.5 flex items-center justify-between gap-3 rounded-[10px] border border-slate-200 bg-slate-50 p-2.5 [&_small]:mt-0.5 [&_small]:block [&_small]:text-[8px] [&_small]:text-slate-500 [&_strong]:block [&_strong]:text-[11px]">
-                <div>
-                  <strong>経路条件</strong>
-                  <small>検索時に選択した条件</small>
-                </div>
-                <span
-                  className={`inline-flex min-h-8 items-center rounded-lg px-2.5 text-[10px] font-bold ${state.hazard === 'flood' ? 'bg-blue-50 text-blue-700' : 'bg-indigo-50 text-[#07156f]'}`}
-                >
-                  {hazardMeta ? `${hazardMeta.label}を考慮` : ''}
-                </span>
-              </section>
+              {/* 表示だけでなく、ここで切り替えて引き直せる */}
+              <HazardCondition
+                busy={search.loading}
+                hazard={state.hazard}
+                note={
+                  bundle?.shelter
+                    ? '切り替えると避難先から探し直します'
+                    : '切り替えると経路を引き直します'
+                }
+                onChange={applyCondition}
+                scenario={state.scenario}
+                scenarios={floodScenarios}
+                title="経路条件"
+              />
+              {search.loading && (
+                <p className="mb-3 text-[9px] text-slate-500" role="status">
+                  新しい条件で引き直しています…
+                </p>
+              )}
               {bundle && (
                 <RouteTable
                   bundle={bundle}
