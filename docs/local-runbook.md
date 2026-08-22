@@ -57,6 +57,9 @@ npm ci
 
 ### 0-2. backend/.env を作る（認証を使わなくても必須）
 
+⚠️ **すでに `.env` がある人は、先に[0-2b](#0-2b-すでに-env-がある人設定が古いと-name-or-service-not-known-になる)を見ること。**
+下のコマンドは `.env` があれば何もしないので、**古い値がそのまま残る。**
+
 `JWT_SECRET_KEY` は**デフォルトが無い必須設定**である。未設定だと
 `app/main.py` の読み込み時点で `ValidationError` になり、uvicornが起動しない。
 
@@ -98,6 +101,42 @@ SETKEY
 grep JWT_SECRET_KEY "$(git rev-parse --show-toplevel)/backend/.env"
 ```
 
+### 0-2b. すでに .env がある人（設定が古いと Name or service not known になる）
+
+`.env` はGit管理外なので、**`.env.example` が変わっても自動では追従しない。**
+古い `.env` を使い続けると、起動はするが認証・投稿で次のように落ちる。
+
+```text
+httpx.ConnectError: [Errno -2] Name or service not known
+```
+
+`D1_GATEWAY_URL` が `http://d1.internal` のままだと起きる。**`d1.internal` は
+本番Containerの中からしか到達できない仮想ホスト**で、uvicorn直起動では名前解決できない。
+uvicornからはWorkerのプロキシ（`localhost:8787`）を通す。
+
+まずキー名と値の差を見る（値は表示しない）。
+
+```bash
+cd "$(git rev-parse --show-toplevel)/backend"
+diff <(grep -oE '^[A-Z_]+=' .env.example | sort) <(grep -oE '^[A-Z_]+=' .env | sort) \
+  && echo "キー名は一致"
+grep -E '^(D1|R2)_GATEWAY_URL=' .env
+```
+
+`d1.internal` / `r2.internal` が出たら、次で直す。
+
+```bash
+cd "$(git rev-parse --show-toplevel)/backend"
+sed -i.bak \
+  -e 's|^D1_GATEWAY_URL=.*|D1_GATEWAY_URL=http://localhost:8787/d1|' \
+  -e 's|^R2_GATEWAY_URL=.*|R2_GATEWAY_URL=http://localhost:8787/r2|' \
+  .env
+grep -E '^(D1|R2)_GATEWAY_URL=' .env
+```
+
+⚠️ **直したらuvicornを再起動する。** `.env` は起動時にしか読まれない。
+元の `.env` は `.env.bak` に残る。
+
 ### 0-3. ローカルD1にマイグレーションを適用する
 
 ⚠️ **`wrangler dev` を起動しても自動適用されない。** 隔離したstateで実測した結果、
@@ -116,12 +155,17 @@ Workerを起動している必要はない。詳しくは [データベース](d
 ```bash
 cd "$(git rev-parse --show-toplevel)/backend"
 uv run --frozen python -c "from app.core.config import get_settings; print('設定OK', get_settings().hazard_data_profile)"
+grep -E '^(D1|R2)_GATEWAY_URL=' .env
 
 cd ../worker
 npx wrangler d1 migrations list safe-evac-route-db --local
 ```
 
-`設定OK kensetsu` と `No migrations to apply!` が出れば、初回セットアップは完了である。
+次の3つが揃えば初回セットアップは完了である。
+
+- `設定OK kensetsu`
+- `D1_GATEWAY_URL=http://localhost:8787/d1`（`d1.internal` **ではない**）
+- `No migrations to apply!`
 
 ## profileの選び方
 
@@ -182,14 +226,20 @@ API_TARGET=http://127.0.0.1:8000 npm run dev -- --strictPort
 - **ハザードレイヤー**: `/tiles/flood/.../*.png` と `/tiles/quake/*.geojson` が404になる。
   `data/processed/tiles/` がある端末では、FastAPIが `/tiles/*` も配信する。
   タイルを見たい人は、チームで共有した生成物を配置するか[前処理](prep/README.md)を実行する
+
+⚠️ **`git worktree` で fresh clone を再現する場合は、worktree側で実行すること。**
+`data/` はgitignoreなのでworktreeには作られないが、**本体ツリーでコマンドを実行すると
+既存の生成物が見えてしまい**、fresh cloneの見え方にならない。
 - **Google地図**: `frontend/.env.local` にAPIキーが無いとエラー表示になる。
   `?platform=maplibre` を付ければキー無しで確認できる
 
 ## 2. Docker で本番Containerに近づける
 
-### 2-1. APIと探索だけを確認する
+### 2-0. まずビルドする（2-1・2-2 のどちらに進む場合も先に実行）
 
-リポジトリ直下で実行する。
+⚠️ **タグを使い回すので、古いイメージが黙って動く。** `docker run` は成功し、
+`/api/health` も200を返すのに、**後から足したエンドポイントだけ404**になる。
+`main` を取り込んだら必ずビルドし直すこと。
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
@@ -197,7 +247,20 @@ docker build \
   --tag safe-evac-route-backend:local \
   --file backend/Dockerfile \
   backend
+```
 
+いま手元にあるイメージがいつのものかは、これで分かる。
+
+```bash
+docker images safe-evac-route-backend:local --format '作成 {{.CreatedAt}}'
+```
+
+### 2-1. APIと探索だけを確認する
+
+リポジトリ直下で実行する。
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
 docker run --rm \
   --publish 8000:8000 \
   --env HAZARD_DATA_PROFILE=kensetsu \
@@ -219,6 +282,9 @@ NPZとプリセットはイメージへ同梱されるため、`data/`なしで�
 これは「バックエンドは本番Containerに近いDocker、フロントはHMRが使える
 `npm run dev`」という組み合わせである。この表示確認は任意であり、通常のAPI・探索開発に
 必要な手順ではない。
+
+⚠️ **[2-0](#2-0-まずビルドする2-12-2-のどちらに進む場合も先に実行)のビルドが前提。**
+ここには `docker run` しか無いので、古いイメージが残っているとそれが動く。
 
 > [!IMPORTANT]
 > 本手順では、浸水PNGと地震GeoJSONを事前生成しない限りDockerが動作しない。
@@ -369,6 +435,8 @@ ls data/processed/tiles/flood 2>/dev/null || echo "タイルなし（ハザー�
 |---|---|---|
 | `ValidationError: jwt_secret_key` | `.env` が無い・鍵が空 | [0-2](#0-2-backendenv-を作る認証を使わなくても必須) |
 | `no such table: USERS` | ローカルD1が未適用・作り直した | [0-3](#0-3-ローカルd1にマイグレーションを適用する) |
+| `Name or service not known` | `.env` が古い（`d1.internal` のまま） | [0-2b](#0-2b-すでに-env-がある人設定が古いと-name-or-service-not-known-になる) |
+| Dockerで `/api/auth/*` だけ404 | イメージが古い | [2-0](#2-0-まずビルドする2-12-2-のどちらに進む場合も先に実行) |
 | `/api/evac-routes/presets` が503 | profileの成果物が無い | ①②を確認。ブランチが古い可能性 |
 | 任意地点探索が503 | 選択profile・スコープのNPZが無い | ②を確認 |
 
@@ -552,7 +620,10 @@ cp ../data/processed/runtime_graph/{profile-id}/{scope}/*.npz \
 | 任意地点探索が503 | 選択profileのNPZなし | `backend/graph/{profile-id}/{scope}/*.npz` |
 | uvicornでタイル404 | `data/processed/tiles/`なし、profile名不一致 | `TILES_DIR`とタイル配置 |
 | Dockerでタイル404 | mountまたは`TILES_DIR`なし | Dockerの`--mount`と環境変数 |
-| Wranglerでタイル404 | ローカルR2が空 | API故障と混同しない。A/Bで画面確認 |
+| Wranglerでタイル404 | ローカルR2が空 | API故障と混同しない。1/2で画面確認 |
+| **Dockerで一部のエンドポイントだけ404**（`/api/health` は200なのに `/api/auth/*` が404） | イメージが古い。タグを使い回すので黙って前のコードが動く | `docker images safe-evac-route-backend:local --format '{{.CreatedAt}}'` で作成日時を見て、[2-0](#2-0-まずビルドする2-12-2-のどちらに進む場合も先に実行)で再ビルド |
+| `Name or service not known`（認証・投稿） | `.env` の `D1_GATEWAY_URL` が `d1.internal` のまま。本番Container用の値で、uvicornからは解決できない | [0-2b](#0-2b-すでに-env-がある人設定が古いと-name-or-service-not-known-になる) |
+| 認証・投稿が `Connection refused` | Workerが起動していない（uvicornはWorker経由でD1へ行く） | 別ターミナルで `cd worker && npm run dev` |
 | profile変更が反映されない | 起動済みグラフのメモリキャッシュ | API・Containerを再起動 |
 | 重み・コスト表の変更が反映されない | コスト値はグラフへ焼き込み済み。または焼き直したNPZが `data/processed/` にあり、APIは `backend/graph/` を読んでいる | 上の「5-6. 重み・コスト表を変えたとき」 |
 | 応答の `quake_cost` だけ新しい値になる | `QUAKE_COST` は実行時に応答へ載るが、経路は焼き込み済みの `cost_quake` を使う | 同上。経路と `routes[].stats` で判断する |
