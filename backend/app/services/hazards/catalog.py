@@ -7,12 +7,8 @@ UIごとに書き写すと必ず表現がズレる。ここから配る。
 種別の登録は prep 側の registry を単一の出所にする（二重に持たない）。
 """
 
-import json
-import os
-
 from app.core.config import get_settings
 from prep.hazard_sources import registry
-from prep.paths import TILES_DIR
 
 # 浸水タイルのズーム範囲（prep.tile_render.render の ZOOMS と揃える）。
 # ⚠️ maxz は「焼いてある上限」で、拡大の上限ではない。超えた分は地図側が引き伸ばす。
@@ -64,28 +60,64 @@ def _flood_scenarios():
 
 
 def _quake_scenarios():
-    """地震はベクタ。凡例は書き出し済みの GeoJSON に同梱してある"""
+    """地震はベクタ。凡例はシナリオ共通なので種別の階層で返す（浸水と同じ形）。
+
+    ⚠️ **以前はここで書き出し済みGeoJSONを読んでいた。** 本番Containerに
+    `data/processed/tiles/` は無いので必ず None になり、地震の凡例が
+    `/api/hazards` から取れていなかった。開発環境では凡例数行のために
+    4.6MBのGeoJSONを丸ごとパースしていた。
+    """
     from prep.hazard_sources.quake.source import SCENARIOS
 
-    out = []
-    for s in SCENARIOS:
-        legend = None
-        p = os.path.join(str(TILES_DIR), "quake", f"{s['id']}.geojson")
-        if os.path.exists(p):
-            # 凡例だけ読む（本体は数MBあるので配信はファイルごと）
-            with open(p, "rb") as f:
-                legend = json.load(f).get("legend")
-        out.append(
-            {
-                "id": s["id"],
-                "label": s["label"],
-                "kind": "rank",
-                "note": s["note"],
-                "vector_url": f"{_tile_base()}/quake/{s['id']}.geojson",
-                "legend": legend,
-            }
-        )
-    return out
+    return [
+        {
+            "id": s["id"],
+            "label": s["label"],
+            "kind": "rank",
+            "note": s["note"],
+            "vector_url": f"{_tile_base()}/quake/{s['id']}.geojson",
+        }
+        for s in SCENARIOS
+    ]
+
+
+def _risk(hid):
+    """カードや指標タイルが読むべき `routes[].stats` のキーと、危険区間の呼び名。
+
+    ⚠️ **キー名をフロントに書かせない。** 種別ごとに違う（浸水は
+    `ratio_over_03`、地震は `quake_r4plus_ratio`）ので、フロントが対応表を持つと
+    **種別を増やすたびにフロントの修正が要る**。registry の `risk` ブロックを
+    単一の出所にして、種別追加＝registry に1ブロックで済ませる。
+
+    ⚠️ **`coverage_key` を落とさない。** 危険区間が0%でも、その経路の大半が
+    整備範囲の外なら「安全」ではなく「判断材料が無い」。実測で経路の74.9%が
+    想定図の範囲外だったODがある。割合だけ出して未評価を隠すと、
+    `hazard_sources/base.py` が禁じている読み違えをそのまま画面に出す。
+
+    ⚠️ 文言の組み立てに使うもの（`condition_note` など）はここから配らない。
+    完成した文字列は `rationale` が返す（そちらが文言の単一の出所）。
+    """
+    spec = registry.risk(hid)
+    if spec is None:
+        return None
+    return {
+        "label": spec["label"],
+        "length_key": spec["length_key"],
+        "ratio_key": spec["ratio_key"],
+        "coverage_key": spec["coverage_key"],
+    }
+
+
+def _quake_legend():
+    """ランク1〜5と調査対象外。**係数は載せない。**
+
+    係数はグラフへ焼き込み済みで、生成物に残った値は焼き直しで古くなりうる
+    （実際に配信中のGeoJSONの凡例は PR #33 以前の係数のまま）。
+    画面に出さない値を配らない。
+    """
+    from prep.hazard_sources.quake.source import legend_items
+
+    return legend_items()
 
 
 def catalog():
@@ -99,6 +131,7 @@ def catalog():
             "label": meta["label"],
             "display_kind": meta["display_kind"],
             "note": meta["note"],
+            "risk": _risk(hid),
         }
         if hid == "flood":
             h["scenarios"] = _flood_scenarios()
@@ -106,6 +139,7 @@ def catalog():
             h["zoom"] = {"min": FLOOD_MINZ, "max": FLOOD_MAXZ}
         elif hid == "quake":
             h["scenarios"] = _quake_scenarios()
+            h["legend"] = _quake_legend()
         hazards.append(h)
     return {
         "data_profile": settings.hazard_data_profile,

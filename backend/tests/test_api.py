@@ -67,6 +67,15 @@ def main():
     h = client.get("/api/hazards").json()
     ids = [x["id"] for x in h["hazards"]]
     flood = next(x for x in h["hazards"] if x["id"] == "flood")
+    quake = next(x for x in h["hazards"] if x["id"] == "quake")
+    # 危険区間のキーが本当に存在するかを、実際のプリセット応答の stats で確かめる
+    sample = json.loads(
+        client.get(
+            f"/api/evac-routes/presets/{idx['default_od']}"
+            f"?scenario={idx['default_scenario']}"
+        ).content
+    )
+    stats_keys = set(sample["routes"][0]["stats"])
     env = next(s for s in flood["scenarios"] if s["id"] == "envelope")
     checks = [
         ("選択中profileを返す", h["data_profile"] == settings.hazard_data_profile),
@@ -92,6 +101,58 @@ def main():
         (
             "タイルURLに var が出ていない",
             all("var" not in s["tile_url"] for s in flood["scenarios"]),
+        ),
+        # ⚠️ 地震の凡例は**本番で黙って null になっていた**。書き出し済みGeoJSONを
+        #    読む作りで、Containerにそのファイルが無かったため。種別の階層に
+        #    載っていることを機械で押さえる（浸水と同じ形）。
+        ("地震の凡例が種別の階層にある", bool(quake.get("legend"))),
+        (
+            "地震の凡例にランク1〜5が揃っている",
+            sum(1 for x in quake.get("legend", []) if x.get("color")) == 5,
+        ),
+        (
+            "地震の凡例にも『判断材料がない』",
+            any(
+                "判断材料がない" in (x.get("note", "") + x["label"])
+                for x in quake.get("legend", [])
+            ),
+        ),
+        # ⚠️ 係数は焼き込み済みで、生成物に残った値は焼き直しで古くなる。
+        #    画面に出さない値をAPIから配らない（2026-08-22にユーザーと確認）。
+        # ⚠️ 危険区間の統計キーは種別ごとに違う（浸水 ratio_over_03 / 地震
+        #    quake_r4plus_ratio）。フロントに対応表を持たせると種別追加のたびに
+        #    フロント修正が要るので、APIから配る。**実際の stats に在ることまで見る。**
+        ("両種別に risk ブロックがある", all(x.get("risk") for x in h["hazards"])),
+        (
+            "risk のキーが routes[].stats に実在する",
+            all(
+                key in stats_keys
+                for x in h["hazards"]
+                for key in (
+                    x["risk"]["length_key"],
+                    x["risk"]["ratio_key"],
+                    x["risk"]["coverage_key"],
+                )
+            ),
+        ),
+        # ⚠️ 未評価の割合を出せないと、危険区間0%を「安全」と誤読させる。
+        #    実測で経路の74.9%が想定図の範囲外だったODがある
+        (
+            "未評価を出すための coverage_key が揃っている",
+            all(x["risk"].get("coverage_key") for x in h["hazards"]),
+        ),
+        # 文言の組み立てに使うテンプレートは配らない（完成文は rationale が返す）
+        (
+            "文言テンプレートを配っていない",
+            all("condition_note" not in x["risk"] for x in h["hazards"]),
+        ),
+        (
+            "凡例に係数を載せていない",
+            all(
+                "cost_factor" not in x
+                for h_ in h["hazards"]
+                for x in (h_.get("legend") or [])
+            ),
         ),
         (
             "タイルURLも同じprofile",

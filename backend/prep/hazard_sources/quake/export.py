@@ -32,7 +32,12 @@ import os
 import sys
 
 from prep.hazard_sources.quake.cost import QUAKE_COST
-from prep.hazard_sources.quake.source import COLUMNS, SCENARIOS
+from prep.hazard_sources.quake.source import (
+    COLUMNS,
+    PALETTE,
+    SCENARIOS,
+    legend_items,
+)
 from prep.paths import quake_gpkg, tiles_path
 
 # 座標の丸め。6桁で約0.1m。町丁目の境界にはこれで十分で、サイズが半分以下になる
@@ -40,38 +45,14 @@ COORD_DP = 6
 # ジオメトリの簡略化（度）。0.00002度 ≒ 2m。境界の形は保ちつつ点数を落とす
 SIMPLIFY_DEG = 0.00002
 
-# ランク → 色。凡例もこれから作るので、UIに書き写さない
-PALETTE = {
-    1: "#4d9221",
-    2: "#a6d96a",
-    3: "#fee08b",
-    4: "#f46d43",
-    5: "#a50026",
-}
-RANK_LABEL = {
-    1: "ランク1（相対的に低い）",
-    2: "ランク2",
-    3: "ランク3",
-    4: "ランク4",
-    5: "ランク5（相対的に高い）",
-}
-
 
 def legend(scenario):
-    """UIがそのまま描く凡例。係数も一緒に出す（何に効いているかを見せる）"""
-    items = [
-        {"color": PALETTE[r], "label": RANK_LABEL[r], "cost_factor": QUAKE_COST[r]}
-        for r in sorted(PALETTE)
-    ]
-    items.append(
-        {
-            "hatch": True,
-            "label": "調査の範囲外（判断材料がない）",
-            "note": "このデータは51市区町村ぶんしかない。"
-            "「危険度が低い」ではなく「評価されていない」",
-        }
-    )
-    return items
+    """GeoJSONへ同梱する凡例。**生成物には係数も残す**（何に効いていたかの記録）。
+
+    ⚠️ 色とラベルの出所は `quake.source`。ここに書き写さない。
+    ⚠️ `/api/hazards` が返す凡例には係数を含めない（`catalog.py` を参照）。
+    """
+    return legend_items(QUAKE_COST)
 
 
 def export(scenario, bbox=None, gpkg=None, outdir=None):
