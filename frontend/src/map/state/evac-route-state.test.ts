@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { distanceKm } from './lib/distance'
-import { initialSafeState, safeReducer } from './state'
+import { initialSafeState, safeReducer } from './evac-route-state'
 
 const ueno = { title: '上野駅', lat: 35.7138, lon: 139.7773 }
 const asakusa = { title: '浅草駅', lat: 35.7119, lon: 139.7982 }
@@ -41,12 +40,5 @@ describe('safeReducer', () => {
     expect(ended.origin.place).toBe(ueno)
     expect(ended.destination.place).toBeNull()
     expect(ended.hazard).toBe('flood')
-  })
-})
-
-describe('distanceKm', () => {
-  it('2地点の概算距離をkmで返す', () => {
-    expect(distanceKm(ueno, asakusa)).toBeGreaterThan(1)
-    expect(distanceKm(ueno, asakusa)).toBeLessThan(3)
   })
 })

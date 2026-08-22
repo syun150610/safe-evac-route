@@ -1,5 +1,5 @@
-import type { Place } from './lib/gsi'
-import type { RouteId } from './types'
+import type { Place } from '../lib/gsi'
+import type { RouteId } from '../types'
 
 export type Screen = 'home' | 'search' | 'route' | 'layers'
 export type PlaceField = 'origin' | 'destination'
