@@ -9,8 +9,8 @@
  */
 import { useCallback, useRef, useState } from 'react'
 
-import { ApiError, postSearch } from '../../api/client'
-import type { Bundle, SearchRequest } from '../types'
+import { ApiError, postSearch, postShelterSearch } from '../../api/client'
+import type { Bundle, SearchRequest, ShelterSearchRequest } from '../types'
 
 export interface SearchState {
   bundle: Bundle | null
@@ -29,11 +29,17 @@ export function useSearch() {
   })
   const seq = useRef(0)
 
-  const run = useCallback(async (req: SearchRequest) => {
+  /** 2点探索と避難先探索で**同じ state を使う**。
+   *
+   * 避難先探索の戻り値は2点探索と同じ形（`routes[]` / `geojson` / `rationale`）に
+   * `shelter*` が付いただけなので、表示側は区別しなくてよい。
+   * 追い越し対策の通し番号も1本で足りる（両方を同時に走らせない）。
+   */
+  const call = useCallback(async (fetcher: () => Promise<Bundle>) => {
     const my = ++seq.current
     setState((s) => ({ ...s, error: null, outside: [], loading: true }))
     try {
-      const b = await postSearch(req)
+      const b = await fetcher()
       if (my !== seq.current) return null // 追い越された。捨てる
       setState({ bundle: b, error: null, outside: [], loading: false })
       return b
@@ -50,10 +56,18 @@ export function useSearch() {
     }
   }, [])
 
+  const run = useCallback((req: SearchRequest) => call(() => postSearch(req)), [call])
+
+  /** 目的地を指定せず、近隣で一番安全に着ける避難先まで引く。 */
+  const runShelter = useCallback(
+    (req: ShelterSearchRequest) => call(() => postShelterSearch(req)),
+    [call],
+  )
+
   const clear = useCallback(() => {
     seq.current++ // 進行中のリクエストの結果を捨てる
     setState({ bundle: null, error: null, outside: [], loading: false })
   }, [])
 
-  return { ...state, run, clear }
+  return { ...state, run, runShelter, clear }
 }
