@@ -45,11 +45,52 @@ profileを変えた後は、起動中のAPIまたはContainerを再起動する�
 
 ## A. uvicorn直起動
 
-### バックエンド
+### 初回セットアップ（認証機能を使う場合）
+
+認証機能はD1とJWT署名鍵に依存する。初回のみ以下を実施する。
+
+**1. JWT_SECRET_KEY を生成して `.env` に設定する**
 
 ```bash
 cd "$(git rev-parse --show-toplevel)/backend"
 test -f .env || cp .env.example .env
+```
+
+`.env` を開き、`JWT_SECRET_KEY=` の行に以下で生成した値を設定する。
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+チームメンバー間で値を共有する必要はない。各自の手元で別々の値を使って構わない。
+
+**2. ローカルD1にマイグレーションを適用する**
+
+Worker経由でD1にアクセスするため、先にWorkerを起動してマイグレーションを適用する。
+
+```bash
+cd "$(git rev-parse --show-toplevel)/worker"
+npx wrangler d1 migrations apply safe-evac-route-db --local
+```
+
+> [!NOTE]
+> Workerを `npm run dev` で起動する場合（後続の「バックエンド」手順を含む）は、
+> `wrangler dev` 起動時にマイグレーションが自動適用されるため、このコマンドは不要。
+> Workerを起動せずにマイグレーションだけ確認・適用したい場合に使う。
+
+### バックエンド
+
+認証機能を含む場合は、別ターミナルでWorkerを起動してD1を有効にする。
+
+```bash
+cd "$(git rev-parse --show-toplevel)/worker"
+npm run dev
+```
+
+Workerが起動したら、別ターミナルでバックエンドを起動する。
+
+```bash
+cd "$(git rev-parse --show-toplevel)/backend"
 HAZARD_DATA_PROFILE=kensetsu uv run --frozen uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
