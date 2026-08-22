@@ -38,7 +38,12 @@
       }
     },
     {
-      "includes": ["src/map/adapters/google.ts", "src/map/adapters/google.test.ts"],
+      "includes": [
+        "src/map/adapters/google.ts",
+        "src/map/adapters/google.test.ts",
+        "src/map/lib/google-maps.ts",
+        "src/map/lib/places.ts"
+      ],
       "linter": {
         "rules": {
           "suspicious": {

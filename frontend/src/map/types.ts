@@ -165,8 +165,10 @@ export interface Bundle {
   graph: string
   tiles: string
   od: {
-    origin: { name: string; display: string; latlon: [number, number] }
-    dest: { name: string; display: string; latlon: [number, number] }
+    // ⚠️ `snap_m` は POST /search のときだけ。指定した地点から**実際に経路が
+    // 始まる道路まで**の距離(m)。プリセットには無い
+    origin: { name: string; display: string; latlon: [number, number]; snap_m?: number }
+    dest: { name: string; display: string; latlon: [number, number]; snap_m?: number }
     note: string
     role: 'main' | 'contrast' | null
   }

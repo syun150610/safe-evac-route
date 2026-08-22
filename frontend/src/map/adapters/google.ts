@@ -7,6 +7,7 @@
  * 使っていない機能まで型が要求される）。境界だけ any にしてある。
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { loadMapsScript, mapsApiKey } from '../lib/google-maps'
 import type {
   AreaClick,
   LngLatTuple,
@@ -19,39 +20,6 @@ import { viewportKey } from './viewport'
 
 // Maps JS API は実行時に <script> で読み込む（@types は入れない方針）
 declare const google: any
-
-/** Maps のスクリプトは**ページに1回だけ**読み込む。
- *
- * ⚠️ アダプタ側の変数で見張ってはいけない。アダプタが2つできると
- * （StrictMode で実際に起きた。`hooks/useMapAdapter.ts` 参照）それぞれが
- * 「まだ読んでいない」と判断して `<script>` を2枚入れ、
- * `window.__initGoogleMap` を後から来た方が上書きする。結果、
- * **地図のDOMが空の div だけになる**。ここはモジュール単位で持つ。
- */
-let mapsScript: Promise<void> | null = null
-
-function loadMapsScript(key: string): Promise<void> {
-  if (mapsScript) return mapsScript
-  // 既にページに載っているなら読み直さない（素のHTML版と同居する場合・テストのスタブ）。
-  // ⚠️ **`window.google` ではなくグローバル識別子で見る。** 下のコードが
-  //    `declare const google` 経由で参照しているのと同じ経路にしないと、
-  //    jsdom（globalThis と window が別物になる）で判定だけ外れて init が永久に待つ
-  if ((globalThis as any).google?.maps?.Map) {
-    mapsScript = Promise.resolve()
-    return mapsScript
-  }
-  mapsScript = new Promise<void>((resolve, reject) => {
-    ;(window as any).__initGoogleMap = () => resolve()
-    const s = document.createElement('script')
-    s.async = true
-    s.src =
-      'https://maps.googleapis.com/maps/api/js' +
-      `?key=${encodeURIComponent(key)}&v=weekly&loading=async&callback=__initGoogleMap`
-    s.onerror = () => reject(new Error('script'))
-    document.head.appendChild(s)
-  })
-  return mapsScript
-}
 
 export function createGoogleAdapter(): MapAdapter {
   const MINZ_DEFAULT = 0,
@@ -360,8 +328,7 @@ export function createGoogleAdapter(): MapAdapter {
       })
 
       // キーは Vite の環境変数から。config.local.js は使わない
-      const key0 = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string) || ''
-      const key = key0.trim()
+      const key = mapsApiKey()
       if (!key) {
         // キーが無ければ地図は出ないが、指標パネルは動く。
         // ready を解決しないことで、app.js 側の地図操作だけが止まる
@@ -371,7 +338,7 @@ export function createGoogleAdapter(): MapAdapter {
         )
         return ready
       }
-      // スクリプトの読み込みはモジュール単位で1回だけ（上の loadMapsScript）。
+      // スクリプトの読み込みは1回だけ（`lib/google-maps.ts` が見張る）。
       // 2枚目を入れると Maps の内部状態が壊れ、地図のDOMが空になる
       loadMapsScript(key)
         .then(() => {
