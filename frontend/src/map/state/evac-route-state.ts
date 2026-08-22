@@ -3,6 +3,7 @@ import type { RouteId } from '../types'
 
 export type Screen = 'home' | 'search' | 'route' | 'layers'
 export type PlaceField = 'origin' | 'destination'
+export type SearchPurpose = 'route' | 'shelter'
 export type HazardChoice = 'quake' | 'flood'
 export type MapLayerChoice = 'none' | HazardChoice
 
@@ -14,6 +15,7 @@ export interface FieldState {
 export interface SafeState {
   screen: Screen
   returnScreen: Exclude<Screen, 'layers'>
+  searchPurpose: SearchPurpose
   activeField: PlaceField
   origin: FieldState
   destination: FieldState
@@ -27,6 +29,7 @@ export interface SafeState {
 export const initialSafeState: SafeState = {
   screen: 'home',
   returnScreen: 'home',
+  searchPurpose: 'route',
   activeField: 'destination',
   origin: { query: '', place: null },
   destination: { query: '', place: null },
@@ -38,7 +41,8 @@ export const initialSafeState: SafeState = {
 }
 
 export type SafeAction =
-  | { type: 'open'; screen: Exclude<Screen, 'layers'> }
+  | { type: 'open'; screen: Exclude<Screen, 'layers' | 'search'> }
+  | { type: 'open_search'; purpose: SearchPurpose }
   | { type: 'open_layers' }
   | { type: 'close_layers' }
   | { type: 'activate_field'; field: PlaceField }
@@ -56,7 +60,18 @@ export type SafeAction =
 export function safeReducer(state: SafeState, action: SafeAction): SafeState {
   switch (action.type) {
     case 'open':
-      return { ...state, screen: action.screen }
+      return {
+        ...state,
+        screen: action.screen,
+        searchPurpose: 'route',
+      }
+    case 'open_search':
+      return {
+        ...state,
+        screen: 'search',
+        searchPurpose: action.purpose,
+        activeField: action.purpose === 'shelter' ? 'origin' : state.activeField,
+      }
     case 'open_layers':
       return {
         ...state,
@@ -95,12 +110,14 @@ export function safeReducer(state: SafeState, action: SafeAction): SafeState {
       return {
         ...state,
         screen: 'route',
+        searchPurpose: 'route',
         shownRoutes: Object.fromEntries(action.routes.map((id) => [id, true])),
       }
     case 'end_route':
       return {
         ...state,
         screen: 'home',
+        searchPurpose: 'route',
         destination: { query: '', place: null },
         activeField: 'destination',
         shownRoutes: { baseline: true },

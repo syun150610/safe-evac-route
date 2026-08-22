@@ -8,6 +8,7 @@ import type {
   PresetIndex,
   SearchRequest,
   ShelterCollection,
+  ShelterSearchRequest,
 } from '../map/types'
 
 import type { CreatePostRequest, Post, PostList } from '../posts/types'
@@ -92,6 +93,10 @@ export const getArea = (scenario?: string) =>
 
 /** 任意の2点の経路。戻り値はプリセットと同じ形 */
 export const postSearch = (req: SearchRequest) => post<Bundle>('/evac-routes/search', req)
+
+/** 安全な避難先の検索。レスポンス契約確定後に unknown を専用型へ置き換える。 */
+export const postShelterSearch = (req: ShelterSearchRequest) =>
+  post<unknown>('/search/shelter', req)
 
 /** 避難所・避難場所一覧（GeoJSON）。bbox は "left,bottom,right,top" */
 export const getShelters = (params?: { bbox?: string; type?: string }) => {

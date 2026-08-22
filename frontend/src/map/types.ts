@@ -219,6 +219,9 @@ export interface SearchRequest {
   scenario?: string
 }
 
+/** POST /api/search/shelter。通常検索と同じ条件から目的地だけを除く。 */
+export type ShelterSearchRequest = Omit<SearchRequest, 'dest'>
+
 export interface PresetIndex {
   default_scenario: string
   default_od: string

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { postShelterSearch } from '../api/client'
 import { BottomSheet, useMobileLayout } from './components/BottomSheet'
 import { DataAttribution } from './components/DataAttribution'
 import { HazardLegend } from './components/HazardLegend'
@@ -7,6 +8,7 @@ import { LayerPicker } from './components/LayerPicker'
 import { PlaceInput } from './components/PlaceInput'
 import { RouteRationale } from './components/RouteRationale'
 import { RouteTable } from './components/RouteTable'
+import { SafeShelterSearchButton } from './components/SafeShelterSearchButton'
 import { DRAW_ORDER, STYLE } from './constants'
 import { POSTS } from './fixtures/posts'
 import { inArea, useArea } from './hooks/useArea'
@@ -19,6 +21,8 @@ import { useVector } from './hooks/useVector'
 import { distanceKm } from './lib/distance'
 import { nearestSegment, routeBounds } from './lib/geo'
 import { currentPosition, type Place } from './lib/gsi'
+import { buildRouteSearchRequest, buildShelterSearchRequest } from './lib/search-request'
+import { shelterIsVisible } from './lib/shelter-viewport'
 import { initialSafeState, type PlaceField, safeReducer } from './state/evac-route-state'
 import type { Rationale, ShelterFeature } from './types'
 
@@ -41,8 +45,10 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const [state, dispatch] = useReducer(safeReducer, initialSafeState)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [layersOpen, setLayersOpen] = useState(false)
+  const [shelterSearchLoading, setShelterSearchLoading] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const requestedLocation = useRef(false)
+  const shelterSearchRunning = useRef(false)
   const floodAdded = useRef(false)
   const quakeAdded = useRef(false)
   const layersButtonRef = useRef<HTMLButtonElement>(null)
@@ -82,7 +88,8 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
 
   function openScreen(screen: 'home' | 'search' | 'route') {
     setLayersOpen(false)
-    dispatch({ type: 'open', screen })
+    if (screen === 'search') dispatch({ type: 'open_search', purpose: 'route' })
+    else dispatch({ type: 'open', screen })
     setSheetOpen(screen !== 'home')
   }
 
@@ -106,6 +113,90 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     return () => document.removeEventListener('pointerdown', closeOnOutsidePointer, true)
   }, [layersOpen])
 
+  const shelters = useMemo(() => {
+    const origin = state.origin.place
+    return [...(shelterData?.features ?? [])]
+      .map((feature) => ({
+        feature,
+        distance: origin ? distanceKm(origin, shelterPlace(feature)) : null,
+      }))
+      .sort(
+        (a, b) =>
+          (a.distance ?? Number.POSITIVE_INFINITY) - (b.distance ?? Number.POSITIVE_INFINITY),
+      )
+  }, [shelterData, state.origin.place])
+
+  const nearbyShelters = useMemo(() => shelters.slice(0, 8), [shelters])
+
+  const hazards = useMemo<Record<string, string>>(() => {
+    const selection: Record<string, string> = {}
+    selection[state.hazard] = state.hazard === 'quake' ? 'total' : state.scenario
+    return selection
+  }, [state.hazard, state.scenario])
+
+  const runRoute = useCallback(
+    async (destination: Place, origin = state.origin.place) => {
+      dispatch({ type: 'select_place', field: 'destination', place: destination })
+      search.clear()
+      if (!origin) {
+        dispatch({ type: 'open_search', purpose: 'route' })
+        setSheetOpen(true)
+        dispatch({ type: 'activate_field', field: 'origin' })
+        flash('出発地を指定してください')
+        return
+      }
+      if (
+        !inArea(area, origin.lat, origin.lon) ||
+        !inArea(area, destination.lat, destination.lon)
+      ) {
+        dispatch({ type: 'open_search', purpose: 'route' })
+        setSheetOpen(true)
+        flash('対象エリア内の地点を指定してください')
+        return
+      }
+      const base = buildShelterSearchRequest(origin, hazards, state.scenario)
+      const result = await search.run(buildRouteSearchRequest(base, destination))
+      if (result) {
+        dispatch({ type: 'route_ready', routes: result.routes.map((route) => route.id) })
+        setSheetOpen(true)
+      }
+    },
+    [area, flash, hazards, search.clear, search.run, state.origin.place, state.scenario],
+  )
+
+  const runShelterSearch = useCallback(
+    async (selectedOrigin?: Place) => {
+      if (shelterSearchRunning.current) return
+      const origin = selectedOrigin ?? state.origin.place
+      if (!origin) {
+        dispatch({ type: 'open_search', purpose: 'shelter' })
+        setSheetOpen(true)
+        flash('出発地を指定してください')
+        return
+      }
+      if (!inArea(area, origin.lat, origin.lon)) {
+        dispatch({ type: 'open_search', purpose: 'shelter' })
+        setSheetOpen(true)
+        flash('対象エリア内の出発地を指定してください')
+        return
+      }
+
+      shelterSearchRunning.current = true
+      setShelterSearchLoading(true)
+      try {
+        const request = buildShelterSearchRequest(origin, hazards, state.scenario)
+        await postShelterSearch(request)
+        flash('安全な避難先を取得しました')
+      } catch (error) {
+        flash((error as Error).message)
+      } finally {
+        shelterSearchRunning.current = false
+        setShelterSearchLoading(false)
+      }
+    },
+    [area, flash, hazards, state.origin.place, state.scenario],
+  )
+
   const requestLocation = useCallback(async () => {
     try {
       const place = await currentPosition()
@@ -122,66 +213,25 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     void requestLocation()
   }, [requestLocation])
 
-  const shelters = useMemo(() => {
-    const origin = state.origin.place
-    return [...(shelterData?.features ?? [])]
-      .map((feature) => ({
-        feature,
-        distance: origin ? distanceKm(origin, shelterPlace(feature)) : null,
-      }))
-      .sort(
-        (a, b) =>
-          (a.distance ?? Number.POSITIVE_INFINITY) - (b.distance ?? Number.POSITIVE_INFINITY),
-      )
-      .slice(0, 8)
-  }, [shelterData, state.origin.place])
-
-  const hazards = useMemo<Record<string, string>>(() => {
-    const selection: Record<string, string> = {}
-    selection[state.hazard] = state.hazard === 'quake' ? 'total' : state.scenario
-    return selection
-  }, [state.hazard, state.scenario])
-
-  const runRoute = useCallback(
-    async (destination: Place, origin = state.origin.place) => {
-      dispatch({ type: 'select_place', field: 'destination', place: destination })
-      search.clear()
-      if (!origin) {
-        dispatch({ type: 'open', screen: 'search' })
-        setSheetOpen(true)
-        dispatch({ type: 'activate_field', field: 'origin' })
-        flash('出発地を指定してください')
-        return
-      }
-      if (
-        !inArea(area, origin.lat, origin.lon) ||
-        !inArea(area, destination.lat, destination.lon)
-      ) {
-        dispatch({ type: 'open', screen: 'search' })
-        setSheetOpen(true)
-        flash('対象エリア内の地点を指定してください')
-        return
-      }
-      const result = await search.run({
-        origin: { lat: origin.lat, lon: origin.lon, label: origin.title },
-        dest: { lat: destination.lat, lon: destination.lon, label: destination.title },
-        hazards,
-        include: ['baseline', 'selected'],
-        scenario: state.scenario,
-      })
-      if (result) {
-        dispatch({ type: 'route_ready', routes: result.routes.map((route) => route.id) })
-        setSheetOpen(true)
-      }
-    },
-    [area, flash, hazards, search.clear, search.run, state.origin.place, state.scenario],
-  )
-
   function choosePlace(place: Place) {
     const field = state.activeField
     dispatch({ type: 'select_place', field, place })
-    if (field === 'destination') void runRoute(place)
   }
+
+  const prepareDestination = useCallback(
+    (place: Place) => {
+      search.clear()
+      setLayersOpen(false)
+      dispatch({ type: 'select_place', field: 'destination', place })
+      dispatch({
+        type: 'activate_field',
+        field: state.origin.place ? 'destination' : 'origin',
+      })
+      dispatch({ type: 'open_search', purpose: 'route' })
+      setSheetOpen(true)
+    },
+    [search.clear, state.origin.place],
+  )
 
   function endRoute() {
     search.clear()
@@ -262,15 +312,19 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   useEffect(() => {
     const a = adapter.current
     if (!a || !ready) return
-    a.setShelterMarkers(
-      shelters.map(({ feature }) => ({
-        lngLat: feature.geometry.coordinates,
-        label: `【${feature.properties.type_label}】${feature.properties.name}`,
-        shelterType: feature.properties.type,
-        onClick: () => void runRoute(shelterPlace(feature)),
-      })),
-    )
-  }, [adapter, ready, shelters, runRoute])
+    return a.onViewportChange((viewport) => {
+      a.setShelterMarkers(
+        shelters
+          .filter(({ feature }) => shelterIsVisible(feature, viewport, area))
+          .map(({ feature }) => ({
+            lngLat: feature.geometry.coordinates,
+            label: `【${feature.properties.type_label}】${feature.properties.name}`,
+            shelterType: feature.properties.type,
+            onClick: () => prepareDestination(shelterPlace(feature)),
+          })),
+      )
+    })
+  }, [adapter, ready, shelters, area, prepareDestination])
 
   useEffect(() => {
     const a = adapter.current
@@ -312,6 +366,10 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
 
   const floodScenarios = catalog?.hazards.find((hazard) => hazard.id === 'flood')?.scenarios ?? []
   const error = areaError ?? hazardError ?? shelterError
+  const shelterSearchMode = state.searchPurpose === 'shelter'
+  const searchFields: readonly PlaceField[] = shelterSearchMode
+    ? ['origin']
+    : ['origin', 'destination']
   const mapPoint =
     state.destination.place?.title === '地図上の指定地点' ? state.destination.place : null
 
@@ -337,6 +395,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       <section
         className="relative h-[calc(100dvh-54px)] bg-[#dce7e7] min-[900px]:col-start-2 min-[900px]:row-start-2 min-[900px]:h-auto min-[900px]:min-h-0"
         aria-label="地図"
+        aria-busy={search.loading}
       >
         <div id="safe-map" className="absolute inset-0" />
         {state.screen === 'home' && (
@@ -388,16 +447,26 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             </div>
             <LayerPicker
               value={state.mapLayer}
-              scenario={state.scenario}
-              scenarios={floodScenarios}
-              opacity={state.opacity}
               loading={quakeLoading}
               error={quakeError}
               onChange={(layer) => dispatch({ type: 'set_layer', layer })}
-              onScenarioChange={(scenario) => dispatch({ type: 'set_scenario', scenario })}
-              onOpacityChange={(opacity) => dispatch({ type: 'set_opacity', opacity })}
             />
           </section>
+        )}
+        {search.loading && (
+          <div
+            className="absolute inset-0 z-[5] flex items-start justify-center bg-slate-950/5 pt-[72px] min-[900px]:items-center min-[900px]:pt-0"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="flex items-center gap-3 rounded-xl bg-white/85 px-4 py-3 text-[11px] font-bold text-slate-700 shadow-[0_4px_16px_rgb(15_23_42/18%)] backdrop-blur-sm">
+              <span
+                className="size-5 shrink-0 animate-spin rounded-full border-[3px] border-slate-300 border-t-[#07156f] motion-reduce:animate-none"
+                aria-hidden="true"
+              />
+              安全な経路を検索中…
+            </div>
+          </div>
         )}
       </section>
 
@@ -410,7 +479,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         desktopMode="sidebar"
         collapsedLabel={
           state.screen === 'home'
-            ? `近くの避難先 ${shelters.length}件`
+            ? `近くの避難先 ${nearbyShelters.length}件`
             : state.screen === 'search'
               ? '地点を検索'
               : '避難経路'
@@ -429,23 +498,11 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
           )}
           {state.screen === 'home' && (
             <>
-              <section className="mx-3 mb-3.5 flex items-center justify-between gap-3 rounded-[10px] border border-slate-200 bg-white p-2.5 [&_small]:mt-0.5 [&_small]:block [&_small]:text-[8px] [&_small]:text-slate-500 [&_strong]:block [&_strong]:text-[11px]">
-                <div>
-                  <strong>経路条件</strong>
-                  <small>
-                    {state.hazard === 'quake' ? '建物倒壊危険度を考慮' : '浸水深を考慮'}
-                  </small>
-                </div>
-                <HazardPicker
-                  value={state.hazard}
-                  onChange={(hazard) => dispatch({ type: 'set_hazard', hazard })}
-                />
-              </section>
-              <section className="px-3 pb-3">
-                <div className="mb-2 flex items-center justify-between [&_h2]:m-0 [&_h2]:text-base [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[10px] [&_button]:font-bold [&_button]:text-[#07156f]">
+              <section className="px-3 pb-2">
+                <div className="mb-1.5 flex items-center justify-between [&_h2]:m-0 [&_h2]:text-sm [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[9px] [&_button]:font-bold [&_button]:text-[#07156f]">
                   <h2>
                     みんなの声{' '}
-                    <small className="ml-1 inline-flex rounded-full bg-slate-200 px-1.5 py-0.5 align-middle text-[8px] text-slate-600">
+                    <small className="ml-1 inline-flex rounded-full bg-slate-200 px-1 py-px align-middle text-[7px] text-slate-600">
                       サンプル
                     </small>
                   </h2>
@@ -453,50 +510,54 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                     もっと見る
                   </button>
                 </div>
-                <article className="rounded-xl border border-slate-200 bg-slate-100 p-3 text-[11px] [&>p]:my-1.5 [&>p]:pl-8 [&>p]:leading-relaxed">
-                  <div className="flex items-center gap-2 text-[10px] [&_time]:ml-auto [&_time]:text-slate-400">
-                    <span className="grid size-6 place-items-center rounded-full border border-slate-300 text-slate-500">
+                <article className="rounded-lg border border-slate-200 bg-slate-100 p-2 text-[9px] [&>p]:my-1 [&>p]:pl-6 [&>p]:leading-normal">
+                  <div className="flex items-center gap-1.5 text-[9px] [&_time]:ml-auto [&_time]:text-[8px] [&_time]:text-slate-400">
+                    <span className="grid size-5 place-items-center rounded-full border border-slate-300 text-[9px] text-slate-500">
                       ◎
                     </span>
                     <strong>{POSTS[0].author}</strong>
                     <time>{POSTS[0].age}</time>
                   </div>
                   <p>{POSTS[0].body}</p>
-                  <span className="pl-8 text-[9px] text-[#07156f]">
+                  <span className="pl-6 text-[8px] text-[#07156f]">
                     ♧ 役に立った {POSTS[0].reactions}
                   </span>
                 </article>
               </section>
               <button
                 type="button"
-                className="mx-3 mb-4 min-h-11 w-[calc(100%-24px)] cursor-pointer rounded-lg border-0 bg-[#07156f] font-bold text-white"
+                className="mx-3 mb-2.5 min-h-9 w-[calc(100%-24px)] cursor-pointer rounded-md border-0 bg-[#07156f] text-[10px] font-bold text-white"
                 onClick={() => flash('投稿機能は準備中です')}
               >
                 ▣ 投稿する
               </button>
-              <section className="border-t border-slate-200 px-3 pt-4 pb-3">
-                <div className="mb-2 flex items-center justify-between [&_h2]:m-0 [&_h2]:text-base [&_span]:text-[10px] [&_span]:font-bold [&_span]:text-[#07156f]">
+              <section className="border-t border-slate-200 px-3 pt-2.5 pb-3">
+                <div className="mb-1.5 flex items-center justify-between [&_h2]:m-0 [&_h2]:text-sm [&_span]:text-[9px] [&_span]:font-bold [&_span]:text-[#07156f]">
                   <h2>近くの避難先</h2>
-                  <span>{sheltersLoading ? '読込中…' : `${shelters.length}件表示`}</span>
+                  <span>{sheltersLoading ? '読込中…' : `${nearbyShelters.length}件表示`}</span>
                 </div>
-                <div className="grid gap-2.5">
-                  {shelters.map(({ feature, distance }) => (
+                <SafeShelterSearchButton
+                  loading={shelterSearchLoading}
+                  onSearch={runShelterSearch}
+                />
+                <div className="grid gap-1.5">
+                  {nearbyShelters.map(({ feature, distance }) => (
                     <article
-                      className="rounded-xl border border-slate-200 bg-white p-3 shadow-[0_2px_5px_rgb(15_23_42/4%)] [&_h3]:my-2 [&_h3]:text-[15px] [&_p]:mb-2.5 [&_p]:text-[11px] [&_p]:text-slate-600"
+                      className="rounded-lg border border-slate-200 bg-white p-2 shadow-[0_2px_5px_rgb(15_23_42/4%)] [&_h3]:my-1 [&_h3]:text-xs [&_p]:mb-1.5 [&_p]:text-[9px] [&_p]:text-slate-600"
                       key={feature.properties.id}
                     >
                       <button
                         type="button"
                         className="block w-full cursor-pointer border-0 bg-transparent p-0 text-left"
-                        onClick={() => void runRoute(shelterPlace(feature))}
+                        onClick={() => prepareDestination(shelterPlace(feature))}
                       >
                         <div className="flex items-center justify-between">
                           <span
-                            className={`inline-flex min-h-5 items-center rounded-full px-2 py-0.5 text-[9px] font-bold ${feature.properties.type === 'urgent' ? 'bg-orange-50 text-orange-800' : 'bg-emerald-50 text-emerald-800'}`}
+                            className={`inline-flex min-h-4 items-center rounded-full px-1.5 text-[8px] font-bold ${feature.properties.type === 'urgent' ? 'bg-orange-50 text-orange-800' : 'bg-emerald-50 text-emerald-800'}`}
                           >
                             {feature.properties.type_label}
                           </span>
-                          <span className="text-[10px] text-slate-600">
+                          <span className="text-[9px] text-slate-600">
                             {distance === null ? '距離未取得' : `${distance.toFixed(1)} km`}
                           </span>
                         </div>
@@ -505,8 +566,8 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                       </button>
                       <button
                         type="button"
-                        className="min-h-10 w-full cursor-pointer rounded-lg border-0 bg-[#07156f] text-[11px] font-bold text-white"
-                        onClick={() => void runRoute(shelterPlace(feature))}
+                        className="min-h-8 w-full cursor-pointer rounded-md border-0 bg-[#07156f] text-[10px] font-bold text-white"
+                        onClick={() => prepareDestination(shelterPlace(feature))}
                       >
                         ◇ ここへ行く
                       </button>
@@ -523,9 +584,40 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                 <button type="button" onClick={() => openScreen('home')} aria-label="戻る">
                   ←
                 </button>
-                <h2>目的地を検索</h2>
+                <h2>{shelterSearchMode ? '安全な避難先を探す' : '目的地を検索'}</h2>
               </div>
-              {(['origin', 'destination'] as const).map((field) => {
+              {shelterSearchMode && (
+                <p className="mb-3 rounded-lg bg-blue-50 px-3 py-2 text-[10px] leading-relaxed text-[#07156f]">
+                  安全な避難先を探すため、現在地または出発地を指定してください。
+                </p>
+              )}
+              <section className="mb-2.5 flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 [&>strong]:mr-auto [&>strong]:text-[10px]">
+                <strong>考慮する災害</strong>
+                <HazardPicker
+                  compact
+                  value={state.hazard}
+                  onChange={(hazard) => dispatch({ type: 'set_hazard', hazard })}
+                />
+                {state.hazard === 'flood' && (
+                  <label className="ml-auto min-w-28 flex-1 text-[9px] text-slate-600 min-[420px]:max-w-36 [&_select]:min-h-7 [&_select]:w-full [&_select]:rounded-md [&_select]:border [&_select]:border-slate-200 [&_select]:bg-white [&_select]:px-1.5 [&_select]:text-[9px]">
+                    <span className="sr-only">浸水想定</span>
+                    <select
+                      aria-label="浸水想定"
+                      value={state.scenario}
+                      onChange={(event) =>
+                        dispatch({ type: 'set_scenario', scenario: event.target.value })
+                      }
+                    >
+                      {floodScenarios.map((scenario) => (
+                        <option value={scenario.id} key={scenario.id}>
+                          {scenario.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </section>
+              {searchFields.map((field) => {
                 const value = state[field]
                 return (
                   <PlaceInput
@@ -547,43 +639,29 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               >
                 ◎ 現在地を出発地にする
               </button>
-              <section className="mt-3.5 rounded-[10px] border border-slate-200 bg-slate-50 p-3 [&>p]:m-0 [&>p]:text-[9px] [&>p]:leading-normal [&>p]:text-slate-600">
-                <div className="mb-2 flex items-center justify-between gap-3 [&>strong]:text-[11px]">
-                  <strong>考慮する災害</strong>
-                  <HazardPicker
-                    value={state.hazard}
-                    onChange={(hazard) => dispatch({ type: 'set_hazard', hazard })}
-                  />
-                </div>
-                <p>
-                  {state.hazard === 'quake'
-                    ? '建物倒壊危険度の高い地域を避けます。'
-                    : '浸水深が大きい道路を避けます。'}
-                </p>
-                {state.hazard === 'flood' && (
-                  <label className="mt-2.5 grid gap-1.5 text-[10px] text-slate-600 [&_select]:min-h-11 [&_select]:rounded-lg [&_select]:border [&_select]:border-slate-200 [&_select]:bg-white [&_select]:px-2.5">
-                    浸水想定
-                    <select
-                      value={state.scenario}
-                      onChange={(event) =>
-                        dispatch({ type: 'set_scenario', scenario: event.target.value })
-                      }
-                    >
-                      {floodScenarios.map((scenario) => (
-                        <option value={scenario.id} key={scenario.id}>
-                          {scenario.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-              </section>
-              {search.loading && (
-                <p className="mt-4 mb-2 text-[10px] font-bold text-slate-500">
-                  安全な経路を探索中…
-                </p>
+              {shelterSearchMode ? (
+                <SafeShelterSearchButton
+                  loading={shelterSearchLoading}
+                  disabled={state.origin.place === null}
+                  onSearch={runShelterSearch}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="mb-2.5 min-h-9 w-full cursor-pointer rounded-md border-0 bg-[#07156f] text-[10px] font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                  disabled={
+                    state.origin.place === null ||
+                    state.destination.place === null ||
+                    search.loading
+                  }
+                  onClick={() => {
+                    if (state.destination.place) void runRoute(state.destination.place)
+                  }}
+                >
+                  {search.loading ? '経路を検索中…' : 'この条件で経路を検索する'}
+                </button>
               )}
-              {search.error && (
+              {!shelterSearchMode && search.error && (
                 <p className="mx-3 my-2.5 rounded-lg bg-red-50 px-3 py-2 text-[10px] leading-normal text-red-700">
                   {search.error}
                 </p>
@@ -628,12 +706,22 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                     ⌕
                   </span>
                   <strong>
-                    {state.activeField === 'origin'
-                      ? '出発地を入力してください'
-                      : '目的地を入力してください'}
+                    {shelterSearchMode && state.origin.place
+                      ? '出発地を設定しました'
+                      : state.activeField === 'origin'
+                        ? '出発地を入力してください'
+                        : '目的地を入力してください'}
                   </strong>
-                  <p>施設名、駅名、住所から検索できます</p>
-                  <small>地図の長押しでも指定できます</small>
+                  <p>
+                    {shelterSearchMode && state.origin.place
+                      ? '上のボタンから安全な避難先を検索できます'
+                      : '施設名、駅名、住所から検索できます'}
+                  </p>
+                  <small>
+                    {shelterSearchMode && state.origin.place
+                      ? state.origin.place.title
+                      : '地図の長押しでも指定できます'}
+                  </small>
                 </div>
               )}
             </section>
@@ -695,8 +783,9 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             </section>
           )}
         </section>
-        <DataAttribution mobile platform={platform} />
       </BottomSheet>
+
+      {(!mobile || !sheetOpen) && <DataAttribution mobile={mobile} platform={platform} />}
 
       {mapPoint && state.screen === 'home' && (
         <div className="fixed top-[225px] left-1/2 z-[14] grid w-[min(calc(100%-32px),398px)] -translate-x-1/2 grid-cols-[1fr_auto] gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white p-3 shadow-[0_6px_20px_rgb(15_23_42/22%)] min-[900px]:top-[76px] min-[900px]:left-[calc(67%+170px)]">
@@ -723,30 +812,12 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
           </button>
         </div>
       )}
-      {state.screen !== 'home' && state.screen !== 'search' && (
-        <button
-          type="button"
-          className="fixed right-[18px] bottom-[calc(var(--sheet-peek,74px)+16px)] z-12 size-12 cursor-pointer rounded-full border-0 bg-[#07156f] text-2xl text-white shadow-[0_5px_15px_rgb(7_21_111/35%)] min-[900px]:bottom-[18px]"
-          onClick={() => flash('投稿機能は準備中です')}
-          aria-label="投稿する"
-        >
-          ＋
-        </button>
-      )}
       {toast && (
         <div
           className="fixed bottom-[22px] left-1/2 z-20 w-max max-w-[calc(100%-40px)] -translate-x-1/2 rounded-lg bg-slate-900/95 px-4 py-2.5 text-[10px] text-white shadow-[0_5px_15px_rgb(15_23_42/25%)]"
           role="status"
         >
           {toast}
-        </div>
-      )}
-      {search.loading && state.screen !== 'search' && (
-        <div
-          className="fixed bottom-[22px] left-1/2 z-20 w-max max-w-[calc(100%-40px)] -translate-x-1/2 rounded-lg bg-slate-900/95 px-4 py-2.5 text-[10px] text-white shadow-[0_5px_15px_rgb(15_23_42/25%)]"
-          role="status"
-        >
-          安全な経路を探索中…
         </div>
       )}
     </main>

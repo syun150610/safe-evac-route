@@ -7,7 +7,15 @@
  * 使っていない機能まで型が要求される）。境界だけ any にしてある。
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { AreaClick, LngLatTuple, MapAdapter, RouteClick, ShelterMarkerSpec } from './types'
+import type {
+  AreaClick,
+  LngLatTuple,
+  MapAdapter,
+  MapViewport,
+  RouteClick,
+  ShelterMarkerSpec,
+} from './types'
+import { viewportKey } from './viewport'
 
 // Maps JS API は実行時に <script> で読み込む（@types は入れない方針）
 declare const google: any
@@ -68,12 +76,47 @@ export function createGoogleAdapter(): MapAdapter {
   let infoWindow: any = null
   let clickCb: ((e: RouteClick) => void) | null = null
   let longPressCb: ((lngLat: LngLatTuple) => void) | null = null
+  let viewportChangeCb: ((viewport: MapViewport) => void) | null = null
+  let viewportTimer: ReturnType<typeof setTimeout> | null = null
+  let lastViewportKey: string | null = null
   let reserved = 0
   const markers: any[] = []
   const shelterMarkers: any[] = []
   const layers: Record<string, any> = {} // routeId -> { casing, main, hit, style, z }
   let mapInited = false
   let resolveReady: (() => void) | null = null
+
+  function viewport(): MapViewport | null {
+    const bounds = map?.getBounds()
+    const zoom = map?.getZoom()
+    if (!bounds || typeof zoom !== 'number') return null
+    const southwest = bounds.getSouthWest()
+    const northeast = bounds.getNorthEast()
+    return {
+      bbox: [
+        [southwest.lng(), southwest.lat()],
+        [northeast.lng(), northeast.lat()],
+      ],
+      zoom: zoom - Z_SHIFT,
+    }
+  }
+
+  function emitViewport(force = false) {
+    const current = viewport()
+    if (!current || !viewportChangeCb) return
+    const key = viewportKey(current)
+    if (!force && key === lastViewportKey) return
+    lastViewportKey = key
+    viewportChangeCb(current)
+  }
+
+  function queueViewport() {
+    if (viewportTimer) clearTimeout(viewportTimer)
+    viewportTimer = setTimeout(() => {
+      viewportTimer = null
+      emitViewport()
+    }, 100)
+  }
 
   // ---- APIキー未設定・拒否時の案内 ----------------------------------------
   function setupBox(extra?: string | null) {
@@ -354,6 +397,12 @@ export function createGoogleAdapter(): MapAdapter {
           })
           infoWindow = new google.maps.InfoWindow()
           map.addListener('zoom_changed', queueReoffset)
+          map.addListener('bounds_changed', queueViewport)
+          map.addListener('idle', () => {
+            if (viewportTimer) clearTimeout(viewportTimer)
+            viewportTimer = null
+            emitViewport()
+          })
           map.addListener('contextmenu', (event: any) => {
             if (event.latLng && longPressCb) {
               longPressCb([event.latLng.lng(), event.latLng.lat()])
@@ -611,6 +660,13 @@ export function createGoogleAdapter(): MapAdapter {
     },
     onLongPress(cb) {
       longPressCb = cb
+    },
+    onViewportChange(cb) {
+      viewportChangeCb = cb
+      emitViewport(true)
+      return () => {
+        if (viewportChangeCb === cb) viewportChangeCb = null
+      }
     },
 
     // Google の fitBounds に duration は無い（常に即時）。共通側の値は無視する
