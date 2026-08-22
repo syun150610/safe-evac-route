@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { BottomSheet, useMobileLayout } from './components/BottomSheet'
 import { DataAttribution } from './components/DataAttribution'
+import { HazardLegend } from './components/HazardLegend'
 import { HazardPicker } from './components/HazardPicker'
 import { LayerPicker } from './components/LayerPicker'
 import { PlaceInput } from './components/PlaceInput'
+import { RouteRationale } from './components/RouteRationale'
 import { RouteTable } from './components/RouteTable'
 import { DRAW_ORDER, STYLE } from './constants'
 import { POSTS } from './fixtures/posts'
@@ -18,7 +20,7 @@ import { distanceKm } from './lib/distance'
 import { nearestSegment, routeBounds } from './lib/geo'
 import { currentPosition, type Place } from './lib/gsi'
 import { initialSafeState, type PlaceField, safeReducer } from './state/evac-route-state'
-import type { ShelterFeature } from './types'
+import type { Rationale, ShelterFeature } from './types'
 
 const CENTER: [number, number] = [139.792, 35.733]
 const EMPTY = { type: 'FeatureCollection' as const, features: [] }
@@ -62,6 +64,16 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const quakeUrl = layer === 'quake' ? vectorUrlOf(catalog, 'quake', quakeScenario) : null
   const { data: quakeData, loading: quakeLoading, error: quakeError } = useVector(quakeUrl)
   const bundle = search.bundle
+
+  // 「考慮する災害」の定義。危険区間の呼び名も統計キーもAPIが配る
+  // （`registry.py` の risk ブロック由来。ここに種別ごとの分岐を書かない）
+  const hazardMeta = catalog?.hazards.find((h) => h.id === state.hazard) ?? null
+
+  // ⚠️ **経路の重みに掛けた種別だけを見せる**（2026-08-22にユーザーと確認）。
+  //    APIは登録済み種別を全部返し、`considered` で区別する。絞り込みはここで行い、
+  //    `RouteRationale` は渡されたものを全部描く自己完結の部品のままにする。
+  const consideredHazards = bundle?.rationale?.hazards.filter((h) => h.considered) ?? []
+  const primaryHazard = consideredHazards[0] ?? null
 
   const flash = useCallback((message: string) => {
     setToast(message)
@@ -645,16 +657,32 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                 <span
                   className={`inline-flex min-h-8 items-center rounded-lg px-2.5 text-[10px] font-bold ${state.hazard === 'flood' ? 'bg-blue-50 text-blue-700' : 'bg-indigo-50 text-[#07156f]'}`}
                 >
-                  {state.hazard === 'quake' ? '地震を考慮' : '浸水を考慮'}
+                  {hazardMeta ? `${hazardMeta.label}を考慮` : ''}
                 </span>
               </section>
               {bundle && (
                 <RouteTable
                   bundle={bundle}
                   shown={state.shownRoutes}
-                  hazard={state.hazard}
+                  risk={hazardMeta?.risk}
+                  hazard={primaryHazard}
+                  distance={bundle.rationale?.distance ?? null}
                   onToggle={(route, shown) => dispatch({ type: 'show_route', route, shown })}
                 />
+              )}
+              {/* なぜこの経路なのか。短文と詳細4行はAPIが完成した文字列で返す
+                  （`backend/app/services/evac_routes/rationale.py` が文言の単一の出所）。
+                  この部品は分解せず、置き場所を変えるだけで使う */}
+              {consideredHazards.length > 0 && (
+                <RouteRationale
+                  rationale={{
+                    ...(bundle?.rationale as Rationale),
+                    hazards: consideredHazards,
+                  }}
+                />
+              )}
+              {hazardMeta?.legend && (
+                <HazardLegend hazardLabel={hazardMeta.label} items={hazardMeta.legend} />
               )}
               <button
                 type="button"

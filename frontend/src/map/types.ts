@@ -24,9 +24,16 @@ export interface RouteStats {
   quake_r4plus_ratio: number
   /** 同 実距離(m)。**静的プリセットには無い**（POST /search のみ） */
   quake_r4plus_m?: number
-  /** **大きいほど「安全」ではなく「評価できていない」** */
+  /** **大きいほど「安全」ではなく「評価できていない」**（浸水） */
   out_of_coverage_ratio: number
+  /** 同（地震）。`hazards[].risk.coverage_key` が指す */
+  quake_out_of_coverage_ratio?: number
+  /** 危険区間の実距離(m)。`hazards[].risk.length_key` が指す */
+  length_over_03_m?: number
+  quake_max_rank?: number
+  quake_weighted_avg_rank?: number
   n_edges?: number
+  n_impassable_edges?: number
 }
 
 export interface RouteInfo {
@@ -238,12 +245,33 @@ export interface LegendItem {
   cost_factor?: number
 }
 
+/** 危険区間の呼び名と、`routes[].stats` のどのキーを読むか。
+ *
+ * ⚠️ **キー名をフロントで対応表にしない。** 種別ごとに違い（浸水 `ratio_over_03` /
+ * 地震 `quake_r4plus_ratio`）、対応表を持つと種別追加のたびに修正が要る。
+ * 出所は `backend/prep/hazard_sources/registry.py` の `risk` ブロック。
+ *
+ * ⚠️ **`coverage_key` を無視しない。** 危険区間が0%でも、その経路の大半が整備範囲の
+ * 外なら「安全」ではなく「判断材料が無い」。実測で経路の74.9%が範囲外のODがある。
+ */
+export interface HazardRisk {
+  /** 危険区間の呼び名（"浸水30cm超" / "危険度4以上"） */
+  label: string
+  /** 危険区間の距離(m) が入っている stats のキー */
+  length_key: string
+  /** 同 割合(0〜1) */
+  ratio_key: string
+  /** 未評価区間の割合(0〜1) */
+  coverage_key: string
+}
+
 export interface Hazard {
   id: string
   label: string
   display_kind: 'raster' | 'vector'
   note: string
   scenarios: HazardScenario[]
+  risk?: HazardRisk
   legend?: LegendItem[]
   zoom?: { min: number; max: number }
 }
