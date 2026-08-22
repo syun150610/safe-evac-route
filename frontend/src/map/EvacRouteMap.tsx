@@ -170,13 +170,20 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     dispatch({ type: 'select_place', field, place })
   }
 
-  function prepareDestination(place: Place) {
-    search.clear()
-    dispatch({ type: 'select_place', field: 'destination', place })
-    dispatch({ type: 'open', screen: 'search' })
-    setSheetOpen(true)
-    if (!state.origin.place) dispatch({ type: 'activate_field', field: 'origin' })
-  }
+  const prepareDestination = useCallback(
+    (place: Place) => {
+      search.clear()
+      setLayersOpen(false)
+      dispatch({ type: 'select_place', field: 'destination', place })
+      dispatch({
+        type: 'activate_field',
+        field: state.origin.place ? 'destination' : 'origin',
+      })
+      dispatch({ type: 'open', screen: 'search' })
+      setSheetOpen(true)
+    },
+    [search.clear, state.origin.place],
+  )
 
   function endRoute() {
     search.clear()
@@ -261,10 +268,10 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         lngLat: feature.geometry.coordinates,
         label: `【${feature.properties.type_label}】${feature.properties.name}`,
         shelterType: feature.properties.type,
-        onClick: () => void runRoute(shelterPlace(feature)),
+        onClick: () => prepareDestination(shelterPlace(feature)),
       })),
     )
-  }, [adapter, ready, shelters, runRoute])
+  }, [adapter, ready, shelters, prepareDestination])
 
   useEffect(() => {
     const a = adapter.current
@@ -331,6 +338,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       <section
         className="relative h-[calc(100dvh-54px)] bg-[#dce7e7] min-[900px]:col-start-2 min-[900px]:row-start-2 min-[900px]:h-auto min-[900px]:min-h-0"
         aria-label="地図"
+        aria-busy={search.loading}
       >
         <div id="safe-map" className="absolute inset-0" />
         {state.screen === 'home' && (
@@ -387,6 +395,21 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               onChange={(layer) => dispatch({ type: 'set_layer', layer })}
             />
           </section>
+        )}
+        {search.loading && (
+          <div
+            className="absolute inset-0 z-[5] flex items-start justify-center bg-slate-950/5 pt-[72px] min-[900px]:items-center min-[900px]:pt-0"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="flex items-center gap-3 rounded-xl bg-white/85 px-4 py-3 text-[11px] font-bold text-slate-700 shadow-[0_4px_16px_rgb(15_23_42/18%)] backdrop-blur-sm">
+              <span
+                className="size-5 shrink-0 animate-spin rounded-full border-[3px] border-slate-300 border-t-[#07156f] motion-reduce:animate-none"
+                aria-hidden="true"
+              />
+              安全な経路を検索中…
+            </div>
+          </div>
         )}
       </section>
 
@@ -562,11 +585,6 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               >
                 {search.loading ? '経路を検索中…' : 'この条件で経路を検索する'}
               </button>
-              {search.loading && (
-                <p className="mt-4 mb-2 text-[10px] font-bold text-slate-500">
-                  安全な経路を探索中…
-                </p>
-              )}
               {search.error && (
                 <p className="mx-3 my-2.5 rounded-lg bg-red-50 px-3 py-2 text-[10px] leading-normal text-red-700">
                   {search.error}
@@ -708,14 +726,6 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
           role="status"
         >
           {toast}
-        </div>
-      )}
-      {search.loading && state.screen !== 'search' && (
-        <div
-          className="fixed bottom-[22px] left-1/2 z-20 w-max max-w-[calc(100%-40px)] -translate-x-1/2 rounded-lg bg-slate-900/95 px-4 py-2.5 text-[10px] text-white shadow-[0_5px_15px_rgb(15_23_42/25%)]"
-          role="status"
-        >
-          安全な経路を探索中…
         </div>
       )}
     </main>
