@@ -68,6 +68,11 @@ function HazardRow({ h }: { h: RationaleHazard }) {
           <span className={`mt-0.5 block text-[10.5px] ${UNEVALUATED_TONE[h.unevaluated_stage]}`}>
             {h.unevaluated_note}
           </span>
+          {/* ⚠️ **開けることを文字で示す。** 三角だけだと押せると気づかれない
+              （実機確認で指摘された）。開閉の状態も同じ場所で伝える */}
+          <span className="mt-1 inline-flex items-center gap-1 text-[10.5px] text-[#07156f] underline underline-offset-2">
+            {open ? '詳細を閉じる' : 'タップして詳細を見る'}
+          </span>
         </span>
       </button>
       {open && (
