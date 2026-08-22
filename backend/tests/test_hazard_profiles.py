@@ -14,7 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from app.core.config import PROFILE_DIRS, RUNTIME_SCOPE_DIR, Settings, get_settings
+from app.core.config import PROFILE_DIRS, Settings, get_settings, runtime_scope
 from app.main import app
 from app.services.evac_routes import search as route_search
 
@@ -41,7 +41,7 @@ def test_profile_selects_matching_bundles_graphs_and_tiles(monkeypatch, profile)
     route_search._graphs.clear()
 
     settings = get_settings()
-    expected_suffix = os.path.join(PROFILE_DIRS[profile], RUNTIME_SCOPE_DIR)
+    expected_suffix = os.path.join(PROFILE_DIRS[profile], runtime_scope().dir_name)
     assert settings.active_bundles_dir.endswith(expected_suffix)
     assert settings.active_graph_dir.endswith(expected_suffix)
 
@@ -59,7 +59,7 @@ def test_profile_selects_matching_bundles_graphs_and_tiles(monkeypatch, profile)
 
     area = client.get("/api/evac-routes/area").json()
     assert area["data_profile"] == profile
-    assert f"graph/{PROFILE_DIRS[profile]}/{RUNTIME_SCOPE_DIR}/" in area["graph"]
+    assert f"graph/{PROFILE_DIRS[profile]}/{runtime_scope().dir_name}/" in area["graph"]
 
 
 def test_unknown_profile_is_rejected():

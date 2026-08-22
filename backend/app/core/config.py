@@ -11,6 +11,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 #    （ズレるとタイルとグラフで別の場所を見に行く）。
 #    prep.paths は標準ライブラリだけで動く
 from prep.paths import RUNTIME_BUNDLES_DIR, RUNTIME_GRAPH_DIR, TILES_DIR
+from prep.route_search import scopes
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
@@ -23,17 +24,20 @@ PROFILE_DIRS: dict[HazardDataProfile, str] = {
     "gesuido": "flood-gesuido_quake-risk9",
     "kensetsu": "flood-kensetsu_quake-risk9",
 }
-# 探索グラフの対象範囲。2026-08-21に 23区+多摩（市街化区域 1,324.85 km²、
-# 地域危険度の町丁目5,192件を融合した範囲）へ切り替えた。
+# 探索グラフの対象範囲。**IDだけを持ち、ディレクトリ名も呼び名もここに書かない。**
+# 定義は prep.route_search.scopes が単一の出所で、そちらも標準ライブラリだけで動く。
+# 2026-08-21に 23区+多摩（市街化区域 1,324.85 km²）へ切り替えた。
 # ⚠️ 浸水想定図はこの範囲を覆いきらない（envelopeで実測83.8%）。覆えていない
 #    エッジは「0m」ではなく「未評価」として応答に出る（rationale の3段階表示）。
 #    流域の本数はここに書かない。単一の出所は hazard_sources/flood/scenarios.py。
-RUNTIME_SCOPE_DIR = "scope-tokyo-23ku-tama-shigaika"
-# 上の範囲の**利用者向けの呼び名**。`/api/evac-routes/area` の説明文と、
-# 範囲外エラー(422)の本文がここを読む。
-# ⚠️ `RUNTIME_SCOPE_DIR` を変えたら必ず一緒に変えること。ズレると
-#    「引ける範囲」を実態と違う名前で案内する（旧スコープの名前が残っていた）。
-RUNTIME_SCOPE_LABEL = "23区＋多摩の市街化区域"
+# ⚠️ 段階6で環境変数 `RUNTIME_SCOPE` から選べるようにする。それまでは定数。
+RUNTIME_SCOPE_ID = scopes.DEFAULT_SCOPE_ID
+
+
+def runtime_scope() -> scopes.Scope:
+    """いま使っている探索範囲。呼び名・ディレクトリ名・ファイル名はここから取る。"""
+
+    return scopes.get(RUNTIME_SCOPE_ID)
 
 
 class Settings(BaseSettings):
@@ -82,13 +86,17 @@ class Settings(BaseSettings):
     def active_bundles_dir(self) -> str:
         """選択中profile・探索範囲のプリセットディレクトリ。"""
 
-        return str(Path(self.bundles_dir) / self.hazard_profile_id / RUNTIME_SCOPE_DIR)
+        return str(
+            Path(self.bundles_dir) / self.hazard_profile_id / runtime_scope().dir_name
+        )
 
     @property
     def active_graph_dir(self) -> str:
         """選択中profile・探索範囲のNPZディレクトリ。"""
 
-        return str(Path(self.graph_dir) / self.hazard_profile_id / RUNTIME_SCOPE_DIR)
+        return str(
+            Path(self.graph_dir) / self.hazard_profile_id / runtime_scope().dir_name
+        )
 
 
 @lru_cache

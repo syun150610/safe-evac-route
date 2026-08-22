@@ -24,14 +24,19 @@ import os
 import numpy as np
 
 from prep.paths import graph_path
+from prep.route_search import scopes
 
-# SPEC 1「対象エリア」より
-ORIGIN_DEFAULT = (35.7497, 139.8050)  # 北千住駅
-DEST_DEFAULT = (35.7141, 139.7774)  # 上野駅
+# ⚠️ 範囲の値をここに書かない。**単一の出所は `prep.route_search.scopes`。**
+#    ここに残っているのは、旧スコープ（矩形bbox）を作る graph.py が
+#    `from prep.route_search.graph import MARGIN_KM` のように参照しているため
+#    （graph.py がここから再エクスポートしている）の互換名である。
+_LEGACY_SCOPE = scopes.get("kitasenju-ueno")
+_LEGACY_AREA = _LEGACY_SCOPE.area
 
-MARGIN_KM = 1.0  # 起終点bboxの片側マージン（SPEC 5 タスクA-1）
+ORIGIN_DEFAULT, DEST_DEFAULT = _LEGACY_AREA.points  # 北千住駅 / 上野駅
+MARGIN_KM = _LEGACY_AREA.margin_km  # 起終点bboxの片側マージン（SPEC 5 タスクA-1）
 
-OUT_DEFAULT = graph_path("kitasenju_ueno.pkl")
+OUT_DEFAULT = graph_path(_LEGACY_SCOPE.pickle_name("sumidagawa"))
 
 
 def bbox_from_points(pts, margin_km: float):

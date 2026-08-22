@@ -49,8 +49,10 @@ import networkx as nx
 
 # ⚠️ **graph.py から取らない**（osmnx が付いてくる）。API 側の catalog.py が
 #    このモジュールの SCENARIO_META を読むので、ここが重いと API まで重くなる
+from prep.hazard_sources.flood.scenarios import SCENARIOS as FLOOD_SCENARIOS
 from prep.hazard_sources.quake.cost import QUAKE_COST
 from prep.paths import bundles_path, graph_path, rel
+from prep.route_search import scopes
 from prep.route_search.od import OD_PAIRS, P
 from prep.route_search.search import (
     DEPTH_THRESHOLD,
@@ -67,11 +69,17 @@ from prep.route_search.snap import nearest_node, snap_m
 
 OUTDIR = bundles_path()
 
-# シナリオID -> グラフ。prep.route_search.graphの出力規則に合わせる
+# シナリオID -> 前処理pickle。**ファイル名は scopes.Scope が決める**ので、
+# ここにも graph.py にも名前を書かない。
+#
+# ⚠️ **互換シム。段階5で消す。** 実行時（app/services/evac_routes/search.py）は
+#    もうここからNPZ名を導かない。残っているのは前処理側の既定値としてで、
+#    範囲は旧スコープ固定である。別の範囲のpickleを読ませるときは
+#    `--graph-dir` を使う（新スコープの手順は docs/prep/flood-data.md）。
+_LEGACY_SCOPE = scopes.get("kitasenju-ueno")
 GRAPHS = {
-    "envelope": graph_path("kitasenju_ueno_envelope.pkl"),
-    "sumidagawa": graph_path("kitasenju_ueno.pkl"),  # 既定シナリオは接尾辞なし
-    "kandagawa": graph_path("kitasenju_ueno_kandagawa.pkl"),
+    scenario: graph_path(_LEGACY_SCOPE.pickle_name(scenario))
+    for scenario in FLOOD_SCENARIOS
 }
 
 # 表示名と説明は SPEC_D D-3 の表に合わせる。

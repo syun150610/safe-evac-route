@@ -63,6 +63,7 @@ from prep.hazard_sources.quake.cost import (
 )
 from prep.paths import CACHE_DIR as CACHE_DIR_PATH
 from prep.paths import graph_path, rel
+from prep.route_search import scopes
 
 # 「焼いたグラフを使う側」が要るものは snap.py に置いてある（osmnx 非依存）。
 # ここから再エクスポートするので、既存の import 先は変えなくてよい
@@ -77,6 +78,9 @@ from prep.route_search.snap import (  # noqa: F401
 )
 
 # ---------------- 設定 ----------------
+# このスクリプトが作るのは**旧スコープ（矩形bbox）だけ**。新スコープは別手順。
+SCOPE = scopes.get("kitasenju-ueno")
+
 CSV_DEFAULT = SCENARIOS["sumidagawa"]["csv"][0]
 CACHE_DIR = str(CACHE_DIR_PATH)
 
@@ -459,7 +463,10 @@ def main():
     # シナリオ指定 → CSVリストと既定の出力先を決める
     if args.scenario:
         csvs = list(SCENARIOS[args.scenario]["csv"])
-        out = args.out or graph_path(f"kitasenju_ueno_{args.scenario}.pkl")
+        # ⚠️ 名前は scopes.Scope が決める。ここで組み立てると bundles.py の
+        #    GRAPHS と食い違う（隅田川だけ接尾辞が無く、既定のまま生成すると
+        #    bundles がpickleを見つけられなかった）。
+        out = args.out or graph_path(SCOPE.pickle_name(args.scenario))
     else:
         csvs = args.csv or [CSV_DEFAULT]
         out = args.out or OUT_DEFAULT
@@ -564,7 +571,7 @@ def main():
         },
         "scope": {
             "id": (
-                "kitasenju-ueno"
+                SCOPE.id
                 if origin == tuple(ORIGIN_DEFAULT) and dest == tuple(DEST_DEFAULT)
                 else "custom"
             ),
