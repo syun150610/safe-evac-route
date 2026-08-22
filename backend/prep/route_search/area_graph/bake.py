@@ -1,6 +1,6 @@
 """新スコープ（23区+多摩の市街化区域）のグラフへハザードを焼く。
 
-    python -m studies.graph_array.area_build.bake_area_graph --scenario envelope
+    python -m prep.route_search.area_graph.bake --scenario envelope
 
 ⚠️ **どのCSVを焼くかはここで決めない。** 入力は
 `prep/hazard_sources/flood/scenarios.py` の `SCENARIOS[シナリオ]["csv"]` が単一の
@@ -21,8 +21,13 @@ import time
 
 import numpy as np
 
-BUILD_DIR = "../data/processed/graph_build"
-GRAPH_PKL = f"{BUILD_DIR}/area_walk_graph.pkl"
+from prep.paths import build_dir, build_path
+from prep.route_search import scopes
+
+# 焼き込む対象のスコープ。ID・中間物の置き場はここから取る（生パスを書かない）。
+SCOPE = scopes.get("tokyo-23ku-tama-shigaika")
+BUILD_DIR = build_dir(SCOPE.id)
+GRAPH_PKL = build_path(SCOPE.id, "area_walk_graph.pkl")
 
 
 def log(msg: str) -> None:
@@ -152,7 +157,7 @@ def main() -> None:
                 "file": rel(QUAKE_GPKG),
             },
         },
-        "scope": {"id": "tokyo-23ku-tama-shigaika", "margin_km": 0.0},
+        "scope": {"id": SCOPE.id, "margin_km": 0.0},
         "bbox_left_bottom_right_top": [min(xs), min(ys), max(xs), max(ys)],
         "network_type": "walk",
         "sample_interval_m": args.sample_m,

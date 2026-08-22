@@ -72,7 +72,7 @@ uv run --frozen --group prep python -m prep.hazard_sources.quake.export
 
 | 範囲ディレクトリ | 内容 | 本番 |
 |---|---|---|
-| `scope-tokyo-23ku-tama-shigaika` | 23区＋多摩の市街化区域 1,324.85 km²（地域危険度の町丁目5,192件 / 51市区町村を融合）。652,828ノード / 1,905,380エッジ | **これを使う**（`app/core/config.py` の `RUNTIME_SCOPE_DIR`） |
+| `scope-tokyo-23ku-tama-shigaika` | 23区＋多摩の市街化区域 1,324.85 km²（地域危険度の町丁目5,192件 / 51市区町村を融合）。652,828ノード / 1,905,380エッジ | **これを使う**（`app/core/config.py` の `RUNTIME_SCOPE_ID`。定義は `prep/route_search/scopes.py`） |
 | `scope-kitasenju-ueno` | 北千住駅～上野駅のbbox＋片側1km、26.7 km²。27,144ノード / 82,586エッジ | 使わない（`gesuido` profileの成果物だけが残っている） |
 
 ⚠️ **2つの範囲でファイル名が同じ**（`kitasenju_ueno_envelope.npz` など）。
@@ -140,7 +140,7 @@ HAZARD_DATA_PROFILE=kensetsu \
 本番が使うグラフはこちらで作る。**Overpassは使わない**（2026-08-21の作業で
 実際にタイムアウトしたため、Geofabrikの配布pbfへ切り替えた）。
 
-工程は4つで、`backend/studies/graph_array/area_build/build_area_graph.py` が
+工程は4つで、`backend/prep/route_search/area_graph/build.py` が
 順に実行する。工程ごとに中間結果を残し、既に出力があればその工程を飛ばすので、
 途中で落ちても同じコマンドで再開できる。
 
@@ -161,21 +161,23 @@ curl -L -o /tmp/kanto-latest.osm.pbf \
   https://download.geofabrik.de/asia/japan/kanto-latest.osm.pbf
 
 uv run --frozen --group prep python -u \
-  -m studies.graph_array.area_build.build_area_graph --pbf /tmp/kanto-latest.osm.pbf
+  -m prep.route_search.area_graph.build --pbf /tmp/kanto-latest.osm.pbf
 
-# 浸水・地震の焼き込み（シナリオごと）。中間生成物は data/processed/graph_build/
+# 浸水・地震の焼き込み（シナリオごと）。中間生成物は data/processed/graph_build/tokyo-23ku-tama-shigaika/
 uv run --frozen --group prep python -u \
-  -m studies.graph_array.area_build.bake_area_graph --scenario envelope
+  -m prep.route_search.area_graph.bake --scenario envelope
 uv run --frozen --group prep python -u \
-  -m studies.graph_array.area_build.export_area_npz --scenario envelope
+  -m prep.route_search.area_graph.export_npz --scenario envelope
 ```
 
 ⚠️ **`osmium` コマンドと Python 3.12 が要る。** 工程2は osmium-tool（`/usr/bin/osmium`）、
 工程3は pyosmium を使う。pyosmium は Python 3.14 のプロジェクト環境へ入らないため、
 `uv run --no-project --python 3.12 --with osmium` で別環境を作って実行している
-（`build_area_graph.py` が内部で呼ぶ）。
+（`build.py` が内部で呼ぶ）。
 
-中間生成物は `data/processed/graph_build/` に出る（合計約2.7GB、Git管理外）。
+中間生成物は `data/processed/graph_build/tokyo-23ku-tama-shigaika/` に出る（合計約4.5GB、Git管理外）。
+⚠️ **スコープごとのディレクトリに分かれる。** `build.py` も `bake.py` も出力が既に
+あれば工程を飛ばすので、共用すると別の範囲の中間物を掴んで黙って飛ばす。
 焼き上がりpickleは1本 662,934,933B、書き出したNPZは envelope 39,169,547B /
 隅田川 33,825,368B / 神田川 32,992,549B である
 （2026-08-22の地震係数変更で焼き直したもの。焼き直しの所要は envelope 3分31秒 /
@@ -189,7 +191,7 @@ uv run --frozen --group prep python -u \
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-SRC=data/processed/graph_build
+SRC=data/processed/graph_build/tokyo-23ku-tama-shigaika
 DST=backend/graph/flood-kensetsu_quake-risk9/scope-tokyo-23ku-tama-shigaika
 
 cp $SRC/area_envelope.npz        $DST/kitasenju_ueno_envelope.npz
@@ -214,7 +216,7 @@ cp $SRC/area_kandagawa_meta.json $DST/kitasenju_ueno_kandagawa_meta.json
 リンク先を間違えると**古い係数のプリセットができる**ので、`ls -la` で日時を見る。
 
 ```bash
-cd "$(git rev-parse --show-toplevel)/data/processed/graph_build"
+cd "$(git rev-parse --show-toplevel)/data/processed/graph_build/tokyo-23ku-tama-shigaika"
 mkdir -p asnames
 ln -f area_envelope.pkl   asnames/kitasenju_ueno_envelope.pkl
 ln -f area_sumidagawa.pkl asnames/kitasenju_ueno.pkl          # 接尾辞なしが隅田川
@@ -223,7 +225,7 @@ ln -f area_kandagawa.pkl  asnames/kitasenju_ueno_kandagawa.pkl
 cd "$(git rev-parse --show-toplevel)/backend"
 BUNDLE_OUT=../data/processed/bundles/flood-kensetsu_quake-risk9/scope-tokyo-23ku-tama-shigaika
 uv run --frozen --group prep python -m prep.route_search.bundles \
-  --graph-dir ../data/processed/graph_build/asnames --outdir "$BUNDLE_OUT"
+  --graph-dir ../data/processed/graph_build/tokyo-23ku-tama-shigaika/asnames --outdir "$BUNDLE_OUT"
 
 # 検証してから本番配布物へ入れる
 rsync -a --delete "$BUNDLE_OUT/" \
@@ -255,16 +257,19 @@ print("プリセットと任意地点探索は一致")
 PY
 ```
 
-### この手順の置き場について（未決）
+### この手順の置き場（2026-08-22に移設済み）
 
-新スコープの構築コードは現在 `backend/studies/graph_array/area_build/` にある。
-`studies/` は `tests/test_layering.py` が「本番（app / prep）から import されない」
-ことを機械で確認している検証専用の領域で、前処理の正式な置き場ではない。
+新スコープの構築コードは `backend/prep/route_search/area_graph/` にある。
+本番の成果物を作る手順が検証専用領域（`studies/`）にあるのは矛盾していたため、
+`prep.route_search.graph`（旧スコープ・矩形bbox）と並ぶ位置へ移した。
 
-**提案（未実施）**: 本番の成果物を作る手順である以上、`backend/prep/route_search/`
-配下（例: `prep/route_search/area_graph/`）へ移し、`prep.route_search.graph` と
-並べるのが筋である。移す場合は、旧スコープ用の `graph.py` と新スコープ用が
-別物であることが名前から分かるようにする。判断はチームで行う。
+| 範囲の作り方 | 置き場 | 実行 |
+|---|---|---|
+| 矩形bbox（旧スコープ） | `prep/route_search/graph.py` | 1コマンドで取得〜焼き込み〜保存 |
+| ポリゴン融合（新スコープ） | `prep/route_search/area_graph/` | `build` → `bake` → `export_npz` の3コマンド |
+
+`studies/graph_array/measure_area_graph.py` は成果物を作らない実測スクリプトなので
+`studies/` に残してある。
 
 ## runtime成果物と切替設定
 
@@ -333,7 +338,7 @@ profile付きURLだけを返す。
 - グラフ生成ログに地震5,192町丁目が読み込まれたことが出る
 - NPZ変換時の全12 OD・全ハザード条件の検証が成功する
   （⚠️ これは旧スコープの `prep.route_search.export_npz` の話。新スコープの
-  `studies/.../export_area_npz.py` は `save_graph_npz` だけを呼び、
+  `prep/route_search/area_graph/export_npz.py` は `save_graph_npz` だけを呼び、
   pickleとの一致検証を通していない。`docs/dev/07_課題と作業計画.md` の P0-6）
 - プリセットAPIの全36件が静的JSONとバイト一致する
 - 入力ファイル、SHA256、bbox、coverage、タイル数、経路統計を記録する

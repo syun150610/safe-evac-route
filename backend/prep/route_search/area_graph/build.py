@@ -3,7 +3,7 @@
 工程ごとに中間結果を残す。**既に出力があればその工程は飛ばす**ので、
 途中で落ちても同じコマンドで再開できる。
 
-    python -m studies.graph_array.area_build.build_area_graph --pbf <kanto.osm.pbf>
+    python -m prep.route_search.area_graph.build --pbf <kanto.osm.pbf>
 
 工程
     1 area   … 地域危険度（市街化区域の町丁目5,192件）を融合して対象範囲のGeoJSON
@@ -30,16 +30,29 @@ import subprocess
 import sys
 import time
 
-OUT_DIR = "../data/processed/graph_build"
-AREA_GEOJSON = f"{OUT_DIR}/area_23ku_tama.geojson"
-AREA_PBF = f"{OUT_DIR}/area.osm.pbf"
-WALK_OSM = f"{OUT_DIR}/area_walk.osm"
-GRAPH_PKL = f"{OUT_DIR}/area_walk_graph.pkl"
-META_JSON = f"{OUT_DIR}/area_walk_graph_meta.json"
-QUAKE_GPKG = "../data/raw/hazard/hazard.gpkg"
+from prep.paths import build_dir, build_path, quake_gpkg
+from prep.route_search import scopes
 
-# 町丁目の境界を融合したあとに落とす頂点の許容差（度）。約20m。
-SIMPLIFY_TOL = 0.0002
+# このスクリプトが組み立てるスコープ。範囲の作り方（融合元・簡略化の許容差）は
+# `prep.route_search.scopes` が単一の出所で、ここには値を書かない。
+SCOPE = scopes.get("tokyo-23ku-tama-shigaika")
+AREA = SCOPE.area
+
+# ⚠️ 生の相対パスを書かない（prep/paths.py の規約）。cwd 次第で黙って別の場所を
+#    読み書きする。中間生成物はスコープごとに分ける。
+OUT_DIR = build_dir(SCOPE.id)
+AREA_GEOJSON = build_path(SCOPE.id, "area_23ku_tama.geojson")
+AREA_PBF = build_path(SCOPE.id, "area.osm.pbf")
+WALK_OSM = build_path(SCOPE.id, "area_walk.osm")
+GRAPH_PKL = build_path(SCOPE.id, "area_walk_graph.pkl")
+META_JSON = build_path(SCOPE.id, "area_walk_graph_meta.json")
+
+
+def _area_source() -> str:
+    """融合元の実パス。`PolygonArea.source_key` を prep.paths の解決関数へ結ぶ。"""
+    if AREA.source_key == "quake_gpkg":
+        return quake_gpkg()
+    raise KeyError(f"未知の範囲データ: {AREA.source_key!r}")
 
 
 def log(msg: str) -> None:
@@ -54,14 +67,14 @@ def stage_area() -> None:
     from shapely.geometry import mapping
 
     log("1 area: 地域危険度ポリゴンを読む")
-    g = gpd.read_file(QUAKE_GPKG)
+    g = gpd.read_file(_area_source())
     log(f"  町丁目 {len(g):,}件 / {g['区市町村名'].nunique()}市区町村")
     # ⚠️ 配布データに自己交差がある（union_all が TopologyException を出す）。
     #    buffer(0) で各ポリゴンを正規化してから融合する。面積は変えない。
     fixed = g.geometry.buffer(0)
     merged = fixed.union_all()
     log(f"  融合後の頂点 {sum(len(p.exterior.coords) for p in merged.geoms):,}")
-    simple = merged.simplify(SIMPLIFY_TOL)
+    simple = merged.simplify(AREA.simplify_deg)
     log(f"  簡略化後の頂点 {sum(len(p.exterior.coords) for p in simple.geoms):,}")
     os.makedirs(OUT_DIR, exist_ok=True)
     with open(AREA_GEOJSON, "w", encoding="utf-8") as f:
@@ -95,9 +108,7 @@ def stage_filter() -> None:
         log(f"3 filter: 既にある -> {WALK_OSM}")
         return
     log("3 filter: osmnx の walk フィルタ相当（Python 3.12 + pyosmium）")
-    script = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "osm_walk_filter.py"
-    )
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "walk_filter.py")
     cmd = [
         "uv",
         "run",

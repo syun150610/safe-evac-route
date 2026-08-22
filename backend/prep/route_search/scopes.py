@@ -124,7 +124,7 @@ SCOPES: dict[str, Scope] = {
             note="地域危険度の町丁目5,192件 / 51市区町村を融合した範囲",
         ),
         builder=(
-            "cd backend && python3 -m studies.graph_array.area_build.bake_area_graph"
+            "cd backend && python3 -m prep.route_search.area_graph.bake"
             " --scenario <シナリオ>（新スコープの構築手順は docs/prep/flood-data.md）"
         ),
         stem_overrides={"sumidagawa": "kitasenju_ueno"},

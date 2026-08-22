@@ -1,6 +1,6 @@
 """新スコープの焼き上がりpickleを、配布用の圧縮NPZ（CSRが読む形）へ書き出す。
 
-    python -m studies.graph_array.area_build.export_area_npz --scenario envelope
+    python -m prep.route_search.area_graph.export_npz --scenario envelope
 
 ⚠️ 変換は既存の `prep.route_search.npz_graph.save_graph_npz` をそのまま使う。
 """
@@ -12,7 +12,12 @@ import pickle
 import shutil
 import time
 
-BUILD_DIR = "../data/processed/graph_build"
+from prep.paths import build_dir
+from prep.route_search import scopes
+
+# 書き出す対象のスコープ。中間物の置き場はここから取る（生パスを書かない）。
+SCOPE = scopes.get("tokyo-23ku-tama-shigaika")
+BUILD_DIR = build_dir(SCOPE.id)
 
 
 def main() -> None:
