@@ -114,12 +114,18 @@ export function safeReducer(state: SafeState, action: SafeAction): SafeState {
         shownRoutes: Object.fromEntries(action.routes.map((id) => [id, true])),
       }
     case 'end_route':
+      // ⚠️ **出発地も消す。** 経路と目的地だけ消していた頃は、A地点で検索したあと
+      // B地点から調べ直そうとしても出発地がAのまま残り、ホーム画面には
+      // 出発地が出ないので気づけず、**ページを再読み込みするしかなかった**
+      // （チームからの指摘、2026-08-23）。「終了」は最初の状態に戻すこと
       return {
         ...state,
         screen: 'home',
         searchPurpose: 'route',
+        origin: { query: '', place: null },
         destination: { query: '', place: null },
-        activeField: 'destination',
+        // 次に開いたとき最初に埋めるのは出発地
+        activeField: 'origin',
         shownRoutes: { baseline: true },
       }
   }
