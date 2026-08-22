@@ -65,7 +65,7 @@ npm ci
 ```bash
 cd "$(git rev-parse --show-toplevel)/backend"
 test -f .env || cp .env.example .env
-python - <<'SETKEY'
+uv run --frozen python - <<'SETKEY'
 import pathlib, re, secrets
 
 env = pathlib.Path(".env")
@@ -86,7 +86,11 @@ SETKEY
 ログイン状態が飛ぶことはない。
 
 ⚠️ `sed -i` を使っていないのは、GNU sed と macOS(BSD) sed で `-i` の書式が違い、
-片方の環境でしか動かないコマンドになるためである。Pythonはこのリポジトリの前提に入っている。
+片方の環境でしか動かないコマンドになるためである。
+
+⚠️ `python` ではなく `uv run --frozen python` を使う。**Ubuntu・WSLには `python` が無く
+（`python3` だけ）、`Command 'python' not found` になる。** uvは前提に入っていて
+`.python-version` の3.14を確実に使えるので、こちらへ寄せる。
 
 **チームで値を共有する必要はない。** 各自バラバラでよい。入った値を見るには:
 
@@ -197,12 +201,13 @@ docker build \
 docker run --rm \
   --publish 8000:8000 \
   --env HAZARD_DATA_PROFILE=kensetsu \
-  --env JWT_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')" \
+  --env JWT_SECRET_KEY="$(openssl rand -hex 32)" \
   safe-evac-route-backend:local
 ```
 
 ⚠️ **`JWT_SECRET_KEY` を渡さないとContainerは起動しない。** `backend/.env` は
-`.dockerignore` で除外されるので、イメージからは供給されない。
+`.dockerignore` で除外されるので、イメージからは供給されない。ここは使い捨ての値でよい
+（ローカルDockerで発行したトークンを別の起動へ引き継ぐ必要がないため）。
 
 NPZとプリセットはイメージへ同梱されるため、`data/`なしでもAPIと任意地点探索が動く。
 `Uvicorn running on http://0.0.0.0:8000`まで表示されればContainerの起動は成功している。
@@ -230,7 +235,7 @@ if test -f "$TASK_TILES_DIR/quake/total.geojson" && \
   docker run --rm \
     --publish 8000:8000 \
     --env HAZARD_DATA_PROFILE=kensetsu \
-    --env JWT_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')" \
+    --env JWT_SECRET_KEY="$(openssl rand -hex 32)" \
     --env TILES_DIR=/tiles-data \
     --mount type=bind,src="$TASK_TILES_DIR",dst=/tiles-data,readonly \
     safe-evac-route-backend:local
