@@ -121,7 +121,37 @@ class Point(BaseModel):
     label: str | None = Field(None, max_length=120)
 
 
-class SearchRequest(BaseModel):
+class ShelterSearchRequest(BaseModel):
+    """POST /api/evac-routes/search/shelter — **目的地を指定しない探索。**
+
+    出発地と災害種別だけを受け取り、近隣の避難場所の中から
+    「一番安全にたどり着ける先」を決めて、そこまでの経路を返す。
+
+        {
+          "origin": {"lat": 35.7497, "lon": 139.8050},
+          "hazards": {"flood": "envelope"},
+          "include": ["baseline", "selected"]
+        }
+
+    ⚠️ **`SearchRequest` はこれを継承して `dest` を足したもの。** フロントも
+    `Omit<SearchRequest, 'dest'>` で型を作っており、片方だけ増えると
+    黙って食い違う（`frontend/src/map/types.ts`）。
+    """
+
+    origin: Point
+    # 種別ID -> variant。flood は浸水シナリオID、quake はいまのところ "total" のみ。
+    # **空なら単純最短**（掛け合わせなし）
+    hazards: dict[str, str] = Field(default_factory=dict)
+    # baseline=単純最短 / selected=選んだ種別を掛けた経路 / minimax=最大浸水深の下限
+    # minimax は二分探索でおよそ1秒かかるので既定では計算しない
+    include: list[str] = Field(default_factory=lambda: ["baseline", "selected"])
+    # 浸水を選ばなかったときに、指標をどの想定図で測るか（既定は包絡）
+    scenario: str | None = None
+    # 返す避難先候補の数。推奨1件のほかに比較材料を出すためのもの
+    limit: int = Field(5, ge=1, le=10)
+
+
+class SearchRequest(ShelterSearchRequest):
     """POST /api/evac-routes/search
 
     ⚠️ **レスポンスの形はプリセットと同じ**（routes[] / geojson / …）。
@@ -134,15 +164,9 @@ class SearchRequest(BaseModel):
           "hazards": {"flood": "envelope", "quake": "total"},
           "include": ["baseline", "selected"]
         }
+
+    ⚠️ `limit` は継承の都合で受け取るが、**2点探索では使わない**
+    （行き先は利用者が指定しているので、候補を並べる余地がない）。
     """
 
-    origin: Point
     dest: Point
-    # 種別ID -> variant。flood は浸水シナリオID、quake はいまのところ "total" のみ。
-    # **空なら単純最短**（掛け合わせなし）
-    hazards: dict[str, str] = Field(default_factory=dict)
-    # baseline=単純最短 / selected=選んだ種別を掛けた経路 / minimax=最大浸水深の下限
-    # minimax は二分探索でおよそ1秒かかるので既定では計算しない
-    include: list[str] = Field(default_factory=lambda: ["baseline", "selected"])
-    # 浸水を選ばなかったときに、指標をどの想定図で測るか（既定は包絡）
-    scenario: str | None = None
