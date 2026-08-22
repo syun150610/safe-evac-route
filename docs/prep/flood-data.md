@@ -16,7 +16,7 @@ CSV 17件と地震SHPの取得、地震GPKGの生成は[一次データの取得
 |---|---|
 | `sumidagawa` | `shinsui_sumidagawa.csv` |
 | `kandagawa` | `shinsui_kandagawa.csv` |
-| `envelope` | 隅田川、神田川、中川・綾瀬川、江東内部河川 |
+| `envelope` | 10ファイル。隅田川、神田川、中川・綾瀬川、江東内部河川、浅川、多摩川、野川、石神井川白子川、城南、秋川（2026-08-21に4→10へ。採否の理由は `scenarios.py` に記録） |
 
 神田川CSVには、小数メートルと整数メートルの図郭が混在する。整数値を未知のランクとして
 除外せず、東京都の公開値をメートルとしてそのまま採用する。丸め前の値は推定・補正しない。
@@ -176,12 +176,84 @@ uv run --frozen --group prep python -u \
 （`build_area_graph.py` が内部で呼ぶ）。
 
 中間生成物は `data/processed/graph_build/` に出る（合計約2.7GB、Git管理外）。
-焼き上がりpickleは1本約663MB、書き出したNPZは envelope 39,168,253B /
-隅田川 33,824,074B / 神田川 32,991,255B である。
+焼き上がりpickleは1本 662,934,933B、書き出したNPZは envelope 39,169,547B /
+隅田川 33,825,368B / 神田川 32,992,549B である
+（2026-08-22の地震係数変更で焼き直したもの。焼き直しの所要は envelope 3分31秒 /
+隅田川 2分22秒 / 神田川 2分18秒、NPZ書き出しは各34〜38秒）。
+
+### NPZを本番配布ディレクトリへ置く（**スクリプトが無い手作業**）
+
+⚠️ **ここはスクリプトが無い。手で置く。** 生成物の名前（`area_*.npz`）と
+本番配布物の名前（`kitasenju_ueno*.npz`）が違うので、次のように対応させる。
+`kitasenju_ueno.npz` が**隅田川**であることに注意（接尾辞なしが既定シナリオ）。
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+SRC=data/processed/graph_build
+DST=backend/graph/flood-kensetsu_quake-risk9/scope-tokyo-23ku-tama-shigaika
+
+cp $SRC/area_envelope.npz        $DST/kitasenju_ueno_envelope.npz
+cp $SRC/area_envelope_meta.json  $DST/kitasenju_ueno_envelope_meta.json
+cp $SRC/area_sumidagawa.npz      $DST/kitasenju_ueno.npz
+cp $SRC/area_sumidagawa_meta.json $DST/kitasenju_ueno_meta.json
+cp $SRC/area_kandagawa.npz       $DST/kitasenju_ueno_kandagawa.npz
+cp $SRC/area_kandagawa_meta.json $DST/kitasenju_ueno_kandagawa_meta.json
+```
+
+⚠️ コピー先のディレクトリ名を必ず確認する。旧スコープ（`scope-kitasenju-ueno`）は
+**同じファイル名で 1.6MB** なので、間違えても気づかずに上書きできてしまう。
+
+### プリセットを作る（**pickleのリネームが要る**）
 
 プリセットは旧スコープと同じ `prep.route_search.bundles` を使う。ただし
 `--graph-dir` に渡すディレクトリのファイル名を `GRAPHS` のbasename
 （`kitasenju_ueno_envelope.pkl` 等）に合わせる必要がある。
+
+⚠️ **pickleをコピーしない。1本663MBある。** ハードリンクで別名を作る
+（同じファイルシステムなので実体は増えない）。中間pickleを退避してある場合も、
+リンク先を間違えると**古い係数のプリセットができる**ので、`ls -la` で日時を見る。
+
+```bash
+cd "$(git rev-parse --show-toplevel)/data/processed/graph_build"
+mkdir -p asnames
+ln -f area_envelope.pkl   asnames/kitasenju_ueno_envelope.pkl
+ln -f area_sumidagawa.pkl asnames/kitasenju_ueno.pkl          # 接尾辞なしが隅田川
+ln -f area_kandagawa.pkl  asnames/kitasenju_ueno_kandagawa.pkl
+
+cd "$(git rev-parse --show-toplevel)/backend"
+BUNDLE_OUT=../data/processed/bundles/flood-kensetsu_quake-risk9/scope-tokyo-23ku-tama-shigaika
+uv run --frozen --group prep python -m prep.route_search.bundles \
+  --graph-dir ../data/processed/graph_build/asnames --outdir "$BUNDLE_OUT"
+
+# 検証してから本番配布物へ入れる
+rsync -a --delete "$BUNDLE_OUT/" \
+  bundles/flood-kensetsu_quake-risk9/scope-tokyo-23ku-tama-shigaika/
+```
+
+実測7分38秒（envelope 91秒 / 神田川 127秒 / 隅田川 196秒）、37ファイル・9.3MB。
+`index.json` はOD一覧とシナリオ一覧しか持たないので、経路が変わっても内容は変わらない。
+
+⚠️ **プリセットとNPZは必ず同じ焼き直し世代から作る。** 片方だけ更新すると、
+同じODでプリセットと任意地点探索が違う経路・違う距離を返す
+（2026-08-22に実際に起きた: 北千住→上野の combined がプリセット5,791.5m /
+探索5,563.1m）。置いた後に一致を確認すること。
+
+```bash
+cd "$(git rev-parse --show-toplevel)/backend"
+PYTHONPATH=. uv run --frozen python - <<'PY'
+import json
+from app.services.evac_routes import bundle_store, search as S
+for od in bundle_store.index()["od"]:
+    b = json.loads(bundle_store.bundle_raw("envelope", od["slug"]))
+    o, d = b["od"]["origin"]["latlon"], b["od"]["dest"]["latlon"]
+    live = {r["id"]: r["stats"] for r in S.search(
+        tuple(o), tuple(d), hazards={"flood": "envelope", "quake": "total"})["routes"]}
+    for r in b["routes"]:
+        if r["id"] in live:
+            assert r["stats"]["distance_m"] == live[r["id"]]["distance_m"], (od["slug"], r["id"])
+print("プリセットと任意地点探索は一致")
+PY
+```
 
 ### この手順の置き場について（未決）
 
