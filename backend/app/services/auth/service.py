@@ -39,7 +39,7 @@ class AuthService:
                 user_id, name, hash_password(password), email, now.isoformat()
             )
         except Exception as exc:
-            if "UNIQUE constraint failed" in str(exc):
+            if "UNIQUE constraint failed: USERS.name" in str(exc):
                 raise ValueError("name_conflict") from exc
             raise
 

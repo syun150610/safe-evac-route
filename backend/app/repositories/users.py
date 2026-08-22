@@ -1,9 +1,8 @@
 """USERSテーブルへのデータ操作。"""
 
-from typing import Protocol
-
-import httpx
 from pydantic import BaseModel
+
+from app.clients.d1 import D1Writer
 
 
 class UserRow(BaseModel):
@@ -13,10 +12,6 @@ class UserRow(BaseModel):
     password_hash: str
     avatar_url: str | None
     created_at: str
-
-
-class D1Writer(Protocol):
-    async def post(self, path: str, json: dict) -> httpx.Response: ...
 
 
 _SELECT_COLS = (

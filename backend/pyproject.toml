@@ -16,6 +16,7 @@ dependencies = [
     "pyjwt>=2.10,<3",    # JWTアクセストークンの生成・検証
     "bcrypt>=4.2,<5",    # パスワードハッシュ
     "python-ulid>=3.0,<4",  # ULID形式のID生成
+    "email-validator>=2.2,<3",  # EmailStr バリデーション
 ]
 
 [dependency-groups]

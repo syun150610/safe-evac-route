@@ -1,8 +1,16 @@
 """Workerのoutbound handlerが提供するD1操作用HTTPクライアント。"""
 
+from typing import Protocol
+
 import httpx
 
 from app.core.config import Settings, get_settings
+
+
+class D1Writer(Protocol):
+    """POSTリクエストを送れるD1クライアントのインターフェース。"""
+
+    async def post(self, path: str, json: dict) -> httpx.Response: ...
 
 
 class D1Client:

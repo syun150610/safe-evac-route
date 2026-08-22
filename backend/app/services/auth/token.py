@@ -27,7 +27,10 @@ def verify_access_token(token: str) -> str:
         settings.jwt_secret_key.get_secret_value(),
         algorithms=[settings.jwt_algorithm],
     )
-    return str(payload["sub"])
+    user_id = payload.get("sub")
+    if not user_id:
+        raise jwt.InvalidTokenError("sub claim missing")
+    return str(user_id)
 
 
 def generate_refresh_token() -> tuple[str, str]:
