@@ -2,9 +2,11 @@
 
     python -m studies.graph_array.area_build.bake_area_graph --scenario envelope
 
-⚠️ **浸水は現行4流域のまま**（隅田川・神田川・中川・江東内部）。多摩側の流域は
-追加しない（2026-08-21にユーザーが決定）。したがって市街化区域の大半のエッジは
-浸水が「未評価」になる。これは隠さず `coverage` に出し、#23の3段階表示が扱う。
+⚠️ **どのCSVを焼くかはここで決めない。** 入力は
+`prep/hazard_sources/flood/scenarios.py` の `SCENARIOS[シナリオ]["csv"]` が単一の
+出所で、採否の理由もそちらに記録してある（envelopeは2026-08-21に4→10ファイル）。
+覆えていない範囲のエッジは浸水が「未評価」になる。これは隠さず `coverage` に出し、
+#23の3段階表示が扱う。metaの `flood_note` も実際に焼いたCSVから組み立てる。
 
 ⚠️ 焼き込みのロジックは `prep/route_search/graph.py` の関数をそのまま呼ぶ。
 コスト式・サンプル間隔・代表値の取り方は現行と同じ。
@@ -33,6 +35,23 @@ def rss_gb() -> float:
             if line.startswith("VmRSS"):
                 return int(line.split()[1]) / 1024 / 1024
     return -1.0
+
+
+def _flood_note(csvs: list[str], flood_cov: dict) -> str:
+    """metaに入れる浸水の但し書き。**実際に焼いたCSVと実測coverageから作る。**
+
+    「現行4流域のみ」のように本数と流域名を書き固めると、シナリオの入力が
+    変わったときに成果物のmetaだけが古い説明を配り続ける（2026-08-21に
+    envelopeが4→10ファイルになった後、実際にそうなっていた）。
+    """
+    names = "、".join(os.path.basename(c) for c in csvs)
+    covered = flood_cov["edge_ratio_covered"] * 100
+    return (
+        f"浸水はこのシナリオの入力CSV {len(csvs)}件（{names}）が覆う範囲だけを"
+        f"評価している。エッジ本数の{covered:.1f}%が一部でも評価済みで、"
+        "残りは浸水想定図の整備範囲外として coverage=0 を持つ。"
+        "**浸水しないという意味ではない。**"
+    )
 
 
 def main() -> None:
@@ -145,10 +164,10 @@ def main() -> None:
         "edge_depth_pct_length_weighted": edge_length_stats(lengths, dmax),
         "coverage_stats": cov_stats,
         "quake": quake,
-        "flood_note": (
-            "浸水は現行4流域（隅田川・神田川・中川・江東内部）のみ。"
-            "対象範囲の大半は浸水想定図の整備範囲外で、coverage=0 として持つ。"
-        ),
+        # ⚠️ 流域名や本数を書き固めないこと。シナリオの入力CSVは変わる
+        #    （2026-08-21に4→10ファイルへ増えた）ので、実際に焼いたCSVと
+        #    実測coverageから組み立てる。この文言は成果物のmetaへそのまま入る。
+        "flood_note": _flood_note(csvs, cov_stats["flood"]),
     }
     with open(out_meta, "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=1)

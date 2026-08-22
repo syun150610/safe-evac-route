@@ -35,7 +35,7 @@ from __future__ import annotations
 import os
 import threading
 
-from app.core.config import get_settings
+from app.core.config import RUNTIME_SCOPE_LABEL, get_settings
 from app.services.evac_routes import rationale as rationale_svc
 from prep.hazard_sources import registry
 from prep.hazard_sources.quake.cost import QUAKE_COST
@@ -166,7 +166,7 @@ def area(scenario: str = DEFAULT_SCENARIO) -> dict:
         "edges": meta.get("edges"),
         "max_snap_m": MAX_SNAP_M,
         "note": "経路は事前に焼いた歩行者グラフの上でしか引けません。"
-        "いま用意してあるのは北千住↔上野の範囲（+1km）だけです。"
+        f"いま用意してあるのは{RUNTIME_SCOPE_LABEL}だけです。"
         "この外の地点は指定できません。",
     }
 
@@ -181,7 +181,7 @@ def _check_area(bbox, origin, dest):
         label = {"origin": "出発地", "dest": "目的地"}
         raise OutOfArea(
             "・".join(label[w] for w in outside) + "が対象エリアの外です。"
-            "いま経路を引けるのは北千住↔上野の範囲だけです。",
+            f"いま経路を引けるのは{RUNTIME_SCOPE_LABEL}だけです。",
             outside,
             bbox,
         )
