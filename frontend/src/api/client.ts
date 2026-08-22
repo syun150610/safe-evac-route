@@ -94,9 +94,14 @@ export const getArea = (scenario?: string) =>
 /** 任意の2点の経路。戻り値はプリセットと同じ形 */
 export const postSearch = (req: SearchRequest) => post<Bundle>('/evac-routes/search', req)
 
-/** 安全な避難先の検索。レスポンス契約確定後に unknown を専用型へ置き換える。 */
+/** 安全な避難先の検索。目的地を指定せず、近隣で一番安全に着ける避難所を探す。
+ *
+ * 戻り値は `postSearch` と同じ形（routes[] / geojson / rationale）に
+ * `shelter` / `shelter_candidates` / `shelter_query` が付いたもの。
+ * 候補一覧の描画はまだ入れていないので、型は Bundle のまま扱う。
+ */
 export const postShelterSearch = (req: ShelterSearchRequest) =>
-  post<unknown>('/search/shelter', req)
+  post<Bundle>('/evac-routes/search/shelter', req)
 
 /** 避難所・避難場所一覧（GeoJSON）。bbox は "left,bottom,right,top" */
 export const getShelters = (params?: { bbox?: string; type?: string }) => {

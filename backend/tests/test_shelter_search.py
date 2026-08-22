@@ -1,0 +1,320 @@
+"""避難先探索（POST /api/evac-routes/search/shelter）のテスト。
+
+⚠️ **本番と同じNPZを読む。** 避難先の選び方は「どのグラフか」で変わるので、
+小さいダミーグラフで代用すると、確かめたいこと（実距離とハザードコストの
+兼ね合い）が確かめられない。
+
+期待値は実測から取った固定値ではなく、**満たすべき性質**で書く。
+係数（`flood/cost.py`）も迂回上限（`shelter_search.DETOUR_RATIO`）も仮の値で、
+調整が入るたびに固定値は落ちるが、性質は落ちてはいけない。
+"""
+
+import math
+import pathlib
+import sys
+
+import pytest
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from app.main import app  # noqa: E402
+from app.services.evac_routes import search as route_search  # noqa: E402
+from app.services.evac_routes import shelter_search as SS  # noqa: E402
+from app.services.shelters import loader  # noqa: E402
+from prep.route_search import csr_search as CS  # noqa: E402
+
+client = TestClient(app)
+
+# 出発地。**どれも23区＋多摩の市街化区域の中**（対象エリア外は別のテスト）
+KITASENJU = {"lat": 35.7497, "lon": 139.8050, "label": "北千住"}
+UENO = {"lat": 35.7141, "lon": 139.7774, "label": "上野"}
+# 荒川と中川に挟まれ、近くの避難場所がどれも浸水想定内にある。
+# 「近所では回避できない」が正しい答えになる場所
+HIRAI = {"lat": 35.7069, "lon": 139.8455, "label": "江戸川区平井"}
+
+FLOOD = {"flood": "envelope"}
+
+
+@pytest.fixture(scope="module")
+def graph():
+    return route_search._graph("envelope")
+
+
+# ---------------- まとめてスナップする側 ----------------
+
+
+def test_snap_many_matches_nearest_node(graph):
+    """⚠️ 緯度の帯で絞っても**総当たりと同じノード**を返すこと。
+
+    ここがずれると、候補一覧に出した避難所と実際に経路を引く先が
+    静かに食い違う。
+    """
+    g = graph.csr
+    features = loader.eligible(("flood",), "urgent")[:120]
+    lats = [f["geometry"]["coordinates"][1] for f in features]
+    lons = [f["geometry"]["coordinates"][0] for f in features]
+
+    for (node_id, snap_m), lat, lon in zip(
+        CS.snap_many(g, lats, lons), lats, lons, strict=True
+    ):
+        assert node_id == CS.nearest_node(g, lat, lon)
+        assert snap_m == pytest.approx(CS.snap_m(g, node_id, lat, lon), abs=1e-6)
+
+
+# ---------------- 目的地を決めないダイクストラ ----------------
+
+
+def test_nearest_targets_agrees_with_point_to_point(graph):
+    """打ち切って返した経路が、その1点だけを目的地にした探索と一致すること。
+
+    ダイクストラは確定した順がコスト昇順なので、途中で止めても
+    確定済みノードの前任者は変わらない。**その前提を機械で押さえる。**
+    """
+    g = graph.csr
+    o = CS.nearest_node(g, KITASENJU["lat"], KITASENJU["lon"])
+    features = loader.eligible(("flood",), "urgent")[:200]
+    snapped = CS.snap_many(
+        g,
+        [f["geometry"]["coordinates"][1] for f in features],
+        [f["geometry"]["coordinates"][0] for f in features],
+    )
+    targets = {n for n, _ in snapped if n is not None and n != o}
+
+    found = CS.nearest_targets(g, o, targets, ("flood",), k=5)
+    assert found, "北千住の近くに到達できる避難場所が1件も無いのはおかしい"
+
+    costs = [c for _n, c, _p in found]
+    assert costs == sorted(costs)
+    for node_id, _cost, path in found:
+        assert path == CS.shortest_path(g, o, node_id, ("flood",))
+
+
+def test_nearest_targets_returns_empty_when_unreachable(graph):
+    """到達できない目的地しか無ければ空。**例外にはしない。**"""
+    g = graph.csr
+    o = CS.nearest_node(g, KITASENJU["lat"], KITASENJU["lon"])
+    # 八王子のノードを北千住から探す。徒歩グラフでは繋がっているが、
+    # settled の上限で必ず打ち切られる距離にある
+    far = CS.nearest_node(g, 35.6558, 139.3389)
+    assert CS.nearest_targets(g, o, [far], ("flood",), k=1, max_settled=500) == []
+
+
+# ---------------- 避難先の絞り込み ----------------
+
+
+def test_eligible_filters_by_hazard_type():
+    """⚠️ 災害種別を持つのは指定緊急避難場所だけ。指定避難所は空である。"""
+    urgent = loader.eligible(("flood",), "urgent")
+    assert urgent
+    assert all(f["properties"]["type"] == "urgent" for f in urgent)
+    assert all("flood" in f["properties"]["hazard_types"] for f in urgent)
+
+    # 種別を渡さなければ絞らない（災害を選んでいないとき）
+    assert len(loader.eligible((), "urgent")) > len(urgent)
+    # 指定避難所は hazard_types が空なので、種別で絞ると1件も残らない
+    assert loader.eligible(("flood",), "designated") == []
+
+
+# ---------------- 推奨の決め方 ----------------
+
+
+def test_recommends_safer_shelter_within_detour_limit():
+    """迂回上限の中に危険の小さい避難先があれば、最短より安全な方を推す。"""
+    r = SS.search(KITASENJU, hazards=FLOOD)
+    q = r["shelter_query"]
+    chosen = r["shelter_candidates"][0]
+
+    assert chosen["id"] == r["shelter"]["id"]
+    assert chosen["within_limit"]
+    assert q["fell_back_to_nearest"] is False
+    assert chosen["stats"]["distance_m"] <= q["detour_limit_m"]
+
+    # 最短で行ける避難先より危険区間が長くなっていないこと。
+    # ⚠️ 一番近い避難所がそのまま一番安全なこともあるので `<=`。
+    #    逆転していたら、単位の違うコスト（距離とハザードコスト）を
+    #    突き合わせて選んでいる
+    nearest = min(
+        (c for c in r["shelter_candidates"] if c["baseline_distance_m"] is not None),
+        key=lambda c: c["baseline_distance_m"],
+    )
+    assert chosen["stats"]["ratio_over_03"] <= nearest["stats"]["ratio_over_03"]
+
+    # 推奨は「上限の内側でハザードコスト最小」。並べ替えの取り違えで
+    # ①側の候補が混ざっていないことを、コストそのもので押さえる
+    safest = [
+        c
+        for c in r["shelter_candidates"]
+        if c["basis"] == "hazard" and c["within_limit"]
+    ]
+    assert chosen["cost"] == min(c["cost"] for c in safest)
+
+    # 最短のままなら通っていた危険区間を、迂回で減らせていること
+    flood = next(h for h in r["rationale"]["hazards"] if h["id"] == "flood")
+    assert flood["after_m"] < flood["before_m"]
+
+
+def test_falls_back_to_nearest_when_safe_shelters_are_too_far():
+    """⚠️ **「近所に安全な避難先がある」と言わせない。**
+
+    平井は近くの避難場所がどれも浸水想定内にある。危険最小だけで選ぶと
+    区外へ数km送ることになるので、上限の外なら最短の避難先へ戻す。
+    そのとき「遠いが安全な候補」を一覧から消さないことも併せて確認する。
+    """
+    r = SS.search(HIRAI, hazards=FLOOD)
+    q = r["shelter_query"]
+    assert q["fell_back_to_nearest"] is True
+
+    chosen = r["shelter_candidates"][0]
+    assert chosen["id"] == r["shelter"]["id"]
+    assert chosen["within_limit"]
+
+    outside = [c for c in r["shelter_candidates"] if not c["within_limit"]]
+    assert outside, "上限の外にある候補を一覧から落としてはいけない"
+    # 遠い候補の方が安全だからこそ足切りしている。その事実を隠さない
+    assert (
+        min(c["stats"]["ratio_over_03"] for c in outside)
+        < chosen["stats"]["ratio_over_03"]
+    )
+
+
+def test_no_hazard_returns_the_nearest_shelter():
+    """種別を選んでいなければ、単純に一番近い避難先。
+
+    比較対象が無いので `rationale` は付かない（2点探索と同じ規則）。
+    """
+    r = SS.search(UENO, hazards={})
+    rows = r["shelter_candidates"]
+    assert r["rationale"] is None
+    assert r["shelter_query"]["fell_back_to_nearest"] is False
+    assert all(c["basis"] == "length" for c in rows)
+    assert rows[0]["stats"]["distance_m"] == min(c["stats"]["distance_m"] for c in rows)
+
+
+def test_candidates_carry_unevaluated_ratio():
+    """⚠️ 危険区間0mでも未評価区間は別途示す。「安全」と「判断材料が無い」は別物。"""
+    r = SS.search(HIRAI, hazards=FLOOD)
+    for c in r["shelter_candidates"]:
+        assert "out_of_coverage_ratio" in c["stats"]
+    # 平井は想定図の外に出る区間が実際にある。0で塗りつぶしていないこと
+    assert max(c["stats"]["out_of_coverage_ratio"] for c in r["shelter_candidates"]) > 0
+
+
+def test_limit_bounds_the_number_of_candidates():
+    small = SS.search(UENO, hazards=FLOOD, limit=2)
+    # ①と②で最大 limit 件ずつ見つかるので、上限は 2 × limit
+    assert 1 <= len(small["shelter_candidates"]) <= 4
+
+
+# ---------------- 2点探索と同じ形であること ----------------
+
+
+def test_response_has_the_same_shape_as_two_point_search():
+    """⚠️ **フロントの表示コードを1本化するための契約。**
+
+    `routes[]` / `geojson` / `rationale` は2点探索と同じ組み立てで、
+    増えるのは `shelter*` の3キーだけ。
+    """
+    shelter = SS.search(KITASENJU, hazards=FLOOD)
+    dest = shelter["shelter"]["latlon"]
+    two_point = route_search.search(
+        KITASENJU, {"lat": dest[0], "lon": dest[1]}, hazards=FLOOD
+    )
+
+    added = set(shelter) - set(two_point)
+    assert added == {"shelter", "shelter_candidates", "shelter_query"}
+    # 同じ目的地なので経路そのものも一致する
+    assert shelter["routes"] == two_point["routes"]
+    assert shelter["od"]["dest"]["node"] == shelter["shelter"]["node"]
+    # 目的地の表示名は避難所の名前になっている（「35.7…, 139.8…」ではない）
+    assert shelter["od"]["dest"]["display"] == shelter["shelter"]["name"]
+
+
+# ---------------- API ----------------
+
+
+def test_api_returns_a_route_to_a_shelter():
+    r = client.post(
+        "/api/evac-routes/search/shelter",
+        json={"origin": KITASENJU, "hazards": FLOOD},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["shelter"]["type"] == "urgent"
+    assert body["geojson"]["features"]
+    assert body["shelter_candidates"][0]["id"] == body["shelter"]["id"]
+
+
+def test_api_rejects_a_point_outside_the_area():
+    """⚠️ 出発地しか受け取らないので、"dest" が範囲外だとは言わないこと。"""
+    r = client.post(
+        "/api/evac-routes/search/shelter",
+        json={"origin": {"lat": 34.6937, "lon": 135.5023}, "hazards": FLOOD},
+    )
+    assert r.status_code == 422
+    detail = r.json()["detail"]
+    assert detail["error"] == "out_of_area"
+    assert detail["which"] == ["origin"]
+
+
+def test_api_rejects_an_unknown_hazard():
+    r = client.post(
+        "/api/evac-routes/search/shelter",
+        json={"origin": KITASENJU, "hazards": {"tsunami": "total"}},
+    )
+    assert r.status_code == 400
+    assert r.json()["detail"]["error"] == "bad_request"
+
+
+def test_api_reports_no_shelter_separately_from_out_of_area(monkeypatch):
+    """該当する避難先が無いことは、エリア外とは別のコードで返す。"""
+    monkeypatch.setattr(SS, "_pool", lambda *a, **kw: [])
+    r = client.post(
+        "/api/evac-routes/search/shelter",
+        json={"origin": KITASENJU, "hazards": FLOOD},
+    )
+    assert r.status_code == 422
+    assert r.json()["detail"]["error"] == "no_shelter"
+
+
+def test_api_validates_limit():
+    r = client.post(
+        "/api/evac-routes/search/shelter",
+        json={"origin": KITASENJU, "hazards": FLOOD, "limit": 99},
+    )
+    # FastAPI のバリデーションエラー。**detail は配列**（`detail.error` は無い）
+    assert r.status_code == 422
+    assert isinstance(r.json()["detail"], list)
+
+
+def test_two_point_search_still_requires_dest():
+    """`SearchRequest` は `ShelterSearchRequest` を継承しても dest 必須のまま。"""
+    r = client.post(
+        "/api/evac-routes/search", json={"origin": KITASENJU, "hazards": FLOOD}
+    )
+    assert r.status_code == 422
+    assert isinstance(r.json()["detail"], list)
+
+
+def test_distance_helper_is_symmetric():
+    a = SS._distance_m(35.7, 139.8, 35.71, 139.81)
+    b = SS._distance_m(35.71, 139.81, 35.7, 139.8)
+    assert a == pytest.approx(b, rel=1e-3)
+    assert math.isclose(SS._distance_m(35.7, 139.8, 35.7, 139.8), 0.0)
+
+
+def test_recommended_stats_match_the_route_that_is_returned():
+    """⚠️ **おすすめの数字と、実際に返す経路の数字を食い違わせない。**
+
+    候補の `stats` は候補選びに使った探索のものなので、最短へ戻したときは
+    最短側の数字が残る。そのまま見せると、画面の「おすすめ」と経路比較・根拠が
+    別の数字を出すことになる（実測で 1.94km/11.8% と 1.95km/9.2%）。
+    """
+    for origin in (KITASENJU, HIRAI, UENO):
+        r = SS.search(origin, hazards=FLOOD)
+        selected = next(x for x in r["routes"] if x["id"] == r["selected_route"])
+        chosen = next(
+            c for c in r["shelter_candidates"] if c["id"] == r["shelter"]["id"]
+        )
+        assert chosen["stats"] == selected["stats"], origin["label"]

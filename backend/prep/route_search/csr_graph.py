@@ -95,6 +95,11 @@ class CsrGraph:
     edge_float: dict[str, np.ndarray] = field(default_factory=dict)
     _geometry: Geometry | None = field(default=None, repr=False)
     _names: Names | None = field(default=None, repr=False)
+    # 緯度でソートしたノードの索引。**最寄りノードをまとめて求めるときだけ**
+    # 作る（`csr_search.snap_many`）。作り方も使い方もあちらが持つので、
+    # ここは置き場所だけを用意する
+    lat_order: np.ndarray | None = field(default=None, repr=False)
+    lat_values: np.ndarray | None = field(default=None, repr=False)
 
     # ---- 基本情報 ----
 
