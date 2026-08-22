@@ -21,8 +21,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
@@ -64,10 +63,6 @@ class Scope:
     area: BboxArea | PolygonArea
     # 成果物が無いときに「何を実行すれば作れるか」を添えるための案内
     builder: str
-    # ⚠️ **暫定。段階5で消す。** 既存の配布物は隅田川だけ接尾辞が無い
-    #    （`kitasenju_ueno.npz`）。名前を規則的にすると本番配布物の
-    #    リネームになるので、参照経路の切り替え（段階2）とは分ける。
-    stem_overrides: Mapping[str, str] = field(default_factory=dict)
 
     @property
     def dir_name(self) -> str:
@@ -78,8 +73,13 @@ class Scope:
         return f"scope-{self.id}"
 
     def graph_stem(self, scenario: str) -> str:
-        """シナリオ1件ぶんのファイル名の幹。"""
-        return self.stem_overrides.get(scenario, f"{self.stem}_{scenario}")
+        """シナリオ1件ぶんのファイル名の幹。**例外を作らない。**
+
+        ⚠️ かつて隅田川だけ接尾辞が無く（`kitasenju_ueno.npz`）、名前から
+        どのシナリオか分からなかった。規則から外すと、生成側（graph.py の
+        `--out` 既定）と読む側（bundles.GRAPHS）で食い違いも起きる。
+        """
+        return f"{self.stem}_{scenario}"
 
     def npz_name(self, scenario: str) -> str:
         """本番配布用の圧縮NPZ。"""
@@ -94,12 +94,10 @@ class Scope:
         return f"{self.graph_stem(scenario)}_meta.json"
 
 
-# ⚠️ 現在の配布物の名前をそのまま返す設定にしてある（段階2）。
-#    ファイル名を規則的にするのは段階5。そこで
-#      * `stem_overrides` を消す（隅田川に接尾辞を付ける）
-#      * 新スコープの `stem` を `tokyo23ku_tama` にする
-#    2つの範囲でファイル名が同じ状態は、本番の39MBを旧スコープの1.6MBで
-#    静かに上書きできるということなので、段階5まで残る既知の危険である。
+# ⚠️ **範囲ごとに `stem` を変えること。** 同じ名前にすると、コピー先の
+#    ディレクトリを間違えたときに本番のNPZ（39MB / 190万エッジ）を
+#    旧スコープのNPZ（1.6MB / 8.2万エッジ）で**静かに上書きできる**。
+#    幹が違えば、取り違えたコピーは「存在しない名前」になって503で気づける。
 SCOPES: dict[str, Scope] = {
     "kitasenju-ueno": Scope(
         id="kitasenju-ueno",
@@ -111,13 +109,11 @@ SCOPES: dict[str, Scope] = {
             margin_km=1.0,  # SPEC 5 タスクA-1
         ),
         builder="cd backend && python3 -m prep.route_search.graph --scenario <シナリオ>",
-        stem_overrides={"sumidagawa": "kitasenju_ueno"},
     ),
     "tokyo-23ku-tama-shigaika": Scope(
         id="tokyo-23ku-tama-shigaika",
         label="23区＋多摩の市街化区域",
-        # ⚠️ 段階5で `tokyo23ku_tama` にする。いまは旧スコープ時代の名前のまま
-        stem="kitasenju_ueno",
+        stem="tokyo23ku_tama",
         area=PolygonArea(
             source_key="quake_gpkg",
             simplify_deg=0.0002,  # 約20m
@@ -127,7 +123,6 @@ SCOPES: dict[str, Scope] = {
             "cd backend && python3 -m prep.route_search.area_graph.bake"
             " --scenario <シナリオ>（新スコープの構築手順は docs/prep/flood-data.md）"
         ),
-        stem_overrides={"sumidagawa": "kitasenju_ueno"},
     ),
 }
 

@@ -14,15 +14,13 @@ import os
 import numpy as np
 import pytest
 
-from app.core.config import get_settings
+from app.core.config import get_settings, runtime_scope
 from app.services.evac_routes import search as route_search
 from prep.route_search.npz_graph import load_graph_npz
 
-GRAPH_NAMES = (
-    "kitasenju_ueno_envelope",
-    "kitasenju_ueno",
-    "kitasenju_ueno_kandagawa",
-)
+# ⚠️ 名前をここに書かない。`scopes.Scope` が単一の出所（段階5でファイル名を
+#    規則的にした。以前は隅田川だけ接尾辞が無かった）
+SCENARIOS = ("envelope", "sumidagawa", "kandagawa")
 PROFILES = ("kensetsu",)  # gesuido は新スコープの成果物が無い（上の注記）
 
 
@@ -31,11 +29,11 @@ def graph_path(name: str) -> str:
 
 
 @pytest.mark.parametrize("profile", PROFILES)
-@pytest.mark.parametrize("name", GRAPH_NAMES)
-def test_committed_npz_has_expected_shape_and_no_pickle(monkeypatch, profile, name):
+@pytest.mark.parametrize("scenario", SCENARIOS)
+def test_committed_npz_has_expected_shape_and_no_pickle(monkeypatch, profile, scenario):
     monkeypatch.setenv("HAZARD_DATA_PROFILE", profile)
     get_settings.cache_clear()
-    path = graph_path(name)
+    path = graph_path(runtime_scope().graph_stem(scenario))
     assert os.path.exists(path)
     with np.load(path, allow_pickle=False) as data:
         assert int(data["schema_version"][0]) == 1
@@ -57,7 +55,7 @@ def test_npz_rebuilds_graph_and_searches_route(
 ):
     monkeypatch.setenv("HAZARD_DATA_PROFILE", profile)
     get_settings.cache_clear()
-    graph = load_graph_npz(graph_path("kitasenju_ueno_envelope"))
+    graph = load_graph_npz(graph_path(runtime_scope().graph_stem("envelope")))
     assert graph.number_of_nodes() == 652_828
     assert graph.number_of_edges() == 1_905_380
 
