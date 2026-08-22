@@ -182,10 +182,15 @@ def area(scenario: str = DEFAULT_SCENARIO) -> dict:
     }
 
 
-def _check_area(bbox, origin, dest):
+def _check_area(bbox, origin, dest=None):
+    """⚠️ `dest` は省略できる（避難先を探す側は出発地しか持たない）。
+    省略したときに "dest" を混ぜると、利用者が指定していない地点を
+    「目的地が範囲外」と言うことになる。
+    """
     outside = []
     left, bottom, right, top = bbox
-    for name, (lat, lon) in (("origin", origin), ("dest", dest)):
+    points = [("origin", origin)] + ([("dest", dest)] if dest is not None else [])
+    for name, (lat, lon) in points:
         if not (left <= lon <= right and bottom <= lat <= top):
             outside.append(name)
     if outside:

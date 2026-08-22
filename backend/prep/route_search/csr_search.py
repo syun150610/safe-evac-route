@@ -175,3 +175,160 @@ def min_achievable_max_depth(g: CsrGraph, source_id: int, target_id: int):
     length = g.edge_float["length"].astype(np.float64)
     path = dijkstra(g, source, target, length, mask)
     return thr, [int(g.node_id[i]) for i in path], mask
+
+
+# ---------------- 目的地を決めずに探す（近隣の避難先） ----------------
+
+# 1件目が見つかったあと、どこまでコストを伸ばして候補を集めるか。
+# 「1件目のコスト × RATIO + FLOOR」を超えたら打ち切る。
+# ⚠️ コストは `length × Π cost_h` で、係数はどれも 1.0 以上（flood.cost /
+#    quake.cost）。よってコストは必ず距離(m)以上になり、FLOOR をメートルで
+#    決めてよい。出発地が避難所ノードに一致して1件目が 0 になっても、
+#    FLOOR のぶんは探して候補一覧を作れる。
+CANDIDATE_COST_RATIO = 3.0
+CANDIDATE_COST_FLOOR_M = 1000.0
+
+# 打ち切りの最後の砦。1件も到達できないと全域（652,828ノード / 実測3.1秒）を
+# 掘ってしまうので、settled 数で止める。実測の最大は 32,686（江戸川区平井）。
+MAX_SETTLED = 150_000
+
+
+def nearest_targets(
+    g: CsrGraph,
+    source_id: int,
+    target_ids,
+    hazards,
+    k: int = 5,
+    cost_ratio: float = CANDIDATE_COST_RATIO,
+    cost_floor: float = CANDIDATE_COST_FLOOR_M,
+    max_settled: int = MAX_SETTLED,
+) -> list[tuple[int, float, list[int]]]:
+    """**目的地を1つに決めずに**、近い目的地から順に k 件返す。
+
+    `dijkstra` の `if v == target: break` を「目的地の集合」に替えただけで、
+    緩和の順序・平行エッジの扱い・同着の決め方は**すべて同じ**。
+    ダイクストラは確定した順がコスト昇順なので、k件目が確定した時点で
+    打ち切れば上位k件は正しい。
+
+    Returns:
+        (目的地のノードID, コスト, 経路のノードID列) をコスト昇順で。
+        到達できなければ空リスト。
+    """
+    targets = {g.node_index(t) for t in target_ids}
+    source = g.node_index(source_id)
+    cost = edge_costs(g, hazards)
+
+    node_offset = g.node_offset
+    edge_to = g.edge_to
+    dist: dict[int, float] = {}
+    seen = {source: 0.0}
+    pred: dict[int, int] = {}
+    c = count()
+    fringe: list[tuple[float, int, int]] = [(0.0, next(c), source)]
+    found: list[tuple[int, float]] = []
+    limit: float | None = None
+    settled = 0
+
+    while fringe:
+        dist_v, _, v = heappop(fringe)
+        if v in dist:
+            continue
+        # 打ち切りは**取り出した直後**に見る。ここで止めれば、返した候補より
+        # 安いものを見落とすことはない（fringe の先頭＝残りの最小コスト）
+        if limit is not None and dist_v > limit:
+            break
+        settled += 1
+        if settled > max_settled:
+            break
+        dist[v] = dist_v
+        if v in targets:
+            found.append((v, dist_v))
+            if limit is None:
+                limit = dist_v * cost_ratio + cost_floor
+            if len(found) >= k:
+                break
+        # ⚠️ `dijkstra` と同じく隣接ノード単位で緩和する（平行エッジは min）
+        best: dict[int, float] = {}
+        for i in range(int(node_offset[v]), int(node_offset[v + 1])):
+            u = int(edge_to[i])
+            w = float(cost[i])
+            if u not in best or w < best[u]:
+                best[u] = w
+        for u, w in best.items():
+            vu_dist = dist_v + w
+            if u in dist:
+                continue
+            if u not in seen or vu_dist < seen[u]:
+                seen[u] = vu_dist
+                heappush(fringe, (vu_dist, next(c), u))
+                pred[u] = v
+
+    out = []
+    for node, dist_v in found:
+        path = [node]
+        while path[-1] in pred:
+            path.append(pred[path[-1]])
+        path.reverse()
+        out.append((int(g.node_id[node]), dist_v, [int(g.node_id[i]) for i in path]))
+    return out
+
+
+# 最寄りノードを緯度で絞るときの初期の帯幅（度）。約445m。
+# 帯の中の最良が帯幅より遠ければ、全域と一致しなくなるので広げ直す
+_SNAP_BAND_DEG = 0.004
+_DEG_M = 111_320.0
+
+
+def _lat_sorted(g: CsrGraph):
+    """緯度でソートしたノードの索引。**最初に要るときだけ作る。**
+
+    652,828ノードで実測0.08秒、常駐は order(int32) + 緯度(float64) の約7.8MB。
+    避難所4,811件を全部スナップしても0.26秒で、1件あたりは 0.06ms
+    （`nearest_node` の総当たりは1件3ms）。
+    """
+    if g.lat_order is None:
+        order = np.argsort(g.node_y, kind="stable")
+        g.lat_order = order.astype(np.int32)
+        g.lat_values = g.node_y[order]
+    return g.lat_order, g.lat_values
+
+
+def snap_many(g: CsrGraph, lats, lons):
+    """複数地点の最寄りノードをまとめて求める。
+
+    ⚠️ **`nearest_node` と同じ答えを返すこと。** 緯度の帯で候補を絞るだけで、
+    距離の式も同着の決め方（`node_orig` が小さい方）も変えない。
+    帯の中の最良が帯幅より遠い場合は、外にもっと近いノードがありうるので
+    帯を広げ直す。
+
+    Returns:
+        (ノードID, 直線距離m) のリスト。見つからなければ (None, inf)。
+    """
+    order, values = _lat_sorted(g)
+    out = []
+    for la, lo in zip(lats, lons, strict=True):
+        band = _SNAP_BAND_DEG
+        kx = math.cos(math.radians(la))
+        while True:
+            a = int(np.searchsorted(values, la - band))
+            b = int(np.searchsorted(values, la + band))
+            if b > a:
+                idx = order[a:b]
+                d2 = ((g.node_x[idx] - lo) * kx) ** 2 + (values[a:b] - la) ** 2
+                best = float(d2.min())
+                # 帯の外にもっと近いノードが残っていないと言い切れるのは、
+                # 最良が帯幅の内側に収まっているときだけ（|Δ緯度| ≤ 距離）
+                if math.sqrt(best) <= band:
+                    tied = np.flatnonzero(d2 == best)
+                    if tied.size == 1:
+                        i = int(idx[int(tied[0])])
+                    else:
+                        cand = idx[tied]
+                        i = int(cand[int(np.argmin(g.node_orig[cand]))])
+                    out.append((int(g.node_id[i]), math.sqrt(best) * _DEG_M))
+                    break
+            band *= 4
+            if band > 1.0:  # 東京都をはみ出しても見つからない
+                out.append((None, math.inf))
+                break
+    return out
