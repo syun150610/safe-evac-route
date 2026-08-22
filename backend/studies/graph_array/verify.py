@@ -109,8 +109,8 @@ def main() -> None:
     )
     ap.add_argument(
         "--scope",
-        help="対象範囲ディレクトリを一時的に差し替える"
-        "（240ケースの期待値は現行スコープ scope-kitasenju-ueno で作ったもの）",
+        help="対象範囲IDを一時的に差し替える"
+        "（240ケースの期待値は現行スコープ kitasenju-ueno で作ったもの）",
     )
     args = ap.parse_args()
 
@@ -118,7 +118,7 @@ def main() -> None:
         # ⚠️ 実行時に差し替えるだけ。設定ファイルは書き換えない。
         from app.core import config as app_config
 
-        app_config.RUNTIME_SCOPE_DIR = args.scope
+        app_config.RUNTIME_SCOPE_ID = args.scope
         app_config.get_settings.cache_clear()
         print(f"対象範囲を {args.scope} へ差し替えて実行する")
 

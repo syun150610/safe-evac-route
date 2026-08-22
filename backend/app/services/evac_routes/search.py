@@ -35,7 +35,7 @@ from __future__ import annotations
 import os
 import threading
 
-from app.core.config import RUNTIME_SCOPE_LABEL, get_settings
+from app.core.config import get_settings, runtime_scope
 from app.services.evac_routes import rationale as rationale_svc
 from prep.hazard_sources import registry
 from prep.hazard_sources.quake.cost import QUAKE_COST
@@ -101,16 +101,20 @@ _lock = threading.Lock()
 
 
 def _graph_file(scenario: str) -> str:
-    if scenario not in B.GRAPHS:
-        raise BadRequest(f"未知の浸水シナリオ: {scenario!r} / 既知={sorted(B.GRAPHS)}")
-    source = B.GRAPHS[scenario]
-    filename = os.path.splitext(os.path.basename(source))[0] + ".npz"
-    p = os.path.join(get_settings().active_graph_dir, filename)
-    if not os.path.exists(p):
-        raise NotGenerated(
-            f"{rel(p)} が無い。"
-            "cd backend && python3 -m prep.route_search.export_npz を実行する"
+    """選択中の範囲・profileで、このシナリオが読むNPZ。
+
+    ⚠️ ファイル名は `scopes.Scope` が決める。**前処理側の pickle 命名
+    （`bundles.GRAPHS`）から導かない。** 導いていた頃は、新しい範囲の成果物が
+    旧スコープ時代の名前を名乗り続ける原因になっていた。
+    """
+    if scenario not in B.SCENARIO_META:
+        raise BadRequest(
+            f"未知の浸水シナリオ: {scenario!r} / 既知={sorted(B.SCENARIO_META)}"
         )
+    scope = runtime_scope()
+    p = os.path.join(get_settings().active_graph_dir, scope.npz_name(scenario))
+    if not os.path.exists(p):
+        raise NotGenerated(f"{rel(p)} が無い。先にこれを実行する:\n    {scope.builder}")
     return p
 
 
@@ -166,7 +170,7 @@ def area(scenario: str = DEFAULT_SCENARIO) -> dict:
         "edges": meta.get("edges"),
         "max_snap_m": MAX_SNAP_M,
         "note": "経路は事前に焼いた歩行者グラフの上でしか引けません。"
-        f"いま用意してあるのは{RUNTIME_SCOPE_LABEL}だけです。"
+        f"いま用意してあるのは{runtime_scope().label}だけです。"
         "この外の地点は指定できません。",
     }
 
@@ -181,7 +185,7 @@ def _check_area(bbox, origin, dest):
         label = {"origin": "出発地", "dest": "目的地"}
         raise OutOfArea(
             "・".join(label[w] for w in outside) + "が対象エリアの外です。"
-            f"いま経路を引けるのは{RUNTIME_SCOPE_LABEL}だけです。",
+            f"いま経路を引けるのは{runtime_scope().label}だけです。",
             outside,
             bbox,
         )
@@ -200,9 +204,9 @@ def _normalize(hazards: dict | None) -> tuple[str, ...]:
     for hid, variant in hs.items():
         if hid not in known:
             raise BadRequest(f"未知のハザード種別: {hid!r} / 既知={sorted(known)}")
-        if hid == "flood" and variant not in B.GRAPHS:
+        if hid == "flood" and variant not in B.SCENARIO_META:
             raise BadRequest(
-                f"未知の浸水シナリオ: {variant!r} / 既知={sorted(B.GRAPHS)}"
+                f"未知の浸水シナリオ: {variant!r} / 既知={sorted(B.SCENARIO_META)}"
             )
         if hid == "quake" and variant not in QUAKE_VARIANTS:
             raise BadRequest(
