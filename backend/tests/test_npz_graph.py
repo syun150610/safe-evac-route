@@ -2,7 +2,8 @@
 
 ⚠️ 2026-08-21に探索範囲を 23区+多摩（市街化区域）へ切り替えたので、
 形の期待値もその実測値（652,828ノード / 1,905,380エッジ）にしてある。
-北千住→上野の統計値は現行スコープ時代と同じ（同じ道・同じデータのため）。
+北千住→上野の baseline の統計値は現行スコープ時代と同じ（同じ道・同じデータで、
+length のみで重み付けするため）。combined は地震の係数を変えると変わる。
 
 ⚠️ profile は `kensetsu` だけを見る。`gesuido` には新スコープの成果物が無く、
 旧世代へのロールバック手段が現状ない（`docs/dev/07_課題と作業計画.md` の負債）。
@@ -43,9 +44,13 @@ def test_committed_npz_has_expected_shape_and_no_pickle(monkeypatch, profile, na
         assert all(array.dtype.kind != "O" for array in data.values())
 
 
+# ⚠️ combined（浸水×地震）の距離は**地震の係数を変えると変わる**。
+#    2026-08-22に QUAKE_COST を {1.0,1.2,1.5,2.0,3.0} → {1.5,2.0,4.0,8.0,13.3}、
+#    QUAKE_COVERAGE_PENALTY を 1.2 → 2.0 へ変えてグラフを焼き直したので
+#    5791.5 → 5563.1 になった。baseline（length のみ）は影響を受けず不変。
 @pytest.mark.parametrize(
     ("profile", "combined_distance_m"),
-    [("kensetsu", 5791.5)],
+    [("kensetsu", 5563.1)],
 )
 def test_npz_rebuilds_graph_and_searches_route(
     monkeypatch, profile, combined_distance_m
