@@ -37,6 +37,13 @@ GRAPH_DIR = PROCESSED_DIR / "graph"
 TILES_DIR = PROCESSED_DIR / "tiles"
 BUNDLES_DIR = PROCESSED_DIR / "bundles"
 
+# ポリゴン融合スコープを組み立てる途中の生成物（pbf・OSM XML・焼き上がりpickle・
+# NPZ）。1スコープぶんで約4.7GBある。
+# ⚠️ **スコープごとに分ける。** `area_graph/build.py` も `bake.py` も
+#    「出力が既にあればその工程を飛ばす」作りなので、1つのディレクトリを
+#    共用すると、別の範囲を焼いたときに前の範囲の中間物を掴んで黙って飛ばす。
+BUILD_DIR = PROCESSED_DIR / "graph_build"
+
 # 本番APIへ同梱する圧縮グラフ。`data/processed/graph` の pickle は前処理用で
 # gitignore 対象だが、こちらの npz は小さいため git に入れて Docker へ COPY する。
 RUNTIME_GRAPH_DIR = PREP_DIR.parent / "graph"
@@ -70,6 +77,16 @@ def tiles_path(*parts):
 
 def bundles_path(*parts):
     return str(BUNDLES_DIR.joinpath(*parts))
+
+
+def build_dir(scope_id: str) -> str:
+    """スコープ1つぶんの中間生成物の置き場（Git管理外）。"""
+    return str(BUILD_DIR / scope_id)
+
+
+def build_path(scope_id: str, *parts) -> str:
+    """同上のファイル1件。"""
+    return str(BUILD_DIR.joinpath(scope_id, *parts))
 
 
 def out_path(*parts):

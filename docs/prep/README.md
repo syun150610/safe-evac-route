@@ -42,7 +42,7 @@ OpenStreetMap（Geofabrik関東pbf）─ osmium ─ walkフィルタ ─ 道路�
 | 東京都建設局 浸水予想区域図CSV | `data/raw/tokyoto_kensetsukyoku/` | 浸水格子、タイル、道路エッジ属性 |
 | 東京都 第9回地域危険度SHP | `data/raw/tokyoto_toshiseibikyoku/all2.zip` | 地震の公式一次入力 |
 | 正規化した地域危険度GPKG | `data/raw/hazard/hazard.gpkg` | 地震危険度の道路エッジ属性 |
-| OpenStreetMap道路網（新スコープ） | Geofabrik関東pbf → `data/processed/graph_build/` | 本番の歩行者道路グラフ |
+| OpenStreetMap道路網（新スコープ） | Geofabrik関東pbf → `data/processed/graph_build/tokyo-23ku-tama-shigaika/` | 本番の歩行者道路グラフ |
 | OpenStreetMap道路網（旧スコープ） | OSMnxのOverpass取得・`data/cache/` | 北千住〜上野の旧グラフ |
 
 一次入力の取得とSHPからGPKGへの変換は[一次データの取得](raw-data.md)を参照する。
@@ -57,7 +57,7 @@ OpenStreetMap（Geofabrik関東pbf）─ osmium ─ walkフィルタ ─ 道路�
 | 浸水PNG | `data/processed/tiles/flood/{profile}/` | R2 `flood/{profile}/` | 対象外 |
 | 地震GeoJSON | `data/processed/tiles/quake/` | R2 `quake/` | 対象外 |
 | 前処理pickle（旧スコープ） | `data/processed/graph/{profile-id}/{scope}/` | 使用しない | 対象外 |
-| OSM中間物・新スコープpickle | `data/processed/graph_build/`（約2.7GB） | 使用しない | 対象外 |
+| OSM中間物・新スコープpickle | `data/processed/graph_build/tokyo-23ku-tama-shigaika/`（約4.5GB） | 使用しない | 対象外 |
 | 圧縮NPZ | `data/processed/runtime_graph/{profile-id}/{scope}/` | `backend/graph/{profile-id}/{scope}/` | 追跡 |
 | プリセット | `data/processed/bundles/{profile-id}/{scope}/` | `backend/bundles/{profile-id}/{scope}/` | 追跡 |
 
@@ -81,7 +81,7 @@ runtimeディレクトリへ明示的に追加する。
 | `gesuido` | `scope-kitasenju-ueno`（北千住駅～上野駅のbbox＋片側1km、26.7 km²） | 27,144ノード / 82,586エッジ |
 
 本番が使うのは `kensetsu` ＝新スコープである（`app/core/config.py` の
-`RUNTIME_SCOPE_DIR`）。島嶼部・山間部・非市街化区域は範囲外で、東京都全域ではない。
+`RUNTIME_SCOPE_ID`）。島嶼部・山間部・非市街化区域は範囲外で、東京都全域ではない。
 
 ⚠️ `gesuido` には新スコープの成果物が無いため、いまはprofileを切り替えても
 旧世代へ戻せない（`/api/evac-routes/presets` が503になる）。

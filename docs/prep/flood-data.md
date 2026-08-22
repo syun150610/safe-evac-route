@@ -72,7 +72,7 @@ uv run --frozen --group prep python -m prep.hazard_sources.quake.export
 
 | 範囲ディレクトリ | 内容 | 本番 |
 |---|---|---|
-| `scope-tokyo-23ku-tama-shigaika` | 23区＋多摩の市街化区域 1,324.85 km²（地域危険度の町丁目5,192件 / 51市区町村を融合）。652,828ノード / 1,905,380エッジ | **これを使う**（`app/core/config.py` の `RUNTIME_SCOPE_DIR`） |
+| `scope-tokyo-23ku-tama-shigaika` | 23区＋多摩の市街化区域 1,324.85 km²（地域危険度の町丁目5,192件 / 51市区町村を融合）。652,828ノード / 1,905,380エッジ | **これを使う**（`app/core/config.py` の `RUNTIME_SCOPE_ID`。定義は `prep/route_search/scopes.py`） |
 | `scope-kitasenju-ueno` | 北千住駅～上野駅のbbox＋片側1km、26.7 km²。27,144ノード / 82,586エッジ | 使わない（`gesuido` profileの成果物だけが残っている） |
 
 ⚠️ **2つの範囲でファイル名が同じ**（`kitasenju_ueno_envelope.npz` など）。
@@ -163,7 +163,7 @@ curl -L -o /tmp/kanto-latest.osm.pbf \
 uv run --frozen --group prep python -u \
   -m prep.route_search.area_graph.build --pbf /tmp/kanto-latest.osm.pbf
 
-# 浸水・地震の焼き込み（シナリオごと）。中間生成物は data/processed/graph_build/
+# 浸水・地震の焼き込み（シナリオごと）。中間生成物は data/processed/graph_build/tokyo-23ku-tama-shigaika/
 uv run --frozen --group prep python -u \
   -m prep.route_search.area_graph.bake --scenario envelope
 uv run --frozen --group prep python -u \
@@ -175,7 +175,9 @@ uv run --frozen --group prep python -u \
 `uv run --no-project --python 3.12 --with osmium` で別環境を作って実行している
 （`build.py` が内部で呼ぶ）。
 
-中間生成物は `data/processed/graph_build/` に出る（合計約2.7GB、Git管理外）。
+中間生成物は `data/processed/graph_build/tokyo-23ku-tama-shigaika/` に出る（合計約4.5GB、Git管理外）。
+⚠️ **スコープごとのディレクトリに分かれる。** `build.py` も `bake.py` も出力が既に
+あれば工程を飛ばすので、共用すると別の範囲の中間物を掴んで黙って飛ばす。
 焼き上がりpickleは1本 662,934,933B、書き出したNPZは envelope 39,169,547B /
 隅田川 33,825,368B / 神田川 32,992,549B である
 （2026-08-22の地震係数変更で焼き直したもの。焼き直しの所要は envelope 3分31秒 /
@@ -189,7 +191,7 @@ uv run --frozen --group prep python -u \
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-SRC=data/processed/graph_build
+SRC=data/processed/graph_build/tokyo-23ku-tama-shigaika
 DST=backend/graph/flood-kensetsu_quake-risk9/scope-tokyo-23ku-tama-shigaika
 
 cp $SRC/area_envelope.npz        $DST/kitasenju_ueno_envelope.npz
@@ -214,7 +216,7 @@ cp $SRC/area_kandagawa_meta.json $DST/kitasenju_ueno_kandagawa_meta.json
 リンク先を間違えると**古い係数のプリセットができる**ので、`ls -la` で日時を見る。
 
 ```bash
-cd "$(git rev-parse --show-toplevel)/data/processed/graph_build"
+cd "$(git rev-parse --show-toplevel)/data/processed/graph_build/tokyo-23ku-tama-shigaika"
 mkdir -p asnames
 ln -f area_envelope.pkl   asnames/kitasenju_ueno_envelope.pkl
 ln -f area_sumidagawa.pkl asnames/kitasenju_ueno.pkl          # 接尾辞なしが隅田川
@@ -223,7 +225,7 @@ ln -f area_kandagawa.pkl  asnames/kitasenju_ueno_kandagawa.pkl
 cd "$(git rev-parse --show-toplevel)/backend"
 BUNDLE_OUT=../data/processed/bundles/flood-kensetsu_quake-risk9/scope-tokyo-23ku-tama-shigaika
 uv run --frozen --group prep python -m prep.route_search.bundles \
-  --graph-dir ../data/processed/graph_build/asnames --outdir "$BUNDLE_OUT"
+  --graph-dir ../data/processed/graph_build/tokyo-23ku-tama-shigaika/asnames --outdir "$BUNDLE_OUT"
 
 # 検証してから本番配布物へ入れる
 rsync -a --delete "$BUNDLE_OUT/" \

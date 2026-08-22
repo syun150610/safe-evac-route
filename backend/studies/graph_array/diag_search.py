@@ -14,14 +14,17 @@ from itertools import count
 
 import numpy as np
 
+from prep.paths import build_path
 from prep.route_search import bundles as B
 from prep.route_search import csr_search as CS
+from prep.route_search import scopes
 from prep.route_search.csr_graph import load_csr
 from prep.route_search.csr_view import CsrGraphView
 from prep.route_search.search import resolve_path_edges, route_stats, stitch
 from prep.route_search.weights import edge_cost
 
-NPZ = "../data/processed/graph_build/area_envelope.npz"
+SCOPE = scopes.get("tokyo-23ku-tama-shigaika")
+NPZ = build_path(SCOPE.id, "area_envelope.npz")
 
 OD = [
     ("三軒茶屋→渋谷", (35.6437, 139.6689), (35.6580, 139.7016)),

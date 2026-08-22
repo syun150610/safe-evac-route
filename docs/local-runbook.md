@@ -347,7 +347,7 @@ npm run tiles:upload -- /absolute/path/to/data/processed/tiles --check
 係数を変えて焼き直すときは、先に対象を消すこと。
 
 ```bash
-rm ../data/processed/graph_build/area_envelope.pkl        # 焼き直す対象だけ
+rm ../data/processed/graph_build/tokyo-23ku-tama-shigaika/area_envelope.pkl   # 焼き直す対象だけ
 ```
 
 旧スコープの `prep.route_search.graph` にこのスキップは無く、毎回上書きする。

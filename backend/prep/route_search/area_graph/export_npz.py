@@ -12,7 +12,12 @@ import pickle
 import shutil
 import time
 
-BUILD_DIR = "../data/processed/graph_build"
+from prep.paths import build_dir
+from prep.route_search import scopes
+
+# 書き出す対象のスコープ。中間物の置き場はここから取る（生パスを書かない）。
+SCOPE = scopes.get("tokyo-23ku-tama-shigaika")
+BUILD_DIR = build_dir(SCOPE.id)
 
 
 def main() -> None:

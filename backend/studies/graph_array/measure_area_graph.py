@@ -20,14 +20,17 @@ import numpy as np
 
 from app.services.evac_routes import rationale as rationale_svc
 from app.services.evac_routes.search import COMBO_ID, _route_meta
+from prep.paths import build_path
 from prep.route_search import bundles as B
 from prep.route_search import csr_search as CS
+from prep.route_search import scopes
 from prep.route_search.csr_graph import load_csr
 from prep.route_search.csr_view import CsrGraphView
 from prep.route_search.search import resolve_path_edges, route_stats, stitch
 from prep.route_search.weights import baked_weight, edge_cost
 
-NPZ = "../data/processed/graph_build/area_envelope.npz"
+SCOPE = scopes.get("tokyo-23ku-tama-shigaika")
+NPZ = build_path(SCOPE.id, "area_envelope.npz")
 HAZARDS = {"flood": "envelope", "quake": "total"}
 
 OD = [
