@@ -81,6 +81,33 @@ def _quake_scenarios():
     ]
 
 
+def _risk(hid):
+    """カードや指標タイルが読むべき `routes[].stats` のキーと、危険区間の呼び名。
+
+    ⚠️ **キー名をフロントに書かせない。** 種別ごとに違う（浸水は
+    `ratio_over_03`、地震は `quake_r4plus_ratio`）ので、フロントが対応表を持つと
+    **種別を増やすたびにフロントの修正が要る**。registry の `risk` ブロックを
+    単一の出所にして、種別追加＝registry に1ブロックで済ませる。
+
+    ⚠️ **`coverage_key` を落とさない。** 危険区間が0%でも、その経路の大半が
+    整備範囲の外なら「安全」ではなく「判断材料が無い」。実測で経路の74.9%が
+    想定図の範囲外だったODがある。割合だけ出して未評価を隠すと、
+    `hazard_sources/base.py` が禁じている読み違えをそのまま画面に出す。
+
+    ⚠️ 文言の組み立てに使うもの（`condition_note` など）はここから配らない。
+    完成した文字列は `rationale` が返す（そちらが文言の単一の出所）。
+    """
+    spec = registry.risk(hid)
+    if spec is None:
+        return None
+    return {
+        "label": spec["label"],
+        "length_key": spec["length_key"],
+        "ratio_key": spec["ratio_key"],
+        "coverage_key": spec["coverage_key"],
+    }
+
+
 def _quake_legend():
     """ランク1〜5と調査対象外。**係数は載せない。**
 
@@ -104,6 +131,7 @@ def catalog():
             "label": meta["label"],
             "display_kind": meta["display_kind"],
             "note": meta["note"],
+            "risk": _risk(hid),
         }
         if hid == "flood":
             h["scenarios"] = _flood_scenarios()
