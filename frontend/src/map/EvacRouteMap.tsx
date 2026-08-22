@@ -17,6 +17,7 @@ import { useVector } from './hooks/useVector'
 import { distanceKm } from './lib/distance'
 import { nearestSegment, routeBounds } from './lib/geo'
 import { currentPosition, type Place } from './lib/gsi'
+import { shelterIsVisible } from './lib/shelter-viewport'
 import { initialSafeState, type PlaceField, safeReducer } from './state/evac-route-state'
 import type { ShelterFeature } from './types'
 
@@ -121,8 +122,9 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         (a, b) =>
           (a.distance ?? Number.POSITIVE_INFINITY) - (b.distance ?? Number.POSITIVE_INFINITY),
       )
-      .slice(0, 8)
   }, [shelterData, state.origin.place])
+
+  const nearbyShelters = useMemo(() => shelters.slice(0, 8), [shelters])
 
   const hazards = useMemo<Record<string, string>>(() => {
     const selection: Record<string, string> = {}
@@ -263,15 +265,19 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   useEffect(() => {
     const a = adapter.current
     if (!a || !ready) return
-    a.setShelterMarkers(
-      shelters.map(({ feature }) => ({
-        lngLat: feature.geometry.coordinates,
-        label: `【${feature.properties.type_label}】${feature.properties.name}`,
-        shelterType: feature.properties.type,
-        onClick: () => prepareDestination(shelterPlace(feature)),
-      })),
-    )
-  }, [adapter, ready, shelters, prepareDestination])
+    return a.onViewportChange((viewport) => {
+      a.setShelterMarkers(
+        shelters
+          .filter(({ feature }) => shelterIsVisible(feature, viewport, area))
+          .map(({ feature }) => ({
+            lngLat: feature.geometry.coordinates,
+            label: `【${feature.properties.type_label}】${feature.properties.name}`,
+            shelterType: feature.properties.type,
+            onClick: () => prepareDestination(shelterPlace(feature)),
+          })),
+      )
+    })
+  }, [adapter, ready, shelters, area, prepareDestination])
 
   useEffect(() => {
     const a = adapter.current
@@ -422,7 +428,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         desktopMode="sidebar"
         collapsedLabel={
           state.screen === 'home'
-            ? `近くの避難先 ${shelters.length}件`
+            ? `近くの避難先 ${nearbyShelters.length}件`
             : state.screen === 'search'
               ? '地点を検索'
               : '避難経路'
@@ -477,10 +483,10 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               <section className="border-t border-slate-200 px-3 pt-2.5 pb-3">
                 <div className="mb-1.5 flex items-center justify-between [&_h2]:m-0 [&_h2]:text-sm [&_span]:text-[9px] [&_span]:font-bold [&_span]:text-[#07156f]">
                   <h2>近くの避難先</h2>
-                  <span>{sheltersLoading ? '読込中…' : `${shelters.length}件表示`}</span>
+                  <span>{sheltersLoading ? '読込中…' : `${nearbyShelters.length}件表示`}</span>
                 </div>
                 <div className="grid gap-1.5">
-                  {shelters.map(({ feature, distance }) => (
+                  {nearbyShelters.map(({ feature, distance }) => (
                     <article
                       className="rounded-lg border border-slate-200 bg-white p-2 shadow-[0_2px_5px_rgb(15_23_42/4%)] [&_h3]:my-1 [&_h3]:text-xs [&_p]:mb-1.5 [&_p]:text-[9px] [&_p]:text-slate-600"
                       key={feature.properties.id}

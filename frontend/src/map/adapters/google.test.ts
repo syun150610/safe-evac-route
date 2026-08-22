@@ -57,6 +57,7 @@ function installStub() {
     opts: Record<string, unknown> = {}
     listeners: Record<string, (event?: any) => void> = {}
     _zoom: number
+    _bounds: any
     overlayMapTypes: {
       getLength(): number
       push(v: FloodType): void
@@ -66,6 +67,10 @@ function installStub() {
       this.el = el
       created.mapOpts = o
       this._zoom = o.zoom as number
+      this._bounds = {
+        getSouthWest: () => ({ lat: () => 35.68, lng: () => 139.72 }),
+        getNorthEast: () => ({ lat: () => 35.78, lng: () => 139.86 }),
+      }
       this.overlayMapTypes = {
         getLength: () => created.overlays.length,
         push: (v) => {
@@ -84,6 +89,9 @@ function installStub() {
     }
     getZoom() {
       return this._zoom
+    }
+    getBounds() {
+      return this._bounds
     }
     getCenter() {
       return { lat: () => 35.73 }
@@ -209,15 +217,83 @@ describe('adapter_google（スタブ）', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllEnvs()
     vi.restoreAllMocks()
   })
 
   it('ズームの1段ズレを吸収する（MapLibre z13 = Google z14）', async () => {
-    await makeAdapter()
+    const a = await makeAdapter()
     expect(created.mapOpts!.zoom).toBe(14)
     expect((created.mapOpts!.center as any).lat).toBe(35.733)
     expect((created.mapOpts!.center as any).lng).toBe(139.792)
+
+    const onViewportChange = vi.fn()
+    a.onViewportChange(onViewportChange)
+    expect(onViewportChange).toHaveBeenLastCalledWith({
+      bbox: [
+        [139.72, 35.68],
+        [139.86, 35.78],
+      ],
+      zoom: 13,
+    })
+
+    fakeMap._zoom = 13
+    fakeMap.listeners.idle()
+    expect(onViewportChange).toHaveBeenLastCalledWith({
+      bbox: [
+        [139.72, 35.68],
+        [139.86, 35.78],
+      ],
+      zoom: 12,
+    })
+  })
+
+  it('表示範囲の変更をdebounceし、購読解除後は通知しない', async () => {
+    vi.useFakeTimers()
+    const a = await makeAdapter()
+    const callback = vi.fn()
+    const unsubscribe = a.onViewportChange(callback)
+    callback.mockClear()
+
+    fakeMap._bounds = {
+      getSouthWest: () => ({ lat: () => 35.7, lng: () => 139.74 }),
+      getNorthEast: () => ({ lat: () => 35.8, lng: () => 139.88 }),
+    }
+    fakeMap.listeners.bounds_changed()
+    expect(callback).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(100)
+    expect(callback).toHaveBeenCalledOnce()
+
+    callback.mockClear()
+    fakeMap._bounds = {
+      getSouthWest: () => ({ lat: () => 35.71, lng: () => 139.75 }),
+      getNorthEast: () => ({ lat: () => 35.81, lng: () => 139.89 }),
+    }
+    fakeMap.listeners.bounds_changed()
+    fakeMap.listeners.idle()
+    expect(callback).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(100)
+    expect(callback).toHaveBeenCalledOnce()
+
+    unsubscribe()
+    fakeMap.listeners.idle()
+    expect(callback).toHaveBeenCalledOnce()
+  })
+
+  it('初期化直後にboundsが未確定でも例外にしない', async () => {
+    const a = await makeAdapter()
+    fakeMap._bounds = undefined
+    const callback = vi.fn()
+    expect(() => a.onViewportChange(callback)).not.toThrow()
+    expect(callback).not.toHaveBeenCalled()
+
+    fakeMap._bounds = {
+      getSouthWest: () => ({ lat: () => 35.68, lng: () => 139.72 }),
+      getNorthEast: () => ({ lat: () => 35.78, lng: () => 139.86 }),
+    }
+    fakeMap.listeners.idle()
+    expect(callback).toHaveBeenCalledOnce()
   })
 
   it('航空写真に切り替えさせない / ズームボタンは右上', async () => {

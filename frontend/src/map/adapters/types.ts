@@ -57,6 +57,12 @@ export interface AreaClick {
   properties: Record<string, unknown>
 }
 
+/** 現在の地図表示範囲。zoom はMapLibre基準の論理値 */
+export interface MapViewport {
+  bbox: BBox
+  zoom: number
+}
+
 export interface MapAdapter {
   readonly name: 'maplibre' | 'google'
 
@@ -93,6 +99,8 @@ export interface MapAdapter {
   onClick(cb: (e: RouteClick) => void): void
   onAreaClick(cb: (e: AreaClick) => void): void
   onLongPress(cb: (lngLat: LngLatTuple) => void): void
+  /** 移動完了後の表示範囲を通知する。登録時にも現在値を通知し、戻り値で購読解除する */
+  onViewportChange(cb: (viewport: MapViewport) => void): () => void
 
   fitBounds(bbox: BBox, opts?: { padding?: Padding; duration?: number }): void
   flyTo(lngLat: LngLatTuple, zoom?: number): void

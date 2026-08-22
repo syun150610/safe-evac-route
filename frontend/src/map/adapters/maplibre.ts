@@ -27,12 +27,14 @@ import type {
   BBox,
   LngLatTuple,
   MapAdapter,
+  MapViewport,
   MarkerSpec,
   Padding,
   RasterOptions,
   RouteClick,
   ShelterMarkerSpec,
 } from './types'
+import { viewportKey } from './viewport'
 
 // ⚠️ **これが無いと経路の線が1本も描かれない。** maplibre-gl v6 は Worker を本体とは
 //    別ファイル（dist/maplibre-gl-worker.mjs）に分け、既定では `import.meta.url` からの
@@ -65,11 +67,33 @@ export function createMapLibreAdapter(): MapAdapter {
   let clickCb: ((e: RouteClick) => void) | null = null
   let areaClickCb: ((e: AreaClick) => void) | null = null
   let longPressCb: ((lngLat: LngLatTuple) => void) | null = null
+  let viewportChangeCb: ((viewport: MapViewport) => void) | null = null
+  let lastViewportKey: string | null = null
   let locked: string[] | null = null
   const markers: Marker[] = []
   const shelterMarkers: Marker[] = []
 
   const handler = (n: string) => (map as unknown as Record<string, Handler>)[n]
+
+  function viewport(): MapViewport {
+    const bounds = map.getBounds()
+    return {
+      bbox: [
+        [bounds.getWest(), bounds.getSouth()],
+        [bounds.getEast(), bounds.getNorth()],
+      ],
+      zoom: map.getZoom(),
+    }
+  }
+
+  function emitViewport(force = false) {
+    if (!viewportChangeCb) return
+    const current = viewport()
+    const key = viewportKey(current)
+    if (!force && key === lastViewportKey) return
+    lastViewportKey = key
+    viewportChangeCb(current)
+  }
 
   /** ハザードの面は**経路より下**に入れる。返り値を addLayer の第2引数に渡す。
    *
@@ -104,6 +128,7 @@ export function createMapLibreAdapter(): MapAdapter {
       map.addControl(new NavigationControl(), 'top-right')
       map.addControl(new ScaleControl({}))
       popup = new Popup({ closeButton: false })
+      map.on('moveend', () => emitViewport())
 
       const canvas = map.getCanvas()
       let longPressTimer: ReturnType<typeof setTimeout> | null = null
@@ -440,6 +465,13 @@ export function createMapLibreAdapter(): MapAdapter {
     },
     onLongPress(cb) {
       longPressCb = cb
+    },
+    onViewportChange(cb) {
+      viewportChangeCb = cb
+      emitViewport(true)
+      return () => {
+        if (viewportChangeCb === cb) viewportChangeCb = null
+      }
     },
 
     fitBounds(
