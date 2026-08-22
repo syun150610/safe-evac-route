@@ -38,10 +38,13 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const mobile = useMobileLayout()
   const [state, dispatch] = useReducer(safeReducer, initialSafeState)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [layersOpen, setLayersOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const requestedLocation = useRef(false)
   const floodAdded = useRef(false)
   const quakeAdded = useRef(false)
+  const layersButtonRef = useRef<HTMLButtonElement>(null)
+  const layersPopoverRef = useRef<HTMLElement>(null)
   const { catalog, error: hazardError } = useHazards()
   const { area, error: areaError } = useArea()
   const search = useSearch()
@@ -66,20 +69,30 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   }, [])
 
   function openScreen(screen: 'home' | 'search' | 'route') {
+    setLayersOpen(false)
     dispatch({ type: 'open', screen })
     setSheetOpen(screen !== 'home')
   }
 
-  function openLayers() {
-    dispatch({ type: 'open_layers' })
-    setSheetOpen(true)
+  function toggleLayers() {
+    setLayersOpen((open) => !open)
   }
 
-  function closeLayers() {
-    const returnsHome = state.returnScreen === 'home'
-    dispatch({ type: 'close_layers' })
-    setSheetOpen(!returnsHome)
-  }
+  useEffect(() => {
+    if (!layersOpen) return
+
+    function closeOnOutsidePointer(event: PointerEvent) {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (layersButtonRef.current?.contains(target) || layersPopoverRef.current?.contains(target)) {
+        return
+      }
+      setLayersOpen(false)
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsidePointer, true)
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePointer, true)
+  }, [layersOpen])
 
   const requestLocation = useCallback(async () => {
     try {
@@ -332,13 +345,47 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
           ◎
         </button>
         <button
+          ref={layersButtonRef}
           type="button"
           className="map-tool map-tool--layers"
-          onClick={openLayers}
+          onClick={toggleLayers}
           aria-label="地図レイヤー"
+          aria-expanded={layersOpen}
+          aria-controls="map-layer-popover"
         >
           ▱
         </button>
+        {layersOpen && (
+          <section
+            ref={layersPopoverRef}
+            id="map-layer-popover"
+            className="absolute right-[60px] bottom-[calc(var(--sheet-peek,74px)+23px)] z-[4] w-[min(280px,calc(100%-84px))] rounded-xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgb(15_23_42/22%)] min-[900px]:bottom-[55px]"
+            aria-label="地図レイヤーの設定"
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="m-0 text-sm">地図に表示する情報</h2>
+              <button
+                type="button"
+                className="grid size-7 cursor-pointer place-items-center rounded-full border-0 bg-slate-100"
+                onClick={() => setLayersOpen(false)}
+                aria-label="閉じる"
+              >
+                ×
+              </button>
+            </div>
+            <LayerPicker
+              value={state.mapLayer}
+              scenario={state.scenario}
+              scenarios={floodScenarios}
+              opacity={state.opacity}
+              loading={quakeLoading}
+              error={quakeError}
+              onChange={(layer) => dispatch({ type: 'set_layer', layer })}
+              onScenarioChange={(scenario) => dispatch({ type: 'set_scenario', scenario })}
+              onOpacityChange={(opacity) => dispatch({ type: 'set_opacity', opacity })}
+            />
+          </section>
+        )}
       </section>
 
       <BottomSheet
@@ -353,9 +400,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             ? `近くの避難先 ${shelters.length}件`
             : state.screen === 'search'
               ? '地点を検索'
-              : state.screen === 'layers'
-                ? '地図レイヤーの設定'
-                : '避難経路'
+              : '避難経路'
         }
       >
         <section className="relative min-h-[calc(100dvh-346px)] bg-slate-50 min-[900px]:min-h-full">
@@ -621,34 +666,6 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             </section>
           )}
 
-          {state.screen === 'layers' && (
-            <section className={SHEET_SCREEN_CLASS}>
-              <div className="mb-4 flex items-center gap-3 [&>button]:grid [&>button]:size-[34px] [&>button]:cursor-pointer [&>button]:place-items-center [&>button]:rounded-full [&>button]:border-0 [&>button]:bg-slate-100 [&_h2]:m-0 [&_h2]:text-base">
-                <button type="button" onClick={closeLayers} aria-label="閉じる">
-                  ×
-                </button>
-                <h2>地図に表示する情報</h2>
-              </div>
-              <LayerPicker
-                value={state.mapLayer}
-                scenario={state.scenario}
-                scenarios={floodScenarios}
-                opacity={state.opacity}
-                loading={quakeLoading}
-                error={quakeError}
-                onChange={(layer) => dispatch({ type: 'set_layer', layer })}
-                onScenarioChange={(scenario) => dispatch({ type: 'set_scenario', scenario })}
-                onOpacityChange={(opacity) => dispatch({ type: 'set_opacity', opacity })}
-              />
-              <button
-                type="button"
-                className="mt-4 min-h-11 w-full cursor-pointer rounded-lg border-0 bg-[#07156f] font-bold text-white"
-                onClick={closeLayers}
-              >
-                完了
-              </button>
-            </section>
-          )}
         </section>
         <DataAttribution mobile platform={platform} />
       </BottomSheet>
