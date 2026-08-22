@@ -140,7 +140,7 @@ HAZARD_DATA_PROFILE=kensetsu \
 本番が使うグラフはこちらで作る。**Overpassは使わない**（2026-08-21の作業で
 実際にタイムアウトしたため、Geofabrikの配布pbfへ切り替えた）。
 
-工程は4つで、`backend/studies/graph_array/area_build/build_area_graph.py` が
+工程は4つで、`backend/prep/route_search/area_graph/build.py` が
 順に実行する。工程ごとに中間結果を残し、既に出力があればその工程を飛ばすので、
 途中で落ちても同じコマンドで再開できる。
 
@@ -161,19 +161,19 @@ curl -L -o /tmp/kanto-latest.osm.pbf \
   https://download.geofabrik.de/asia/japan/kanto-latest.osm.pbf
 
 uv run --frozen --group prep python -u \
-  -m studies.graph_array.area_build.build_area_graph --pbf /tmp/kanto-latest.osm.pbf
+  -m prep.route_search.area_graph.build --pbf /tmp/kanto-latest.osm.pbf
 
 # 浸水・地震の焼き込み（シナリオごと）。中間生成物は data/processed/graph_build/
 uv run --frozen --group prep python -u \
-  -m studies.graph_array.area_build.bake_area_graph --scenario envelope
+  -m prep.route_search.area_graph.bake --scenario envelope
 uv run --frozen --group prep python -u \
-  -m studies.graph_array.area_build.export_area_npz --scenario envelope
+  -m prep.route_search.area_graph.export_npz --scenario envelope
 ```
 
 ⚠️ **`osmium` コマンドと Python 3.12 が要る。** 工程2は osmium-tool（`/usr/bin/osmium`）、
 工程3は pyosmium を使う。pyosmium は Python 3.14 のプロジェクト環境へ入らないため、
 `uv run --no-project --python 3.12 --with osmium` で別環境を作って実行している
-（`build_area_graph.py` が内部で呼ぶ）。
+（`build.py` が内部で呼ぶ）。
 
 中間生成物は `data/processed/graph_build/` に出る（合計約2.7GB、Git管理外）。
 焼き上がりpickleは1本 662,934,933B、書き出したNPZは envelope 39,169,547B /
@@ -255,16 +255,19 @@ print("プリセットと任意地点探索は一致")
 PY
 ```
 
-### この手順の置き場について（未決）
+### この手順の置き場（2026-08-22に移設済み）
 
-新スコープの構築コードは現在 `backend/studies/graph_array/area_build/` にある。
-`studies/` は `tests/test_layering.py` が「本番（app / prep）から import されない」
-ことを機械で確認している検証専用の領域で、前処理の正式な置き場ではない。
+新スコープの構築コードは `backend/prep/route_search/area_graph/` にある。
+本番の成果物を作る手順が検証専用領域（`studies/`）にあるのは矛盾していたため、
+`prep.route_search.graph`（旧スコープ・矩形bbox）と並ぶ位置へ移した。
 
-**提案（未実施）**: 本番の成果物を作る手順である以上、`backend/prep/route_search/`
-配下（例: `prep/route_search/area_graph/`）へ移し、`prep.route_search.graph` と
-並べるのが筋である。移す場合は、旧スコープ用の `graph.py` と新スコープ用が
-別物であることが名前から分かるようにする。判断はチームで行う。
+| 範囲の作り方 | 置き場 | 実行 |
+|---|---|---|
+| 矩形bbox（旧スコープ） | `prep/route_search/graph.py` | 1コマンドで取得〜焼き込み〜保存 |
+| ポリゴン融合（新スコープ） | `prep/route_search/area_graph/` | `build` → `bake` → `export_npz` の3コマンド |
+
+`studies/graph_array/measure_area_graph.py` は成果物を作らない実測スクリプトなので
+`studies/` に残してある。
 
 ## runtime成果物と切替設定
 
@@ -333,7 +336,7 @@ profile付きURLだけを返す。
 - グラフ生成ログに地震5,192町丁目が読み込まれたことが出る
 - NPZ変換時の全12 OD・全ハザード条件の検証が成功する
   （⚠️ これは旧スコープの `prep.route_search.export_npz` の話。新スコープの
-  `studies/.../export_area_npz.py` は `save_graph_npz` だけを呼び、
+  `prep/route_search/area_graph/export_npz.py` は `save_graph_npz` だけを呼び、
   pickleとの一致検証を通していない。`docs/dev/07_課題と作業計画.md` の P0-6）
 - プリセットAPIの全36件が静的JSONとバイト一致する
 - 入力ファイル、SHA256、bbox、coverage、タイル数、経路統計を記録する

@@ -1,6 +1,6 @@
 """新スコープ（23区+多摩の市街化区域）のグラフへハザードを焼く。
 
-    python -m studies.graph_array.area_build.bake_area_graph --scenario envelope
+    python -m prep.route_search.area_graph.bake --scenario envelope
 
 ⚠️ **どのCSVを焼くかはここで決めない。** 入力は
 `prep/hazard_sources/flood/scenarios.py` の `SCENARIOS[シナリオ]["csv"]` が単一の

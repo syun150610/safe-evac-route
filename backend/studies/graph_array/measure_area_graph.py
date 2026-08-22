@@ -1,6 +1,6 @@
 """新スコープNPZの実測と、未評価区間の出方の確認。
 
-    python -m studies.graph_array.area_build.measure_area_graph
+    python -m studies.graph_array.measure_area_graph
 
 出すもの
   * CSRロード時間・配列サイズ・RSS（起動直後 / 定常）

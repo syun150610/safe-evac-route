@@ -341,7 +341,7 @@ npm run tiles:upload -- /absolute/path/to/data/processed/tiles --check
 
 ### 焼き直しコマンドが黙って終了する場合がある
 
-新スコープ用の `studies/graph_array/area_build/bake_area_graph.py` は、
+新スコープ用の `prep/route_search/area_graph/bake.py` は、
 **出力pickleが既にあると `既にある -> ...` と1行出して正常終了する**
 （中断からの再開のための挙動で、上書きフラグは無い）。
 係数を変えて焼き直すときは、先に対象を消すこと。

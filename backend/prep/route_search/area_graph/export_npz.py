@@ -1,6 +1,6 @@
 """新スコープの焼き上がりpickleを、配布用の圧縮NPZ（CSRが読む形）へ書き出す。
 
-    python -m studies.graph_array.area_build.export_area_npz --scenario envelope
+    python -m prep.route_search.area_graph.export_npz --scenario envelope
 
 ⚠️ 変換は既存の `prep.route_search.npz_graph.save_graph_npz` をそのまま使う。
 """

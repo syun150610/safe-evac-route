@@ -1,7 +1,7 @@
 """pbf から **osmnx の walk フィルタと同じ条件**の道路だけを .osm XML へ抜き出す。
 
 ⚠️ このスクリプトだけ Python 3.12 + pyosmium で動かす（プロジェクト環境は3.14で
-pyosmium が入らないため）。呼び出し方は build_area_graph.py を参照。
+pyosmium が入らないため）。呼び出し方は build.py を参照。
 
 osmnx 2.1.1 の `_get_network_filter("walk")` は次の Overpass フィルタを出す。
 

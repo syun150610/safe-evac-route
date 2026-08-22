@@ -3,7 +3,7 @@
 工程ごとに中間結果を残す。**既に出力があればその工程は飛ばす**ので、
 途中で落ちても同じコマンドで再開できる。
 
-    python -m studies.graph_array.area_build.build_area_graph --pbf <kanto.osm.pbf>
+    python -m prep.route_search.area_graph.build --pbf <kanto.osm.pbf>
 
 工程
     1 area   … 地域危険度（市街化区域の町丁目5,192件）を融合して対象範囲のGeoJSON
@@ -95,9 +95,7 @@ def stage_filter() -> None:
         log(f"3 filter: 既にある -> {WALK_OSM}")
         return
     log("3 filter: osmnx の walk フィルタ相当（Python 3.12 + pyosmium）")
-    script = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "osm_walk_filter.py"
-    )
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "walk_filter.py")
     cmd = [
         "uv",
         "run",
