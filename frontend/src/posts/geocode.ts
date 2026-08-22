@@ -16,7 +16,7 @@ export async function reverseGeocode(post: Pick<Post, 'latitude' | 'longitude'>)
 
     const response = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${post.latitude}&lon=${post.longitude}&zoom=18&addressdetails=1`,
-      { headers: { Accept: 'application/json' } },
+      { headers: { Accept: 'application/json', 'User-Agent': 'safe-evac-route/prototype (https://github.com/syun150610/safe-evac-route)' } },
     )
     if (!response.ok) return null
     const data = (await response.json()) as { address?: Record<string, string> }
