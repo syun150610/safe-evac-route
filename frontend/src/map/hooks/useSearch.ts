@@ -34,10 +34,11 @@ export function useSearch() {
     setState((s) => ({ ...s, error: null, outside: [], loading: true }))
     try {
       const b = await postSearch(req)
-      if (my !== seq.current) return // 追い越された。捨てる
+      if (my !== seq.current) return null // 追い越された。捨てる
       setState({ bundle: b, error: null, outside: [], loading: false })
+      return b
     } catch (e) {
-      if (my !== seq.current) return
+      if (my !== seq.current) return null
       const err = e as ApiError
       setState({
         bundle: null,
@@ -45,6 +46,7 @@ export function useSearch() {
         outside: err instanceof ApiError && err.outOfArea ? err.outside : [],
         loading: false,
       })
+      return null
     }
   }, [])
 

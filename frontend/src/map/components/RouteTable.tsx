@@ -1,58 +1,66 @@
-/** 経路の指標表。表示のON/OFFも兼ねる。
- *
- * ⚠️ **数値の意味を変えない。** `R4以上` は地域危険度ランク4以上を通る割合、
- * `0.3m超` は浸水深0.3m（歩行困難ライン）を超える区間の割合。
- * docs/findings/検証記録.md 10章と同じ定義（05_チーム移行案 §3-1「守るもの」）。
- */
-import { STYLE, SUFFIX } from '../constants'
-import { km, pct } from '../lib/format'
 import type { Bundle, RouteId } from '../types'
+import type { HazardChoice } from './HazardPicker'
 
 interface Props {
   bundle: Bundle
-  shown: Record<RouteId, boolean>
-  onToggle: (id: RouteId, on: boolean) => void
+  shown: Partial<Record<RouteId, boolean>>
+  hazard: HazardChoice
+  onToggle: (id: RouteId, shown: boolean) => void
 }
 
-export function RouteTable({ bundle, shown, onToggle }: Props) {
+/** 経路の表示切替と主要指標を、モック準拠の比較カードで表示する。 */
+export function RouteTable({ bundle, shown, hazard, onToggle }: Props) {
+  const selected = bundle.routes.find((route) => route.id === bundle.selected_route)
+  const baseline = bundle.routes.find((route) => route.id === 'baseline')
+
   return (
-    <table className="mt-2 w-full border-collapse text-[11px]">
-      <thead>
-        <tr className="[&>th]:border-b [&>th]:border-slate-200 [&>th]:px-0.5 [&>th]:py-1 [&>th]:text-right [&>th:first-child]:text-left">
-          <th />
-          <th>距離</th>
-          <th>0.3m超</th>
-          <th>最大深</th>
-          <th>R4以上</th>
-        </tr>
-      </thead>
-      <tbody>
-        {bundle.routes.map((r) => (
-          <tr
-            key={r.id}
-            className={`[&>td]:border-b [&>td]:border-slate-100 [&>td]:px-0.5 [&>td]:py-1 [&>td]:text-right [&>td:first-child]:text-left ${shown[r.id] ? '' : 'opacity-40'}`}
-          >
-            <td>
-              <label
-                className="flex min-h-8 cursor-pointer items-center gap-1.5 max-[700px]:min-h-11"
-                title={SUFFIX[r.id] ? `${r.desc}（${SUFFIX[r.id]}）` : r.desc}
-              >
-                <input
-                  type="checkbox"
-                  className="size-4"
-                  checked={shown[r.id]}
-                  onChange={(e) => onToggle(r.id, e.target.checked)}
-                />
-                <span style={{ color: STYLE[r.id].color }}>{r.no}</span> {r.label}
-              </label>
-            </td>
-            <td>{km(r.stats.distance_m)}</td>
-            <td>{pct(r.stats.ratio_over_03)}</td>
-            <td>{r.stats.max_depth_m.toFixed(2)}m</td>
-            <td>{pct(r.stats.quake_r4plus_ratio)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <>
+      <h3 className="mt-5 mb-2 text-[13px]">経路を比較</h3>
+      {bundle.routes.map((route) => (
+        <label
+          className={`mb-2 grid grid-cols-[auto_18px_1fr] items-center gap-2 rounded-lg border p-3 transition-opacity [&_span>em]:block [&_span>em]:text-[9px] [&_span>em]:font-bold [&_span>em]:text-[#07156f] [&_span>em]:not-italic [&_span>small]:my-1 [&_span>small]:block [&_span>small]:text-[9px] [&_span>small]:text-slate-500 [&_span>strong]:block [&_span>strong]:text-[11px] ${route.id === bundle.selected_route ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-200'} ${shown[route.id] === false ? 'opacity-45' : ''}`}
+          key={route.id}
+        >
+          <input
+            type="checkbox"
+            checked={shown[route.id] !== false}
+            onChange={(event) => onToggle(route.id, event.target.checked)}
+          />
+          <span
+            className={`h-1 rounded-full ${route.id === 'baseline' ? '[background:repeating-linear-gradient(90deg,#64748b_0_5px,transparent_5px_8px)]' : 'bg-[#07156f]'}`}
+          />
+          <span>
+            <strong>
+              {route.no} {route.label}
+            </strong>
+            <small>
+              徒歩約{Math.round(route.stats.duration_min_60)}分・
+              {(route.stats.distance_m / 1000).toFixed(2)} km
+            </small>
+            <em>
+              {hazard === 'quake'
+                ? `地震R4以上 ${(route.stats.quake_r4plus_ratio * 100).toFixed(1)}%`
+                : `0.3m超区間 ${(route.stats.ratio_over_03 * 100).toFixed(1)}%`}
+            </em>
+          </span>
+        </label>
+      ))}
+      {selected && baseline && (
+        <div className="mt-3 grid grid-cols-3 gap-1.5 [&>span]:rounded-lg [&>span]:bg-slate-100 [&>span]:px-1 [&>span]:py-2.5 [&>span]:text-center [&>span]:text-[8px] [&>span]:text-slate-500 [&_strong]:mt-1 [&_strong]:block [&_strong]:text-[11px] [&_strong]:text-slate-800">
+          <span>
+            最大浸水深<strong>{selected.stats.max_depth_m.toFixed(2)} m</strong>
+          </span>
+          <span>
+            地震R4以上<strong>{(selected.stats.quake_r4plus_ratio * 100).toFixed(1)}%</strong>
+          </span>
+          <span>
+            最短との差
+            <strong>
+              {Math.round(selected.stats.duration_min_60 - baseline.stats.duration_min_60)}分
+            </strong>
+          </span>
+        </div>
+      )}
+    </>
   )
 }

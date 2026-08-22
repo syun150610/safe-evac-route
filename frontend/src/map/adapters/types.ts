@@ -36,6 +36,7 @@ export interface RasterOptions {
 export interface MarkerSpec {
   lngLat: LngLatTuple
   label: string
+  role?: 'origin' | 'destination'
 }
 
 export interface ShelterMarkerSpec {
@@ -43,6 +44,7 @@ export interface ShelterMarkerSpec {
   label: string
   /** urgent = 指定緊急避難場所（緑）/ designated = 指定避難所（黄） */
   shelterType: 'urgent' | 'designated'
+  onClick?: () => void
 }
 
 export interface RouteClick {
@@ -90,8 +92,10 @@ export interface MapAdapter {
   /** cb は「押された経路ID + 座標」を受ける。区間の特定は共通側が座標から行う */
   onClick(cb: (e: RouteClick) => void): void
   onAreaClick(cb: (e: AreaClick) => void): void
+  onLongPress(cb: (lngLat: LngLatTuple) => void): void
 
   fitBounds(bbox: BBox, opts?: { padding?: Padding; duration?: number }): void
+  flyTo(lngLat: LngLatTuple, zoom?: number): void
   /** シート操作中の地図ジェスチャ抑止 */
   lockGestures(on: boolean): void
   /** シートが下端を覆う高さ。地理院版は帰属表示を持ち上げ、Google版は地図を持ち上げる */
