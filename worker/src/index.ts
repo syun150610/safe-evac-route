@@ -13,6 +13,7 @@ export class FastAPIContainer extends Container {
   sleepAfter = "5m";
   envVars = {
     HAZARD_DATA_PROFILE: env.HAZARD_DATA_PROFILE,
+    JWT_SECRET_KEY: env.JWT_SECRET_KEY,
   };
 }
 
