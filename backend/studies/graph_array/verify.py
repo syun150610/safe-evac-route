@@ -115,10 +115,12 @@ def main() -> None:
     args = ap.parse_args()
 
     if args.scope:
-        # ⚠️ 実行時に差し替えるだけ。設定ファイルは書き換えない。
+        # ⚠️ 本番と同じ経路（環境変数 RUNTIME_SCOPE）で差し替える。
+        #    以前はここで app.core.config のモジュール属性を直接書き換えていたが、
+        #    その値を `from ... import` している側には伝わらなかった。
         from app.core import config as app_config
 
-        app_config.RUNTIME_SCOPE_ID = args.scope
+        os.environ["RUNTIME_SCOPE"] = args.scope
         app_config.get_settings.cache_clear()
         print(f"対象範囲を {args.scope} へ差し替えて実行する")
 

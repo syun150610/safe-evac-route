@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AnyHttpUrl, SecretStr
+from pydantic import AnyHttpUrl, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # ⚠️ 生成物の置き場は prep.paths が単一の出所。ここで二重に定義しない
@@ -24,20 +24,6 @@ PROFILE_DIRS: dict[HazardDataProfile, str] = {
     "gesuido": "flood-gesuido_quake-risk9",
     "kensetsu": "flood-kensetsu_quake-risk9",
 }
-# 探索グラフの対象範囲。**IDだけを持ち、ディレクトリ名も呼び名もここに書かない。**
-# 定義は prep.route_search.scopes が単一の出所で、そちらも標準ライブラリだけで動く。
-# 2026-08-21に 23区+多摩（市街化区域 1,324.85 km²）へ切り替えた。
-# ⚠️ 浸水想定図はこの範囲を覆いきらない（envelopeで実測83.8%）。覆えていない
-#    エッジは「0m」ではなく「未評価」として応答に出る（rationale の3段階表示）。
-#    流域の本数はここに書かない。単一の出所は hazard_sources/flood/scenarios.py。
-# ⚠️ 段階6で環境変数 `RUNTIME_SCOPE` から選べるようにする。それまでは定数。
-RUNTIME_SCOPE_ID = scopes.DEFAULT_SCOPE_ID
-
-
-def runtime_scope() -> scopes.Scope:
-    """いま使っている探索範囲。呼び名・ディレクトリ名・ファイル名はここから取る。"""
-
-    return scopes.get(RUNTIME_SCOPE_ID)
 
 
 class Settings(BaseSettings):
@@ -51,6 +37,14 @@ class Settings(BaseSettings):
     # 公開時に使うデータ世代。変更後はContainerを再起動すること。
     # グラフはプロセス内にキャッシュするため、起動中の差し替えには対応しない。
     hazard_data_profile: HazardDataProfile = "kensetsu"
+
+    # 探索グラフの対象範囲。**スコープIDを入れる**
+    # （ディレクトリ名 `scope-...` ではない）。
+    # 定義は prep.route_search.scopes が単一の出所で、呼び名もファイル名もそこから取る。
+    # ⚠️ 浸水想定図はこの範囲を覆いきらない（新スコープのenvelopeで実測83.8%）。
+    #    覆えていないエッジは「0m」ではなく「未評価」として応答に出る。
+    # ⚠️ 変更後はContainerを再起動すること。profileと同じく起動中の差し替えはしない。
+    runtime_scope: str = scopes.DEFAULT_SCOPE_ID
 
     # ---- 地図まわり ----
     # 事前計算して本番配布物として同梱したプリセット。
@@ -76,6 +70,23 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    @field_validator("runtime_scope")
+    @classmethod
+    def _known_scope(cls, v: str) -> str:
+        """未知のIDは**起動時に落とす。**
+
+        実行時まで持ち越すと、探索を叩いて 503 が出るまで気づけない。
+        """
+
+        scopes.get(v)  # 未知なら KeyError を投げる
+        return v
+
+    @property
+    def scope(self) -> scopes.Scope:
+        """選択中の探索範囲。呼び名・ディレクトリ名・ファイル名はここから取る。"""
+
+        return scopes.get(self.runtime_scope)
+
     @property
     def hazard_profile_id(self) -> str:
         """入力元・地震データを含む、成果物ディレクトリの識別子。"""
@@ -87,16 +98,14 @@ class Settings(BaseSettings):
         """選択中profile・探索範囲のプリセットディレクトリ。"""
 
         return str(
-            Path(self.bundles_dir) / self.hazard_profile_id / runtime_scope().dir_name
+            Path(self.bundles_dir) / self.hazard_profile_id / self.scope.dir_name
         )
 
     @property
     def active_graph_dir(self) -> str:
         """選択中profile・探索範囲のNPZディレクトリ。"""
 
-        return str(
-            Path(self.graph_dir) / self.hazard_profile_id / runtime_scope().dir_name
-        )
+        return str(Path(self.graph_dir) / self.hazard_profile_id / self.scope.dir_name)
 
 
 @lru_cache
@@ -104,3 +113,9 @@ def get_settings() -> Settings:
     """検証済みの設定をシングルトンとして返す。"""
 
     return Settings()
+
+
+def runtime_scope() -> scopes.Scope:
+    """いま使っている探索範囲。環境変数 `RUNTIME_SCOPE` で選ぶ。"""
+
+    return get_settings().scope

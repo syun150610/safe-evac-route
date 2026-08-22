@@ -1,6 +1,7 @@
 """新スコープ（23区+多摩の市街化区域）のグラフへハザードを焼く。
 
     python -m prep.route_search.area_graph.bake --scenario envelope
+    python -m prep.route_search.area_graph.bake --scenario envelope --scope <ID>
 
 ⚠️ **どのCSVを焼くかはここで決めない。** 入力は
 `prep/hazard_sources/flood/scenarios.py` の `SCENARIOS[シナリオ]["csv"]` が単一の
@@ -24,10 +25,9 @@ import numpy as np
 from prep.paths import build_dir, build_path
 from prep.route_search import scopes
 
-# 焼き込む対象のスコープ。ID・中間物の置き場はここから取る（生パスを書かない）。
-SCOPE = scopes.get("tokyo-23ku-tama-shigaika")
-BUILD_DIR = build_dir(SCOPE.id)
-GRAPH_PKL = build_path(SCOPE.id, "area_walk_graph.pkl")
+# 既定で焼き込む対象のスコープ。`--scope` で切り替える。
+# 中間物の置き場は paths 経由で取る（生パスを書かない）。
+DEFAULT_SCOPE_ID = "tokyo-23ku-tama-shigaika"
 
 
 def log(msg: str) -> None:
@@ -65,7 +65,18 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="新スコープのグラフへハザードを焼く")
     ap.add_argument("--scenario", default="envelope")
     ap.add_argument("--sample-m", type=float, default=10.0)
+    ap.add_argument(
+        "--scope",
+        default=DEFAULT_SCOPE_ID,
+        choices=scopes.ids(),
+        help="対象範囲のID（既定: %(default)s）",
+    )
     args = ap.parse_args()
+
+    scope = scopes.get(args.scope)
+    build_root = build_dir(scope.id)
+    graph_pkl = build_path(scope.id, "area_walk_graph.pkl")
+    log(f"対象範囲: {scope.id}（{scope.label}）-> {build_root}")
 
     from prep.hazard_sources.flood.grid import load_grid
     from prep.hazard_sources.flood.scenarios import (
@@ -81,14 +92,14 @@ def main() -> None:
     from prep.paths import rel
     from prep.route_search.graph import bake_hazard, bake_quake, edge_length_stats
 
-    out_pkl = f"{BUILD_DIR}/area_{args.scenario}.pkl"
-    out_meta = f"{BUILD_DIR}/area_{args.scenario}_meta.json"
+    out_pkl = f"{build_root}/area_{args.scenario}.pkl"
+    out_meta = f"{build_root}/area_{args.scenario}_meta.json"
     if os.path.exists(out_pkl):
         log(f"既にある -> {out_pkl}")
         return
 
-    log(f"グラフを読む: {GRAPH_PKL}")
-    with open(GRAPH_PKL, "rb") as f:
+    log(f"グラフを読む: {graph_pkl}")
+    with open(graph_pkl, "rb") as f:
         G = pickle.load(f)
     log(f"  nodes={G.number_of_nodes():,} edges={G.number_of_edges():,}")
     log(f"  RSS={rss_gb():.1f}GB")
@@ -157,7 +168,7 @@ def main() -> None:
                 "file": rel(QUAKE_GPKG),
             },
         },
-        "scope": {"id": SCOPE.id, "margin_km": 0.0},
+        "scope": {"id": scope.id, "margin_km": 0.0},
         "bbox_left_bottom_right_top": [min(xs), min(ys), max(xs), max(ys)],
         "network_type": "walk",
         "sample_interval_m": args.sample_m,

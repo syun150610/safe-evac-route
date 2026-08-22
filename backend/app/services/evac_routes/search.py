@@ -96,7 +96,10 @@ MAX_SNAP_M = 300.0
 DEFAULT_SCENARIO = "envelope"
 DEFAULT_INCLUDE = ("baseline", "selected")
 
-_graphs: dict[tuple[str, str], CsrGraphView] = {}
+# キーは (profile, scope, scenario)。**scopeを外さないこと。**
+# 外すと、範囲を切り替えても前の範囲のグラフが返る（bboxは新しい範囲のものを
+# 見るので、エリア判定と実際に引くグラフが食い違う）。
+_graphs: dict[tuple[str, str, str], CsrGraphView] = {}
 _lock = threading.Lock()
 
 
@@ -128,13 +131,17 @@ def _graph(scenario: str) -> CsrGraphView:
     ジオメトリと道路名は探索が触らないので、`CsrGraphView` が応答を組み立てる
     ときに初めて読む。
 
-    シナリオは3つしかないので単純な辞書で足りる。エリアを設定値化して増やすときは
-    ここに上限を入れること（05 §13 段11）。
+    ⚠️ **キャッシュキーに範囲（scope）を含める。** 含めないと `RUNTIME_SCOPE` を
+    変えても前の範囲のグラフが返る。
+
+    シナリオは3つしかないので単純な辞書で足りる。範囲を増やして常駐量が問題に
+    なるときは、ここに上限を入れること（05 §13 段11）。新スコープ3シナリオの
+    実測常駐は約620 MiB（上限6 GiB）。
     """
     p = _graph_file(scenario)
-    profile = get_settings().hazard_data_profile
+    settings = get_settings()
     with _lock:
-        key = (profile, scenario)
+        key = (settings.hazard_data_profile, settings.runtime_scope, scenario)
         G = _graphs.get(key)
         if G is None:
             G = CsrGraphView(load_csr(p))
