@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-
-import { useAuth } from '../auth/AuthProvider'
 import { getPosts, markPostHelpful } from '../api/client'
+import { useAuth } from '../auth/AuthProvider'
 import { reverseGeocode } from './geocode'
 import type { Post } from './types'
 
 function relativeDate(value: string) {
   const iso = value.replace(' ', 'T')
-  const date = new Date(/[Z+]/.test(iso.slice(-6)) ? iso : iso + 'Z')
+  const date = new Date(/[Z+]/.test(iso.slice(-6)) ? iso : `${iso}Z`)
   const minutes = Math.floor((Date.now() - date.getTime()) / 60000)
   if (minutes < 1) return 'たった今'
   if (minutes < 60) return `${minutes}分前`
@@ -69,7 +68,7 @@ export function TimelinePage() {
       })
       .catch(() => setError('投稿を読み込めませんでした'))
       .finally(() => setLoading(false))
-  }, [sort, position])
+  }, [sort, position, userId])
 
   useEffect(() => {
     const pending = posts.filter(
@@ -110,18 +109,24 @@ export function TimelinePage() {
 
   return (
     <main className="timeline-page min-h-screen bg-[#f8f8fb] pb-24 text-[#111b54]">
-      <header className="sticky top-0 z-10 border-b border-slate-100 bg-[#fbfbfd]/95 px-5 py-4 backdrop-blur">
-        <div className="mx-auto flex max-w-xl items-center justify-between">
-          <a className="flex items-center gap-2 text-[#07145f]" href="/" aria-label="地図に戻る">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#07145f] text-xl text-white">
-              ⌂
-            </span>
-            <strong className="text-xl tracking-[0.12em]">SAFE</strong>
-          </a>
-          <a className="text-sm font-semibold text-[#07145f]" href="/">
-            地図へ戻る
-          </a>
-        </div>
+      <header className="sticky top-0 z-10 flex h-[54px] items-center justify-between border-b border-slate-200 bg-white/95 px-4">
+        <a
+          className="flex items-center gap-2 text-sm tracking-[0.08em] text-[#07156f]"
+          href="/"
+          aria-label="地図に戻る"
+        >
+          <span className="grid size-6 place-items-center rounded-lg bg-[#07156f] text-white">
+            ◇
+          </span>
+          <strong>SAFE</strong>
+        </a>
+        <a
+          className="flex h-[30px] items-center rounded-full bg-[#ff6b00] px-4 text-xs font-bold text-white"
+          href="/posts/new"
+          aria-label="新規投稿を作成"
+        >
+          ✎ 投稿
+        </a>
       </header>
       <section className="mx-auto max-w-xl px-5 pt-7">
         <p className="mb-2 text-sm font-bold tracking-[0.22em] text-[#ff6b00]">COMMUNITY REPORTS</p>
@@ -214,13 +219,6 @@ export function TimelinePage() {
           </button>
         )}
       </section>
-      <a
-        className="fixed bottom-6 right-5 z-20 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#ff6b00] text-3xl text-white shadow-lg"
-        href="/posts/new"
-        aria-label="新規投稿を作成"
-      >
-        ✎
-      </a>
     </main>
   )
 }

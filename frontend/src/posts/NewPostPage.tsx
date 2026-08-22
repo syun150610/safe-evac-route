@@ -1,7 +1,6 @@
 import { type ChangeEvent, type FormEvent, useState } from 'react'
-
-import { useAuth } from '../auth/AuthProvider'
 import { createPost } from '../api/client'
+import { useAuth } from '../auth/AuthProvider'
 import { reverseGeocode } from './geocode'
 import type { CreatePostRequest } from './types'
 
@@ -85,13 +84,19 @@ export function NewPostPage() {
 
   return (
     <main className="new-post-page min-h-screen bg-[#fbfbfd] text-[#111b54]">
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-[#fbfbfd] px-8 py-4">
-        <a className="text-base font-semibold text-[#07145f]" href="/timeline">
-          キャンセル
+      <header className="sticky top-0 z-10 flex h-[54px] items-center justify-between border-b border-slate-200 bg-white/95 px-4">
+        <a
+          className="flex items-center gap-2 text-sm tracking-[0.08em] text-[#07156f]"
+          href="/timeline"
+          aria-label="タイムラインに戻る"
+        >
+          <span className="grid size-6 place-items-center rounded-lg bg-[#07156f] text-white">
+            ◇
+          </span>
+          <strong>SAFE</strong>
         </a>
-        <h1 className="text-2xl font-bold text-slate-900">新規投稿</h1>
         <button
-          className={`rounded-full px-5 py-3 text-sm font-bold text-white disabled:opacity-60 ${valid && !saving ? 'bg-[#ff6b00] shadow-md' : 'bg-[#e3e3e8] text-slate-400'}`}
+          className={`rounded-full px-5 py-2 text-sm font-bold text-white disabled:opacity-60 ${valid && !saving ? 'bg-[#ff6b00] shadow-md' : 'bg-[#e3e3e8] text-slate-400'}`}
           disabled={!valid || saving}
           type="submit"
           form="new-post-form"

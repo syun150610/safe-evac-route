@@ -35,12 +35,14 @@ body,
     overscroll-behavior: none;
   }
 
-  body:has(.timeline-page) {
+  body:has(.timeline-page),
+  body:has(.new-post-page) {
     overflow: auto;
     overscroll-behavior: auto;
   }
 
-  #root:has(.timeline-page) {
+  #root:has(.timeline-page),
+  #root:has(.new-post-page) {
     height: auto;
     min-height: 100%;
   }
