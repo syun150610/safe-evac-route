@@ -678,7 +678,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
           </button>
         </div>
       )}
-      {state.screen !== 'home' && (
+      {state.screen !== 'home' && state.screen !== 'search' && (
         <button
           type="button"
           className="fixed right-[18px] bottom-[calc(var(--sheet-peek,74px)+16px)] z-12 size-12 cursor-pointer rounded-full border-0 bg-[#07156f] text-2xl text-white shadow-[0_5px_15px_rgb(7_21_111/35%)] min-[900px]:bottom-[18px]"
