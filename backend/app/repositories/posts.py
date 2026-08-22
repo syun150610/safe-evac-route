@@ -1,30 +1,44 @@
 """投稿に関するD1操作。"""
 
-from typing import Annotated, Protocol
+import uuid
+from datetime import UTC, datetime
+from typing import Annotated
 
-import httpx
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
 
-from app.clients.d1 import D1Client, get_d1_client
+from app.clients.d1 import D1Client, D1Writer, get_d1_client
 from app.schemas.posts import CreatePostRequest, HelpfulRequest, Post, PostList
 
+# 投稿1件を取得するSELECT句。user_idを受け取りhelpful状態を返す。
+# パラメータ順: [user_id, post_id] または [user_id, ...order_params, limit, offset]
+_SELECT_POST = """
+SELECT p.id, COALESCE(u.name, '匿名ユーザー') AS user_name, p.content,
+  p.latitude, p.longitude, p.image_url,
+  (SELECT COUNT(*) FROM POST_EVALUATIONS e
+   WHERE e.post_id = p.id AND e.evaluation_type = 'helpful') AS helpful_count,
+  p.created_at,
+  EXISTS (SELECT 1 FROM POST_EVALUATIONS e
+          WHERE e.post_id = p.id AND e.user_id = ?
+            AND e.evaluation_type = 'helpful') AS helpful
+FROM POSTS p LEFT JOIN USERS u ON u.id = p.user_id
+""".strip()
 
-class D1Writer(Protocol):
-    """投稿Repositoryが利用するD1クライアントのインターフェース。"""
-
-    # GETとPOSTだけを利用するため、Repositoryから必要な操作のみ定義する。
-    async def get(self, path: str) -> httpx.Response: ...
-
-    async def post(self, path: str, payload: dict) -> httpx.Response: ...
+_SORT_SQL: dict[str, str] = {
+    "recent": "p.created_at DESC",
+    "helpful": (
+        "(SELECT COUNT(*) FROM POST_EVALUATIONS e"
+        " WHERE e.post_id = p.id AND e.evaluation_type = 'helpful') DESC,"
+        " p.created_at DESC"
+    ),
+    # nearbyは緯度・経度をパラメータで渡すため別途組み立てる
+}
 
 
 class PostsRepository:
     """投稿に関するデータアクセスを担当するRepository。"""
 
     def __init__(self, d1_client: D1Writer) -> None:
-        # 実際のHTTP通信はD1Clientに委譲し、
-        # Repositoryでは投稿データの取得・保存に必要な処理に集中する。
-        self._d1_client = d1_client
+        self._d1 = d1_client
 
     async def list_posts(
         self,
@@ -37,59 +51,141 @@ class PostsRepository:
     ) -> PostList:
         """投稿一覧をD1から取得する。"""
 
-        # D1 APIに渡すクエリパラメータを組み立てる。
-        # limit / offset / sort / user_id は常に指定する。
-        params = f"limit={limit}&offset={offset}&sort={sort}&user_id={user_id}"
+        if sort == "nearby":
+            if latitude is None or longitude is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="latitude and longitude are required for nearby sort",
+                )
+            order_sql = (
+                "((p.latitude - ?) * (p.latitude - ?)"
+                " + (p.longitude - ?) * (p.longitude - ?)) ASC"
+            )
+            order_params: list = [latitude, latitude, longitude, longitude]
+        else:
+            order_sql = _SORT_SQL.get(sort, _SORT_SQL["recent"])
+            order_params = []
 
-        # nearby検索では現在地が必要なため、
-        # 緯度・経度の両方が指定されている場合のみ追加する。
-        if latitude is not None and longitude is not None:
-            params += f"&latitude={latitude}&longitude={longitude}"
+        sql = f"{_SELECT_POST} ORDER BY {order_sql} LIMIT ? OFFSET ?"
+        # limit+1件取得してhas_moreを判定する
+        params = [user_id, *order_params, limit + 1, offset]
 
-        # D1 APIから投稿データを取得する。
-        response = await self._d1_client.get(f"/posts?{params}")
+        response = await self._d1.post("/query", {"sql": sql, "params": params})
+        rows = response.json()["results"]
+        items = [Post.model_validate(r) for r in rows[:limit]]
+        return PostList(items=items, has_more=len(rows) > limit)
 
-        # D1から返されたJSONをPostListに変換し、
-        # アプリケーション内では型付きのデータとして扱えるようにする。
-        return PostList.model_validate(response.json())
+    async def _fetch_post(self, post_id: str, user_id: str = "") -> Post:
+        """投稿を1件取得する。create_post / mark_helpful の返却値に使用する。"""
+
+        sql = f"{_SELECT_POST} WHERE p.id = ?"
+        response = await self._d1.post(
+            "/query", {"sql": sql, "params": [user_id, post_id]}
+        )
+        rows = response.json()["results"]
+        if not rows:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Post not found",
+            )
+        return Post.model_validate(rows[0])
 
     async def create_post(self, request: CreatePostRequest) -> Post:
         """新しい投稿をD1に保存する。"""
 
-        # Pydanticモデルを辞書に変換してD1 APIへ送信する。
-        response = await self._d1_client.post(
-            "/posts",
-            request.model_dump(),
+        user_resp = await self._d1.post(
+            "/query",
+            {"sql": "SELECT id FROM USERS WHERE id = ?", "params": [request.user_id]},
+        )
+        if not user_resp.json()["results"]:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="ログインユーザーが見つかりません",
+            )
+
+        post_id = str(uuid.uuid4())
+        now = datetime.now(UTC).isoformat()
+        await self._d1.post(
+            "/execute",
+            {
+                "sql": (
+                    "INSERT INTO POSTS"
+                    " (id, user_id, content, image_url,"
+                    " latitude, longitude, status, created_at)"
+                    " VALUES (?, ?, ?, ?, ?, ?, 'published', ?)"
+                ),
+                "params": [
+                    post_id,
+                    request.user_id,
+                    request.content.strip(),
+                    request.image_url,
+                    request.latitude,
+                    request.longitude,
+                    now,
+                ],
+            },
+        )
+        return await self._fetch_post(post_id, request.user_id)
+
+    async def mark_helpful(self, post_id: str, request: HelpfulRequest) -> Post:
+        """指定された投稿に「役立った」評価を登録または取り消す。"""
+
+        user_resp = await self._d1.post(
+            "/query",
+            {"sql": "SELECT id FROM USERS WHERE id = ?", "params": [request.user_id]},
+        )
+        if not user_resp.json()["results"]:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="ログインユーザーが見つかりません",
+            )
+
+        existing = await self._d1.post(
+            "/query",
+            {
+                "sql": (
+                    "SELECT 1 FROM POST_EVALUATIONS"
+                    " WHERE post_id = ? AND user_id = ? AND evaluation_type = 'helpful'"
+                ),
+                "params": [post_id, request.user_id],
+            },
         )
 
-        # D1から返されたJSONをPostモデルに変換する。
-        return Post.model_validate(response.json())
-
-    async def mark_helpful(
-        self,
-        post_id: str,
-        request: HelpfulRequest,
-    ) -> Post:
-        """指定された投稿に「役立った」評価を登録する。"""
-
-        # 指定された投稿の評価APIへリクエストを送信する。
-        response = await self._d1_client.post(
-            f"/posts/{post_id}/helpful",
-            request.model_dump(),
-        )
-
-        # D1から返されたJSONをPostモデルに変換する。
-        return Post.model_validate(response.json())
+        if existing.json()["results"]:
+            await self._d1.post(
+                "/execute",
+                {
+                    "sql": (
+                        "DELETE FROM POST_EVALUATIONS"
+                        " WHERE post_id = ? AND user_id = ?"
+                        " AND evaluation_type = 'helpful'"
+                    ),
+                    "params": [post_id, request.user_id],
+                },
+            )
+        else:
+            await self._d1.post(
+                "/execute",
+                {
+                    "sql": (
+                        "INSERT INTO POST_EVALUATIONS"
+                        " (id, post_id, user_id, evaluation_type, created_at)"
+                        " VALUES (?, ?, ?, 'helpful', ?)"
+                    ),
+                    "params": [
+                        str(uuid.uuid4()),
+                        post_id,
+                        request.user_id,
+                        datetime.now(UTC).isoformat(),
+                    ],
+                },
+            )
+        return await self._fetch_post(post_id, request.user_id)
 
 
 async def get_posts_repository(
-    d1_client: Annotated[
-        D1Client,
-        Depends(get_d1_client),
-    ],
+    d1_client: Annotated[D1Client, Depends(get_d1_client)],
 ) -> PostsRepository:
     """PostsRepositoryを生成するためのDependency。"""
 
-    # D1ClientをRepositoryへ注入し、
-    # FastAPIからRepositoryを利用できるようにする。
     return PostsRepository(d1_client)
