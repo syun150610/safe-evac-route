@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { getPosts } from '../api/client'
+import type { Post } from '../posts/types'
 import { BottomSheet, useMobileLayout } from './components/BottomSheet'
 import { DataAttribution } from './components/DataAttribution'
 import { HazardPicker } from './components/HazardPicker'
@@ -6,7 +8,6 @@ import { LayerPicker } from './components/LayerPicker'
 import { PlaceInput } from './components/PlaceInput'
 import { RouteTable } from './components/RouteTable'
 import { DRAW_ORDER, STYLE } from './constants'
-import { POSTS } from './fixtures/posts'
 import { inArea, useArea } from './hooks/useArea'
 import { useGeocode } from './hooks/useGeocode'
 import { tileUrlOf, useHazards, vectorUrlOf } from './hooks/useHazards'
@@ -62,6 +63,14 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const quakeUrl = layer === 'quake' ? vectorUrlOf(catalog, 'quake', quakeScenario) : null
   const { data: quakeData, loading: quakeLoading, error: quakeError } = useVector(quakeUrl)
   const bundle = search.bundle
+
+  const [latestPost, setLatestPost] = useState<Post | null>(null)
+
+  useEffect(() => {
+    void getPosts({ limit: 1, offset: 0, sort: 'recent', userId: '' }).then((result) => {
+      setLatestPost(result.items[0] ?? null)
+    })
+  }, [])
 
   const flash = useCallback((message: string) => {
     setToast(message)
@@ -429,38 +438,43 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                 />
               </section>
               <section className="px-3 pb-3">
-                <div className="mb-2 flex items-center justify-between [&_h2]:m-0 [&_h2]:text-base [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[10px] [&_button]:font-bold [&_button]:text-[#07156f]">
-                  <h2>
-                    みんなの声{' '}
-                    <small className="ml-1 inline-flex rounded-full bg-slate-200 px-1.5 py-0.5 align-middle text-[8px] text-slate-600">
-                      サンプル
-                    </small>
-                  </h2>
-                  <button type="button" onClick={() => flash('投稿一覧は準備中です')}>
-                    もっと見る
-                  </button>
+                <div className="mb-2 flex items-center justify-between [&_h2]:m-0 [&_h2]:text-base [&_a]:text-[10px] [&_a]:font-bold [&_a]:text-[#07156f] [&_a]:no-underline">
+                  <h2>みんなの声</h2>
+                  <a href="/timeline">もっと見る</a>
                 </div>
-                <article className="rounded-xl border border-slate-200 bg-slate-100 p-3 text-[11px] [&>p]:my-1.5 [&>p]:pl-8 [&>p]:leading-relaxed">
-                  <div className="flex items-center gap-2 text-[10px] [&_time]:ml-auto [&_time]:text-slate-400">
-                    <span className="grid size-6 place-items-center rounded-full border border-slate-300 text-slate-500">
-                      ◎
+                {latestPost ? (
+                  <article className="rounded-xl border border-slate-200 bg-slate-100 p-3 text-[11px] [&>p]:my-1.5 [&>p]:pl-8 [&>p]:leading-relaxed">
+                    <div className="flex items-center gap-2 text-[10px] [&_time]:ml-auto [&_time]:text-slate-400">
+                      <span className="grid size-6 place-items-center rounded-full border border-slate-300 text-slate-500">
+                        ◎
+                      </span>
+                      <strong>{latestPost.user_name}</strong>
+                      <time>
+                        {new Date(
+                          latestPost.created_at.replace(' ', 'T').replace(/([^Z+])$/, '$1Z'),
+                        ).toLocaleString('ja-JP', {
+                          month: 'numeric',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </time>
+                    </div>
+                    <p className="line-clamp-3">{latestPost.content}</p>
+                    <span className="pl-8 text-[9px] text-[#07156f]">
+                      ♧ 役に立った {latestPost.helpful_count}
                     </span>
-                    <strong>{POSTS[0].author}</strong>
-                    <time>{POSTS[0].age}</time>
-                  </div>
-                  <p>{POSTS[0].body}</p>
-                  <span className="pl-8 text-[9px] text-[#07156f]">
-                    ♧ 役に立った {POSTS[0].reactions}
-                  </span>
-                </article>
+                  </article>
+                ) : (
+                  <p className="text-[11px] text-slate-400">投稿はまだありません</p>
+                )}
               </section>
-              <button
-                type="button"
-                className="mx-3 mb-4 min-h-11 w-[calc(100%-24px)] cursor-pointer rounded-lg border-0 bg-[#07156f] font-bold text-white"
-                onClick={() => flash('投稿機能は準備中です')}
+              <a
+                href="/posts/new"
+                className="mx-3 mb-4 flex min-h-11 w-[calc(100%-24px)] cursor-pointer items-center justify-center rounded-lg bg-[#07156f] font-bold text-white no-underline"
               >
                 ▣ 投稿する
-              </button>
+              </a>
               <section className="border-t border-slate-200 px-3 pt-4 pb-3">
                 <div className="mb-2 flex items-center justify-between [&_h2]:m-0 [&_h2]:text-base [&_span]:text-[10px] [&_span]:font-bold [&_span]:text-[#07156f]">
                   <h2>近くの避難先</h2>
