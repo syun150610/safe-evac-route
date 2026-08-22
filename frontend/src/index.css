@@ -32,3 +32,57 @@ body,
     bottom: calc(var(--sheet-peek, 74px) + 4px);
   }
 }
+
+/* 新UIの地図コントロール。ボトムシートの表示高に追従させる。 */
+.maplibregl-ctrl-bottom-left {
+  display: none;
+}
+
+.maplibregl-ctrl-bottom-right {
+  right: 8px;
+  bottom: calc(var(--sheet-peek, 74px) + 8px);
+}
+
+.maplibregl-ctrl-attrib {
+  font-size: 9px;
+}
+
+.map-tool {
+  position: absolute;
+  right: 12px;
+  z-index: 2;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  cursor: pointer;
+  place-items: center;
+  border: 1px solid #e3e7ee;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 3px 10px rgb(15 23 42 / 18%);
+  color: #07156f;
+  font-weight: 800;
+}
+
+.map-tool--locate {
+  bottom: calc(var(--sheet-peek, 74px) + 71px);
+}
+
+.map-tool--layers {
+  bottom: calc(var(--sheet-peek, 74px) + 23px);
+}
+
+@media (min-width: 900px) {
+  .maplibregl-ctrl-bottom-right {
+    bottom: 12px;
+  }
+
+  .map-tool--locate {
+    bottom: 103px;
+  }
+
+  .map-tool--layers {
+    bottom: 55px;
+  }
+}

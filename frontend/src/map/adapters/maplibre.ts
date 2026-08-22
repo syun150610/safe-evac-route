@@ -64,6 +64,7 @@ export function createMapLibreAdapter(): MapAdapter {
   let popup!: Popup
   let clickCb: ((e: RouteClick) => void) | null = null
   let areaClickCb: ((e: AreaClick) => void) | null = null
+  let longPressCb: ((lngLat: LngLatTuple) => void) | null = null
   let locked: string[] | null = null
   const markers: Marker[] = []
   const shelterMarkers: Marker[] = []
@@ -103,6 +104,37 @@ export function createMapLibreAdapter(): MapAdapter {
       map.addControl(new NavigationControl(), 'top-right')
       map.addControl(new ScaleControl({}))
       popup = new Popup({ closeButton: false })
+
+      const canvas = map.getCanvas()
+      let longPressTimer: ReturnType<typeof setTimeout> | null = null
+      let pointerStart: { x: number; y: number } | null = null
+      const cancelLongPress = () => {
+        if (longPressTimer) clearTimeout(longPressTimer)
+        longPressTimer = null
+        pointerStart = null
+      }
+      canvas.addEventListener('pointerdown', (event) => {
+        if (!event.isPrimary || event.button !== 0) return
+        pointerStart = { x: event.clientX, y: event.clientY }
+        longPressTimer = setTimeout(() => {
+          if (!pointerStart || !longPressCb) return
+          const rect = canvas.getBoundingClientRect()
+          const point = map.unproject([pointerStart.x - rect.left, pointerStart.y - rect.top])
+          longPressCb([point.lng, point.lat])
+          cancelLongPress()
+        }, 650)
+      })
+      canvas.addEventListener('pointermove', (event) => {
+        if (
+          pointerStart &&
+          Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > 8
+        ) {
+          cancelLongPress()
+        }
+      })
+      canvas.addEventListener('pointerup', cancelLongPress)
+      canvas.addEventListener('pointercancel', cancelLongPress)
+      canvas.addEventListener('pointerleave', cancelLongPress)
 
       // ⚠️ 準備完了をイベントで取らない。2通り試して2回とも外している:
       //    ・load は発火しない（タイル取得が終わらないと来ない。loaded() も false のまま）
@@ -374,7 +406,7 @@ export function createMapLibreAdapter(): MapAdapter {
       markers.length = 0
       for (const m of list) {
         markers.push(
-          new Marker({ color: '#2b6cb0' })
+          new Marker({ color: m.role === 'destination' ? '#dc2626' : '#2563eb' })
             .setLngLat(m.lngLat)
             .setPopup(new Popup().setText(m.label))
             .addTo(map),
@@ -387,12 +419,12 @@ export function createMapLibreAdapter(): MapAdapter {
       shelterMarkers.length = 0
       for (const m of list) {
         const color = m.shelterType === 'urgent' ? '#16a34a' : '#ca8a04'
-        shelterMarkers.push(
-          new Marker({ color })
-            .setLngLat(m.lngLat)
-            .setPopup(new Popup().setText(m.label))
-            .addTo(map),
-        )
+        const marker = new Marker({ color })
+          .setLngLat(m.lngLat)
+          .setPopup(new Popup().setText(m.label))
+          .addTo(map)
+        if (m.onClick) marker.getElement().addEventListener('click', m.onClick)
+        shelterMarkers.push(marker)
       }
     },
 
@@ -406,12 +438,18 @@ export function createMapLibreAdapter(): MapAdapter {
     onAreaClick(cb) {
       areaClickCb = cb
     },
+    onLongPress(cb) {
+      longPressCb = cb
+    },
 
     fitBounds(
       bbox: BBox,
       { padding, duration = 0 }: { padding?: Padding; duration?: number } = {},
     ) {
       map.fitBounds(bbox, { padding, duration })
+    },
+    flyTo(lngLat, zoom) {
+      map.flyTo({ center: lngLat, ...(zoom === undefined ? {} : { zoom }), duration: 500 })
     },
 
     // シートを掴んでいる間は地図を動かさない。つまみがイベントを受け止めるのに

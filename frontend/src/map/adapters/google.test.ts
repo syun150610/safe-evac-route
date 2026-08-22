@@ -55,6 +55,7 @@ function installStub() {
     el: HTMLElement
     fits: { b: any; p: any }[] = []
     opts: Record<string, unknown> = {}
+    listeners: Record<string, (event?: any) => void> = {}
     _zoom: number
     overlayMapTypes: {
       getLength(): number
@@ -78,7 +79,9 @@ function installStub() {
     fitBounds(b: unknown, p: unknown) {
       this.fits.push({ b, p })
     }
-    addListener() {}
+    addListener(event: string, callback: (event?: any) => void) {
+      this.listeners[event] = callback
+    }
     getZoom() {
       return this._zoom
     }
@@ -222,6 +225,18 @@ describe('adapter_google（スタブ）', () => {
     expect(created.mapOpts!.mapTypeControl).toBe(false)
     expect(created.mapOpts!.zoomControl).toBe(true)
     expect((created.mapOpts!.zoomControlOptions as any).position).toBe('TOP_RIGHT')
+  })
+
+  it('contextmenu の座標を長押し地点として通知する', async () => {
+    const adapter = await makeAdapter()
+    const callback = vi.fn()
+    adapter.onLongPress(callback)
+
+    fakeMap.listeners.contextmenu({
+      latLng: { lat: () => 35.714, lng: () => 139.777 },
+    })
+
+    expect(callback).toHaveBeenCalledWith([139.777, 35.714])
   })
 
   it('小数ズームを有効にしている（fitBounds を地理院版に合わせる）', async () => {

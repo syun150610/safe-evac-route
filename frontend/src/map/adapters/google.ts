@@ -7,7 +7,7 @@
  * 使っていない機能まで型が要求される）。境界だけ any にしてある。
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { AreaClick, MapAdapter, RouteClick, ShelterMarkerSpec } from './types'
+import type { AreaClick, LngLatTuple, MapAdapter, RouteClick, ShelterMarkerSpec } from './types'
 
 // Maps JS API は実行時に <script> で読み込む（@types は入れない方針）
 declare const google: any
@@ -67,6 +67,7 @@ export function createGoogleAdapter(): MapAdapter {
   let floodIndex = -1
   let infoWindow: any = null
   let clickCb: ((e: RouteClick) => void) | null = null
+  let longPressCb: ((lngLat: LngLatTuple) => void) | null = null
   let reserved = 0
   const markers: any[] = []
   const shelterMarkers: any[] = []
@@ -353,6 +354,11 @@ export function createGoogleAdapter(): MapAdapter {
           })
           infoWindow = new google.maps.InfoWindow()
           map.addListener('zoom_changed', queueReoffset)
+          map.addListener('contextmenu', (event: any) => {
+            if (event.latLng && longPressCb) {
+              longPressCb([event.latLng.lng(), event.latLng.lat()])
+            }
+          })
           resolveReady?.()
         })
         // ⚠️ **引数2つの then にする。** チェーン全体に .catch を付けると、
@@ -554,10 +560,15 @@ export function createGoogleAdapter(): MapAdapter {
       if (!map) return
       while (markers.length) markers.pop().setMap(null)
       for (const m of list) {
+        const color = m.role === 'destination' ? '#dc2626' : '#2563eb'
+        const svg = encodeURIComponent(
+          `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="36" viewBox="0 0 24 36"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="${color}" stroke="white" stroke-width="1.5"/><circle cx="12" cy="12" r="5" fill="white"/></svg>`,
+        )
         const mk = new google.maps.Marker({
           position: { lat: m.lngLat[1], lng: m.lngLat[0] },
           map,
           title: m.label,
+          icon: { url: `data:image/svg+xml,${svg}`, scaledSize: new google.maps.Size(24, 36) },
         })
         const iw = new google.maps.InfoWindow({ content: m.label })
         mk.addListener('click', () => iw.open(map, mk))
@@ -580,7 +591,10 @@ export function createGoogleAdapter(): MapAdapter {
           icon: { url: `data:image/svg+xml,${svg}`, scaledSize: new google.maps.Size(24, 36) },
         })
         const iw = new google.maps.InfoWindow({ content: m.label })
-        mk.addListener('click', () => iw.open(map, mk))
+        mk.addListener('click', () => {
+          iw.open(map, mk)
+          m.onClick?.()
+        })
         shelterMarkers.push(mk)
       }
     },
@@ -595,6 +609,9 @@ export function createGoogleAdapter(): MapAdapter {
     onClick(cb) {
       clickCb = cb
     },
+    onLongPress(cb) {
+      longPressCb = cb
+    },
 
     // Google の fitBounds に duration は無い（常に即時）。共通側の値は無視する
     fitBounds([[w, s], [e, n]], { padding }: any = {}) {
@@ -608,6 +625,11 @@ export function createGoogleAdapter(): MapAdapter {
       p.bottom = Math.max(8, (p.bottom || 0) - reserved)
       map.fitBounds(b, p)
       queueReoffset() // ズームが動くのでオフセットを引き直す
+    },
+    flyTo([lng, lat], zoom) {
+      if (!map) return
+      map.panTo({ lat, lng })
+      if (zoom !== undefined) map.setZoom(zoom + Z_SHIFT)
     },
 
     lockGestures(on) {

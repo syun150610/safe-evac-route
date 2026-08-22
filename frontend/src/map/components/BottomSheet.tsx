@@ -13,6 +13,10 @@ interface Props {
   mobile: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** PCでは従来の地図上オーバーレイか、新UIの左サイドバーとして表示する */
+  desktopMode?: 'overlay' | 'sidebar'
+  /** 経路結果がないときに、折りたたみ部分へ表示する文言 */
+  collapsedLabel?: ReactNode
   children?: ReactNode
 }
 
@@ -40,7 +44,16 @@ export function useMobileLayout(): boolean {
   return mobile
 }
 
-export function BottomSheet({ adapter, bundle, mobile, open, onOpenChange, children }: Props) {
+export function BottomSheet({
+  adapter,
+  bundle,
+  mobile,
+  open,
+  onOpenChange,
+  desktopMode = 'overlay',
+  collapsedLabel = '避難経路の設定',
+  children,
+}: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const travelRef = useRef(0)
@@ -174,12 +187,14 @@ export function BottomSheet({ adapter, bundle, mobile, open, onOpenChange, child
       className={
         mobile
           ? `fixed right-0 bottom-0 left-0 z-10 overflow-visible rounded-t-[14px] border-t border-slate-300 bg-white/95 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-3px_16px_rgba(0,0,0,0.2)] ${dragging ? '' : 'transition-transform duration-200 ease-out motion-reduce:transition-none'}`
-          : 'absolute top-3 left-3 z-10 max-h-[calc(100%-46px)] overflow-y-auto'
+          : desktopMode === 'sidebar'
+            ? 'col-start-1 row-start-2 min-h-0 overflow-hidden bg-slate-50 [&_#route-sheet-body]:h-full [&_#route-sheet-body]:overflow-y-auto'
+            : 'absolute top-3 left-3 z-10 max-h-[calc(100%-46px)] overflow-y-auto'
       }
     >
       <button
         type="button"
-        className={`min-h-[74px] w-full touch-none flex-col items-center justify-center gap-1 px-3 py-2 select-none ${mobile ? 'flex' : 'hidden'}`}
+        className={`relative z-10 min-h-[74px] w-full touch-none flex-col items-center justify-center gap-1 rounded-t-[14px] bg-white/95 px-3 py-2 select-none ${mobile ? 'flex' : 'hidden'}`}
         aria-expanded={open}
         aria-controls="route-sheet-body"
         onClick={toggle}
@@ -202,7 +217,7 @@ export function BottomSheet({ adapter, bundle, mobile, open, onOpenChange, child
             )}
           </span>
         ) : (
-          <span className="text-[12px] text-slate-600">避難経路の設定</span>
+          <span className="text-[12px] text-slate-600">{collapsedLabel}</span>
         )}
         <span className="text-[10.5px] text-slate-600">{open ? '閉じる' : '詳しく'}</span>
       </button>
@@ -211,7 +226,7 @@ export function BottomSheet({ adapter, bundle, mobile, open, onOpenChange, child
         id="route-sheet-body"
         className={
           mobile
-            ? `max-h-[calc(80dvh-74px)] overscroll-contain overflow-y-auto ${dragging ? 'overflow-hidden' : ''}`
+            ? `relative z-0 max-h-[calc(80dvh-74px)] overscroll-contain overflow-y-auto ${dragging ? 'overflow-hidden' : ''}`
             : ''
         }
         inert={mobile && !open && !dragging ? true : undefined}
