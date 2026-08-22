@@ -783,16 +783,6 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
           </button>
         </div>
       )}
-      {state.screen !== 'home' && state.screen !== 'search' && (
-        <button
-          type="button"
-          className="fixed right-[18px] bottom-[calc(var(--sheet-peek,74px)+16px)] z-12 size-12 cursor-pointer rounded-full border-0 bg-[#07156f] text-2xl text-white shadow-[0_5px_15px_rgb(7_21_111/35%)] min-[900px]:bottom-[18px]"
-          onClick={() => flash('投稿機能は準備中です')}
-          aria-label="投稿する"
-        >
-          ＋
-        </button>
-      )}
       {toast && (
         <div
           className="fixed bottom-[22px] left-1/2 z-20 w-max max-w-[calc(100%-40px)] -translate-x-1/2 rounded-lg bg-slate-900/95 px-4 py-2.5 text-[10px] text-white shadow-[0_5px_15px_rgb(15_23_42/25%)]"
