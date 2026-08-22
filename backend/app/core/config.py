@@ -25,8 +25,9 @@ PROFILE_DIRS: dict[HazardDataProfile, str] = {
 }
 # 探索グラフの対象範囲。2026-08-21に 23区+多摩（市街化区域 1,324.85 km²、
 # 地域危険度の町丁目5,192件を融合した範囲）へ切り替えた。
-# ⚠️ 浸水は現行4流域のままなので、この範囲の大半でエッジのcoverageは0になる。
-#    「0m」ではなく「未評価」として応答に出る（rationale の3段階表示）。
+# ⚠️ 浸水想定図はこの範囲を覆いきらない（envelopeで実測83.8%）。覆えていない
+#    エッジは「0m」ではなく「未評価」として応答に出る（rationale の3段階表示）。
+#    流域の本数はここに書かない。単一の出所は hazard_sources/flood/scenarios.py。
 RUNTIME_SCOPE_DIR = "scope-tokyo-23ku-tama-shigaika"
 # 上の範囲の**利用者向けの呼び名**。`/api/evac-routes/area` の説明文と、
 # 範囲外エラー(422)の本文がここを読む。
