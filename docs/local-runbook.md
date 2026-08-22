@@ -74,8 +74,9 @@ npx wrangler d1 migrations apply safe-evac-route-db --local
 ```
 
 > [!NOTE]
-> `npm run dev`（後述のC方式）でWorkerを起動した場合は自動的に適用されるため、
-> このコマンドは不要。
+> Workerを `npm run dev` で起動する場合（後続の「バックエンド」手順を含む）は、
+> `wrangler dev` 起動時にマイグレーションが自動適用されるため、このコマンドは不要。
+> Workerを起動せずにマイグレーションだけ確認・適用したい場合に使う。
 
 ### バックエンド
 
