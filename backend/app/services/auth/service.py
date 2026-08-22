@@ -34,9 +34,14 @@ class AuthService:
 
         now = datetime.now(UTC)
         user_id = str(ULID())
-        await self._users.create(
-            user_id, name, hash_password(password), email, now.isoformat()
-        )
+        try:
+            await self._users.create(
+                user_id, name, hash_password(password), email, now.isoformat()
+            )
+        except Exception as exc:
+            if "UNIQUE constraint failed" in str(exc):
+                raise ValueError("name_conflict") from exc
+            raise
 
         return await self._issue_tokens(
             user_id=user_id,

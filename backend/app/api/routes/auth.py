@@ -7,6 +7,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.clients.d1 import D1Client, get_d1_client
+from app.core.config import get_settings
 from app.repositories.refresh_tokens import RefreshTokenRepository
 from app.repositories.users import UserRepository
 from app.schemas.auth import (
@@ -36,11 +37,12 @@ def _get_auth_service(
 
 
 def _set_refresh_cookie(response: Response, raw_token: str) -> None:
+    secure = get_settings().app_env != "development"
     response.set_cookie(
         key=_COOKIE_NAME,
         value=raw_token,
         httponly=True,
-        secure=True,
+        secure=secure,
         samesite="strict",
         path="/api/auth",
         max_age=_COOKIE_MAX_AGE,
