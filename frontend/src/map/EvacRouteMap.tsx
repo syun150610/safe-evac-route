@@ -665,7 +665,6 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               </button>
             </section>
           )}
-
         </section>
         <DataAttribution mobile platform={platform} />
       </BottomSheet>
