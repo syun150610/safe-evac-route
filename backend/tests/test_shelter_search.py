@@ -302,3 +302,19 @@ def test_distance_helper_is_symmetric():
     b = SS._distance_m(35.71, 139.81, 35.7, 139.8)
     assert a == pytest.approx(b, rel=1e-3)
     assert math.isclose(SS._distance_m(35.7, 139.8, 35.7, 139.8), 0.0)
+
+
+def test_recommended_stats_match_the_route_that_is_returned():
+    """⚠️ **おすすめの数字と、実際に返す経路の数字を食い違わせない。**
+
+    候補の `stats` は候補選びに使った探索のものなので、最短へ戻したときは
+    最短側の数字が残る。そのまま見せると、画面の「おすすめ」と経路比較・根拠が
+    別の数字を出すことになる（実測で 1.94km/11.8% と 1.95km/9.2%）。
+    """
+    for origin in (KITASENJU, HIRAI, UENO):
+        r = SS.search(origin, hazards=FLOOD)
+        selected = next(x for x in r["routes"] if x["id"] == r["selected_route"])
+        chosen = next(
+            c for c in r["shelter_candidates"] if c["id"] == r["shelter"]["id"]
+        )
+        assert chosen["stats"] == selected["stats"], origin["label"]

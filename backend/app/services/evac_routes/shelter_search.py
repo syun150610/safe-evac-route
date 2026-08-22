@@ -244,6 +244,19 @@ def search(
         include=include,
         scenario=scenario,
     )
+    # ⚠️ **推奨の統計は、実際に返した経路のものへ差し替える。**
+    #    候補の `stats` は候補選びに使った探索（①か②）のものなので、
+    #    最短へ戻したとき（`fell_back_to_nearest`）は最短側の数字が残る。
+    #    そのまま見せると、画面の「おすすめ」と経路比較・根拠が食い違う
+    #    （実測: 平井で おすすめ 1.94km/11.8% に対し、描かれる経路は
+    #     1.95km/9.2% だった）。利用者が歩くのは後者。
+    selected = next(
+        (r for r in result["routes"] if r["id"] == result["selected_route"]), None
+    )
+    if selected is not None:
+        chosen["stats"] = selected["stats"]
+        chosen["within_limit"] = selected["stats"]["distance_m"] <= limit_m
+
     result["shelter"] = {k: v for k, v in chosen.items() if k != "stats"}
     result["shelter_candidates"] = rows
     result["shelter_query"] = {
