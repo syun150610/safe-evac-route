@@ -53,18 +53,35 @@ jobs:
       - name: Check required production configuration
         env:
           VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
         run: |
           if [[ -z "${VITE_GOOGLE_MAPS_API_KEY}" ]]; then
             echo "::error::production environment secret VITE_GOOGLE_MAPS_API_KEY is not configured"
             exit 1
           fi
+          if [[ -z "${JWT_SECRET_KEY}" ]]; then
+            echo "::error::production environment secret JWT_SECRET_KEY is not configured"
+            exit 1
+          fi
+
+      - name: Build frontend
+        env:
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+        run: npm run build
+        working-directory: frontend
 
       - name: Apply D1 migrations
         run: npm run db:migrate:remote
         working-directory: worker
 
       - name: Deploy to Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          command: deploy
+          secrets: |
+            JWT_SECRET_KEY
         env:
-          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
-        run: npm run deploy
-        working-directory: worker
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
