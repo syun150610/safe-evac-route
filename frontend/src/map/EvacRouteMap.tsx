@@ -168,7 +168,14 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   function choosePlace(place: Place) {
     const field = state.activeField
     dispatch({ type: 'select_place', field, place })
-    if (field === 'destination') void runRoute(place)
+  }
+
+  function prepareDestination(place: Place) {
+    search.clear()
+    dispatch({ type: 'select_place', field: 'destination', place })
+    dispatch({ type: 'open', screen: 'search' })
+    setSheetOpen(true)
+    if (!state.origin.place) dispatch({ type: 'activate_field', field: 'origin' })
   }
 
   function endRoute() {
@@ -416,23 +423,11 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
           )}
           {state.screen === 'home' && (
             <>
-              <section className="mx-3 mb-3.5 flex items-center justify-between gap-3 rounded-[10px] border border-slate-200 bg-white p-2.5 [&_small]:mt-0.5 [&_small]:block [&_small]:text-[8px] [&_small]:text-slate-500 [&_strong]:block [&_strong]:text-[11px]">
-                <div>
-                  <strong>経路条件</strong>
-                  <small>
-                    {state.hazard === 'quake' ? '建物倒壊危険度を考慮' : '浸水深を考慮'}
-                  </small>
-                </div>
-                <HazardPicker
-                  value={state.hazard}
-                  onChange={(hazard) => dispatch({ type: 'set_hazard', hazard })}
-                />
-              </section>
-              <section className="px-3 pb-3">
-                <div className="mb-2 flex items-center justify-between [&_h2]:m-0 [&_h2]:text-base [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[10px] [&_button]:font-bold [&_button]:text-[#07156f]">
+              <section className="px-3 pb-2">
+                <div className="mb-1.5 flex items-center justify-between [&_h2]:m-0 [&_h2]:text-sm [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[9px] [&_button]:font-bold [&_button]:text-[#07156f]">
                   <h2>
                     みんなの声{' '}
-                    <small className="ml-1 inline-flex rounded-full bg-slate-200 px-1.5 py-0.5 align-middle text-[8px] text-slate-600">
+                    <small className="ml-1 inline-flex rounded-full bg-slate-200 px-1 py-px align-middle text-[7px] text-slate-600">
                       サンプル
                     </small>
                   </h2>
@@ -440,50 +435,50 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                     もっと見る
                   </button>
                 </div>
-                <article className="rounded-xl border border-slate-200 bg-slate-100 p-3 text-[11px] [&>p]:my-1.5 [&>p]:pl-8 [&>p]:leading-relaxed">
-                  <div className="flex items-center gap-2 text-[10px] [&_time]:ml-auto [&_time]:text-slate-400">
-                    <span className="grid size-6 place-items-center rounded-full border border-slate-300 text-slate-500">
+                <article className="rounded-lg border border-slate-200 bg-slate-100 p-2 text-[9px] [&>p]:my-1 [&>p]:pl-6 [&>p]:leading-normal">
+                  <div className="flex items-center gap-1.5 text-[9px] [&_time]:ml-auto [&_time]:text-[8px] [&_time]:text-slate-400">
+                    <span className="grid size-5 place-items-center rounded-full border border-slate-300 text-[9px] text-slate-500">
                       ◎
                     </span>
                     <strong>{POSTS[0].author}</strong>
                     <time>{POSTS[0].age}</time>
                   </div>
                   <p>{POSTS[0].body}</p>
-                  <span className="pl-8 text-[9px] text-[#07156f]">
+                  <span className="pl-6 text-[8px] text-[#07156f]">
                     ♧ 役に立った {POSTS[0].reactions}
                   </span>
                 </article>
               </section>
               <button
                 type="button"
-                className="mx-3 mb-4 min-h-11 w-[calc(100%-24px)] cursor-pointer rounded-lg border-0 bg-[#07156f] font-bold text-white"
+                className="mx-3 mb-2.5 min-h-9 w-[calc(100%-24px)] cursor-pointer rounded-md border-0 bg-[#07156f] text-[10px] font-bold text-white"
                 onClick={() => flash('投稿機能は準備中です')}
               >
                 ▣ 投稿する
               </button>
-              <section className="border-t border-slate-200 px-3 pt-4 pb-3">
-                <div className="mb-2 flex items-center justify-between [&_h2]:m-0 [&_h2]:text-base [&_span]:text-[10px] [&_span]:font-bold [&_span]:text-[#07156f]">
+              <section className="border-t border-slate-200 px-3 pt-2.5 pb-3">
+                <div className="mb-1.5 flex items-center justify-between [&_h2]:m-0 [&_h2]:text-sm [&_span]:text-[9px] [&_span]:font-bold [&_span]:text-[#07156f]">
                   <h2>近くの避難先</h2>
                   <span>{sheltersLoading ? '読込中…' : `${shelters.length}件表示`}</span>
                 </div>
-                <div className="grid gap-2.5">
+                <div className="grid gap-1.5">
                   {shelters.map(({ feature, distance }) => (
                     <article
-                      className="rounded-xl border border-slate-200 bg-white p-3 shadow-[0_2px_5px_rgb(15_23_42/4%)] [&_h3]:my-2 [&_h3]:text-[15px] [&_p]:mb-2.5 [&_p]:text-[11px] [&_p]:text-slate-600"
+                      className="rounded-lg border border-slate-200 bg-white p-2 shadow-[0_2px_5px_rgb(15_23_42/4%)] [&_h3]:my-1 [&_h3]:text-xs [&_p]:mb-1.5 [&_p]:text-[9px] [&_p]:text-slate-600"
                       key={feature.properties.id}
                     >
                       <button
                         type="button"
                         className="block w-full cursor-pointer border-0 bg-transparent p-0 text-left"
-                        onClick={() => void runRoute(shelterPlace(feature))}
+                        onClick={() => prepareDestination(shelterPlace(feature))}
                       >
                         <div className="flex items-center justify-between">
                           <span
-                            className={`inline-flex min-h-5 items-center rounded-full px-2 py-0.5 text-[9px] font-bold ${feature.properties.type === 'urgent' ? 'bg-orange-50 text-orange-800' : 'bg-emerald-50 text-emerald-800'}`}
+                            className={`inline-flex min-h-4 items-center rounded-full px-1.5 text-[8px] font-bold ${feature.properties.type === 'urgent' ? 'bg-orange-50 text-orange-800' : 'bg-emerald-50 text-emerald-800'}`}
                           >
                             {feature.properties.type_label}
                           </span>
-                          <span className="text-[10px] text-slate-600">
+                          <span className="text-[9px] text-slate-600">
                             {distance === null ? '距離未取得' : `${distance.toFixed(1)} km`}
                           </span>
                         </div>
@@ -492,8 +487,8 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                       </button>
                       <button
                         type="button"
-                        className="min-h-10 w-full cursor-pointer rounded-lg border-0 bg-[#07156f] text-[11px] font-bold text-white"
-                        onClick={() => void runRoute(shelterPlace(feature))}
+                        className="min-h-8 w-full cursor-pointer rounded-md border-0 bg-[#07156f] text-[10px] font-bold text-white"
+                        onClick={() => prepareDestination(shelterPlace(feature))}
                       >
                         ◇ ここへ行く
                       </button>
@@ -512,6 +507,32 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                 </button>
                 <h2>目的地を検索</h2>
               </div>
+              <section className="mb-2.5 flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 [&>strong]:mr-auto [&>strong]:text-[10px]">
+                <strong>考慮する災害</strong>
+                <HazardPicker
+                  compact
+                  value={state.hazard}
+                  onChange={(hazard) => dispatch({ type: 'set_hazard', hazard })}
+                />
+                {state.hazard === 'flood' && (
+                  <label className="ml-auto min-w-28 flex-1 text-[9px] text-slate-600 min-[420px]:max-w-36 [&_select]:min-h-7 [&_select]:w-full [&_select]:rounded-md [&_select]:border [&_select]:border-slate-200 [&_select]:bg-white [&_select]:px-1.5 [&_select]:text-[9px]">
+                    <span className="sr-only">浸水想定</span>
+                    <select
+                      aria-label="浸水想定"
+                      value={state.scenario}
+                      onChange={(event) =>
+                        dispatch({ type: 'set_scenario', scenario: event.target.value })
+                      }
+                    >
+                      {floodScenarios.map((scenario) => (
+                        <option value={scenario.id} key={scenario.id}>
+                          {scenario.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </section>
               {(['origin', 'destination'] as const).map((field) => {
                 const value = state[field]
                 return (
@@ -534,37 +555,18 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               >
                 ◎ 現在地を出発地にする
               </button>
-              <section className="mt-3.5 rounded-[10px] border border-slate-200 bg-slate-50 p-3 [&>p]:m-0 [&>p]:text-[9px] [&>p]:leading-normal [&>p]:text-slate-600">
-                <div className="mb-2 flex items-center justify-between gap-3 [&>strong]:text-[11px]">
-                  <strong>考慮する災害</strong>
-                  <HazardPicker
-                    value={state.hazard}
-                    onChange={(hazard) => dispatch({ type: 'set_hazard', hazard })}
-                  />
-                </div>
-                <p>
-                  {state.hazard === 'quake'
-                    ? '建物倒壊危険度の高い地域を避けます。'
-                    : '浸水深が大きい道路を避けます。'}
-                </p>
-                {state.hazard === 'flood' && (
-                  <label className="mt-2.5 grid gap-1.5 text-[10px] text-slate-600 [&_select]:min-h-11 [&_select]:rounded-lg [&_select]:border [&_select]:border-slate-200 [&_select]:bg-white [&_select]:px-2.5">
-                    浸水想定
-                    <select
-                      value={state.scenario}
-                      onChange={(event) =>
-                        dispatch({ type: 'set_scenario', scenario: event.target.value })
-                      }
-                    >
-                      {floodScenarios.map((scenario) => (
-                        <option value={scenario.id} key={scenario.id}>
-                          {scenario.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-              </section>
+              <button
+                type="button"
+                className="mb-2.5 min-h-9 w-full cursor-pointer rounded-md border-0 bg-[#07156f] text-[10px] font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                disabled={
+                  state.origin.place === null || state.destination.place === null || search.loading
+                }
+                onClick={() => {
+                  if (state.destination.place) void runRoute(state.destination.place)
+                }}
+              >
+                {search.loading ? '経路を検索中…' : 'この条件で経路を検索する'}
+              </button>
               {search.loading && (
                 <p className="mt-4 mb-2 text-[10px] font-bold text-slate-500">
                   安全な経路を探索中…
