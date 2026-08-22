@@ -32,6 +32,34 @@ export default {
       return handleTileRequest(request, env, ctx);
     }
 
+    // ローカル開発用：FastAPIを直接起動したとき D1_GATEWAY_URL=http://localhost:8787/d1
+    // を指定することで、ContainerのoutboundByHostと同じD1ハンドラを経由させる。
+    // 本番ではContainerからのアウトバウンドがoutboundByHostで処理されるため、
+    // このルートに到達しない。
+    if (pathname.startsWith("/d1/")) {
+      const subPath = pathname.substring(3); // /d1/query → /query
+      return handleD1Request(
+        new Request(`http://localhost${subPath}`, {
+          method: request.method,
+          headers: request.headers,
+          body: request.body,
+        }),
+        env
+      );
+    }
+
+    if (pathname.startsWith("/r2/")) {
+      const subPath = pathname.substring(3);
+      return handleR2Request(
+        new Request(`http://localhost${subPath}`, {
+          method: request.method,
+          headers: request.headers,
+          body: request.body,
+        }),
+        env
+      );
+    }
+
     // /api配下はすべてFastAPIへ転送するため、バックエンドにエンドポイントを
     // 追加してもWorker側のルーティングを追記する必要はない。
     if (pathname.startsWith("/api/")) {
