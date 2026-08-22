@@ -123,4 +123,12 @@ describe('RouteRationale', () => {
   it('根拠が空なら何も描かない', () => {
     expect(render([])).toBe('')
   })
+
+  it('開けることが文字で分かる（三角だけにしない）', () => {
+    // ⚠️ 実機確認で「押せると気づかない」と指摘された。三角記号は aria-hidden の
+    //    装飾なので、文字での明示を消さないこと。
+    const html = render([HAZARD])
+    expect(html).toContain('タップして詳細を見る')
+    expect(html).toContain('aria-expanded="false"')
+  })
 })

@@ -330,7 +330,7 @@ def test_地震の条件行は想定図を名乗らない():
     r = _build(_stats(5000, 100, 1177.5), _stats(5346, 100, 108.5))
     q = next(h for h in r["hazards"] if h["id"] == "quake")
     assert "想定図" not in q["detail"]["condition"]
-    assert "ランクは都内での相対評価" in q["detail"]["condition"]
+    assert "危険度は都内での相対評価" in q["detail"]["condition"]
 
 
 def test_全種別が整備範囲の名前を持つ():

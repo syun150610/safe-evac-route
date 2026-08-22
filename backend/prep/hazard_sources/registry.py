@@ -58,16 +58,17 @@ HAZARDS = {
         "label": "地震",
         "display_kind": "vector",
         "module": "prep.hazard_sources.quake",
-        "note": "地域危険度（町丁目単位のランク1〜5）。"
+        "note": "地域危険度（町丁目単位の危険度1〜5）。"
         "離散のポリゴンなのでベクタで描く",
         "risk": {
             "label": "危険度4以上",
             "length_key": "quake_r4plus_m",
             "ratio_key": "quake_r4plus_ratio",
             "coverage_key": "quake_out_of_coverage_ratio",
-            "threshold_label": "地域危険度ランク4以上",
-            # ⚠️ ランクは都内での相対評価。「ランク1だから安全」ではない
-            "condition_note": "ランクは都内での相対評価",
+            "threshold_label": "地域危険度4以上",
+            # ⚠️ 危険度は都内での相対評価。「危険度1だから安全」ではない。
+            #    画面の表記は「危険度」で統一する（凡例・指標と混ぜない）
+            "condition_note": "危険度は都内での相対評価",
             # ⚠️ **地震も全域整備ではない。** 島嶼部と非市街化区域は調査対象外。
             #    「地震は全域だから未評価は起きない」と考えてコードやデータを
             #    書かないこと。現行bbox（北千住〜上野）がたまたま全域市街化区域で

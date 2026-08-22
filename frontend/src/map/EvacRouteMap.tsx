@@ -209,7 +209,8 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     a.onClick(({ lngLat, route }) => {
       const segment = nearestSegment(bundle, route, lngLat)
       if (!segment) return
-      const rank = segment.quake_rank == null ? '評価範囲外' : `ランク ${segment.quake_rank} / 5`
+      // ⚠️ 表記は「危険度」で統一する（凡例・指標と揃える）
+      const rank = segment.quake_rank == null ? '評価範囲外' : `危険度 ${segment.quake_rank} / 5`
       a.showPopup(
         lngLat,
         `<b>${segment.name ?? '名称なし'}</b><br>最大浸水深 ${segment.depth_max.toFixed(2)}m<br>地震危険度 ${rank}`,

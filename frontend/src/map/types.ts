@@ -20,7 +20,7 @@ export interface RouteStats {
   mean_depth_m: number
   /** 経路長のうち浸水深0.3m（歩行困難ライン）を超える割合 */
   ratio_over_03: number
-  /** 地域危険度ランク4以上の町丁目を通る割合 */
+  /** 地域危険度4以上の町丁目を通る割合 */
   quake_r4plus_ratio: number
   /** 同 実距離(m)。**静的プリセットには無い**（POST /search のみ） */
   quake_r4plus_m?: number
