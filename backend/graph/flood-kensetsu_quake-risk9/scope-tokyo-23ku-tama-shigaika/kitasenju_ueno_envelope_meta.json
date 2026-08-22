@@ -79,13 +79,13 @@
  },
  "quake": {
   "quake_cost": {
-   "1": 1.0,
-   "2": 1.2,
-   "3": 1.5,
-   "4": 2.0,
-   "5": 3.0
+   "1": 1.5,
+   "2": 2.0,
+   "3": 4.0,
+   "4": 8.0,
+   "5": 13.3
   },
-  "quake_coverage_penalty": 1.2,
+  "quake_coverage_penalty": 2.0,
   "edges_fully_out_of_coverage": 1424,
   "mean_coverage": 0.9982,
   "sample_points_out_of_coverage_pct": 0.69,
@@ -116,5 +116,5 @@
    }
   }
  },
- "flood_note": "浸水は現行4流域（隅田川・神田川・中川・江東内部）のみ。対象範囲の大半は浸水想定図の整備範囲外で、coverage=0 として持つ。"
+ "flood_note": "浸水はこのシナリオの入力CSV 10件（shinsui_sumidagawa.csv、shinsui_kandagawa.csv、shinsui_nakagawa.csv、shinsui_koutounaibu.csv、shinsui_asakawa.csv、shinsui_tamagawa.csv、shinsui_nogawa.csv、shinsui_syakujiigawa.csv、shinsui_jyounantiku.csv、shinsui_akikawa.csv）が覆う範囲だけを評価している。エッジ本数の83.8%が一部でも評価済みで、残りは浸水想定図の整備範囲外として coverage=0 を持つ。**浸水しないという意味ではない。**"
 }
