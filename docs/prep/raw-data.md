@@ -25,8 +25,10 @@ docs/prep/      データフロー、入力仕様、再生成手順
 | 建設局 浸水予想区域図 | [東京都オープンデータカタログ](https://catalog.data.metro.tokyo.lg.jp/dataset/t000014d0000000029) | CSV 17件 | `data/raw/tokyoto_kensetsukyoku/` |
 | 都市整備局 第9回地域危険度 | [東京都オープンデータカタログ](https://catalog.data.metro.tokyo.lg.jp/dataset/t000008d0000000012) | `all2.zip`（SHP） | `data/raw/tokyoto_toshiseibikyoku/` |
 
-浸水CSVは17件をすべて取得する。現行の3シナリオが直接使うのは隅田川、神田川、
-中川・綾瀬川、江東内部河川だが、今後の東京都全域対応でも取得手順を変えずに済むためである。
+浸水CSVは17件をすべて取得する。`envelope` が使うのは2026-08-21時点で10件、
+単一河川シナリオが2件で、残りは不採用または未使用である。採否と理由は
+`backend/prep/hazard_sources/flood/scenarios.py` を単一の出所とする。
+17件すべて取るのは、シナリオの入力が変わっても取得手順を変えずに済むためである。
 
 地震は `all2.csv` ではなく `all2.zip` を使う。CSVはランク等の属性表だけで町丁目の
 ポリゴンを含まないため、経路への空間的な焼き込みや地図表示に必要なGPKGを単独では
@@ -50,38 +52,22 @@ docs/prep/      データフロー、入力仕様、再生成手順
 ./scripts/prep/download-raw.sh all --force
 ```
 
-## 地震SHPをGPKGへ正規化する
+## 取得のあとにすること
 
-下流の前処理は `data/raw/hazard/hazard.gpkg` を共通入力として使う。公式SHPを取得した後、
-prep依存を入れて変換する。
+取得しただけでは前処理に使えないものがある。
 
-```bash
-cd "$(git rev-parse --show-toplevel)/backend"
-uv sync --frozen --group prep
-uv run --frozen --group prep python -m prep.hazard_sources.quake.build
-```
+| データ | 取得後に必要な変換 | 手順 |
+|---|---|---|
+| 建設局 浸水CSV | 不要（そのまま読む） | [浸水データ](flood-data.md) |
+| 地域危険度SHP | **`data/raw/hazard/hazard.gpkg` へ正規化が要る** | [地震データ](quake-data.md) |
 
-既存GPKGがある場合は上書きせず終了する。公式SHPから作り直すことを確認した場合だけ
-`--force` を付ける。
-
-```bash
-uv run --frozen --group prep python -m prep.hazard_sources.quake.build --force
-```
-
-変換時に次を機械検証し、一致しなければGPKGを採用しない。
-
-- 5,192町丁目、51市区町村
-- 足立区269件、うち総合ランク5が16件
-- 荒川区52件、世田谷区277件
-- 荒川区「荒川１丁目」の総合ランクが4
-- 出力CRSがEPSG:4326
-
-2026-08-20に公式 `all2.zip` から生成したGPKGは、従来の検証済みGPKGと全属性値・形状が
-一致した。GeoPackage自体のバイト列はメタデータ等で変わり得るため、バイト一致ではなく
-レコード、属性、形状で比較する。
+⚠️ 地震は正規化しないと下流が動かない。下流の前処理はすべて `hazard.gpkg` を
+共通入力として使う。
 
 ## raw取得後の次工程
 
-現行3シナリオのタイル、グラフ、NPZ、プリセットを再生成する場合は
-[浸水データの入力と再生成](flood-data.md#探索範囲は2つある)へ進む。
-通常のAPI起動だけなら、Git追跡済みのNPZとプリセットを使うためraw取得は不要である。
+- 浸水のタイル・グラフ・NPZ・プリセット → [浸水データ](flood-data.md)
+- 地震のGPKG正規化・GeoJSON → [地震データ](quake-data.md)
+- 全体の流れと、どこまで必要か → [前処理・runtime成果物の全体像](README.md)
+
+通常のAPI起動だけならGit追跡済みのNPZとプリセットを使うためraw取得は不要である。

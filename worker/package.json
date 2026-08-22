@@ -11,6 +11,7 @@
     "dev": "wrangler dev",
     "predeploy": "npm run assets:build",
     "deploy": "wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply safe-evac-route-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply safe-evac-route-db --remote",
     "tiles:upload": "node scripts/upload-tiles.mjs",
     "typegen": "wrangler types",
