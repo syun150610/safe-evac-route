@@ -382,14 +382,9 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             </div>
             <LayerPicker
               value={state.mapLayer}
-              scenario={state.scenario}
-              scenarios={floodScenarios}
-              opacity={state.opacity}
               loading={quakeLoading}
               error={quakeError}
               onChange={(layer) => dispatch({ type: 'set_layer', layer })}
-              onScenarioChange={(scenario) => dispatch({ type: 'set_scenario', scenario })}
-              onOpacityChange={(opacity) => dispatch({ type: 'set_opacity', opacity })}
             />
           </section>
         )}
@@ -668,8 +663,9 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             </section>
           )}
         </section>
-        <DataAttribution mobile platform={platform} />
       </BottomSheet>
+
+      {(!mobile || !sheetOpen) && <DataAttribution mobile={mobile} platform={platform} />}
 
       {mapPoint && state.screen === 'home' && (
         <div className="fixed top-[225px] left-1/2 z-[14] grid w-[min(calc(100%-32px),398px)] -translate-x-1/2 grid-cols-[1fr_auto] gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white p-3 shadow-[0_6px_20px_rgb(15_23_42/22%)] min-[900px]:top-[76px] min-[900px]:left-[calc(67%+170px)]">
