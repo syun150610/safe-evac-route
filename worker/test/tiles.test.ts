@@ -2,10 +2,16 @@ import { env, SELF } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 
 const FLOOD_KEYS = [
+  // ⚠️ 引きのズーム（z10・z11）も出せること。ここが古いとR2に入れても404になる
+  "flood/kensetsu/envelope/10/908/402.png",
+  "flood/kensetsu/kandagawa/11/1816/805.png",
   "flood/gesuido/envelope/12/3635/1611.png",
   "flood/kensetsu/envelope/12/3635/1611.png",
 ];
-const KEYS = [...FLOOD_KEYS, "quake/total.geojson"];
+// ⚠️ **添字で参照しない。** 浸水タイルを1件足すたびに別のキーを指してしまう
+//    （z10・z11 を足したときに実際に踏んだ）
+const QUAKE_KEY = "quake/total.geojson";
+const KEYS = [...FLOOD_KEYS, QUAKE_KEY];
 
 afterEach(async () => {
   await env.STORAGE.delete(KEYS);
@@ -30,16 +36,16 @@ describe("R2 tile delivery", () => {
   });
 
   it("supports HEAD and conditional requests", async () => {
-    await env.STORAGE.put(KEYS[2], '{"type":"FeatureCollection","features":[]}');
+    await env.STORAGE.put(QUAKE_KEY, '{"type":"FeatureCollection","features":[]}');
 
-    const head = await SELF.fetch(`https://example.com/tiles/${KEYS[2]}`, {
+    const head = await SELF.fetch(`https://example.com/tiles/${QUAKE_KEY}`, {
       method: "HEAD",
     });
     expect(head.status).toBe(200);
     expect(head.headers.get("content-type")).toBe("application/geo+json; charset=utf-8");
     expect(await head.text()).toBe("");
 
-    const conditional = await SELF.fetch(`https://example.com/tiles/${KEYS[2]}`, {
+    const conditional = await SELF.fetch(`https://example.com/tiles/${QUAKE_KEY}`, {
       method: "HEAD",
       headers: { "if-none-match": head.headers.get("etag") ?? "" },
     });
