@@ -40,11 +40,24 @@ export interface MarkerSpec {
 }
 
 export interface ShelterMarkerSpec {
+  /** 施設のID。**表示範囲が変わってピンを作り直しても、開いている詳細を
+   * 開いたままにするために使う**（地図を動かすたびに閉じると読めない） */
+  id: string
   lngLat: LngLatTuple
+  /** ピンのタイトル（読み上げ・ホバー用） */
   label: string
   /** urgent = 指定緊急避難場所（緑）/ designated = 指定避難所（黄） */
   shelterType: 'urgent' | 'designated'
-  onClick?: () => void
+  /** ピンを押したときに出す詳細のHTML。
+   *
+   * ⚠️ **押しただけで経路探索を始めない。** 何の施設か分からないまま画面が
+   * 切り替わる（ユーザー指摘、2026-08-23）。まず内容を見せ、`data-action="go"` の
+   * 要素を押したときだけ `onGo` を呼ぶ。
+   *
+   * ⚠️ **エスケープ済みのものを渡すこと。** 施設名は API 由来の文字列。 */
+  detailHtml?: string
+  /** 詳細の「ここに行く」を押したとき */
+  onGo?: () => void
 }
 
 /** 地図に出しっぱなしにする吹き出し（経路の要約）。

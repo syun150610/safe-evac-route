@@ -169,6 +169,50 @@ export function pickAnchor(vectors: [number, number][]): CalloutAnchor {
   return best
 }
 
+/** 吹き出し1つの見込みの大きさ(px)。
+ *
+ * ⚠️ 実測値ではなく上限の見積り。`render` の `max-width` が186px、行数は最大3経路
+ * ぶん。中身によって上下するが、**余白は多めに取るほうが安全**（足りないと
+ * 画面の外に出て読めない）。 */
+const CALLOUT_SIZE = { w: 200, h: 130 }
+
+export interface Padding {
+  top: number
+  right: number
+  bottom: number
+  left: number
+}
+
+/** 吹き出しが画面からはみ出さないように、地図を収めるときの余白へ足す量。
+ *
+ * ⚠️ **経路の端＝吹き出しの位置**なので、経路だけを基準に収めると必ずはみ出す
+ * （ユーザー指摘、2026-08-23）。出ている向きの側にだけ足す。
+ *
+ * ⚠️ **画面の一定割合で頭打ちにする。** スマホの幅で200px足すと、収める余地が
+ * 無くなって地図が極端に引きの絵になる。
+ */
+export function calloutPadding(callouts: CalloutSpec[], size: { w: number; h: number }): Padding {
+  const anchors = new Set(callouts.map((callout) => callout.anchor))
+  const wide = Math.min(CALLOUT_SIZE.w, Math.max(0, size.w * 0.3))
+  const tall = Math.min(CALLOUT_SIZE.h, Math.max(0, size.h * 0.25))
+  return {
+    top: anchors.has('top') ? tall : 0,
+    bottom: anchors.has('bottom') ? tall : 0,
+    left: anchors.has('left') ? wide : 0,
+    right: anchors.has('right') ? wide : 0,
+  }
+}
+
+/** 2つの余白の大きいほうを取る（どちらの理由でも足りるようにする） */
+export function mergePadding(base: Padding, extra: Padding): Padding {
+  return {
+    top: Math.max(base.top, extra.top),
+    right: Math.max(base.right, extra.right),
+    bottom: Math.max(base.bottom, extra.bottom),
+    left: Math.max(base.left, extra.left),
+  }
+}
+
 interface Options {
   /** 表示中の災害の危険区間定義。カタログ未取得のあいだは undefined */
   risk?: HazardRisk

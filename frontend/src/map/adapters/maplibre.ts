@@ -470,11 +470,23 @@ export function createMapLibreAdapter(): MapAdapter {
       shelterMarkers.length = 0
       for (const m of list) {
         const color = m.shelterType === 'urgent' ? '#16a34a' : '#ca8a04'
-        const marker = new Marker({ color })
-          .setLngLat(m.lngLat)
-          .setPopup(new Popup().setText(m.label))
-          .addTo(map)
-        if (m.onClick) marker.getElement().addEventListener('click', m.onClick)
+        // ⚠️ **押しても経路探索は始めない。** まず詳細を出し、その中の
+        //    「ここへ行く」を押したときだけ `onGo` を呼ぶ
+        const popup = new Popup()
+        if (m.detailHtml) {
+          const el = document.createElement('div')
+          el.innerHTML = m.detailHtml
+          const go = el.querySelector('[data-action="go"]')
+          // ⚠️ 押したら閉じる（経路の要約が別に出るので、同じ施設の箱が2つ並ぶ）
+          if (go && m.onGo) {
+            go.addEventListener('click', () => {
+              popup.remove()
+              m.onGo?.()
+            })
+          }
+          popup.setDOMContent(el)
+        } else popup.setText(m.label)
+        const marker = new Marker({ color }).setLngLat(m.lngLat).setPopup(popup).addTo(map)
         shelterMarkers.push(marker)
       }
     },

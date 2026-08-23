@@ -59,6 +59,45 @@ export function createGoogleAdapter(): MapAdapter {
     'pointer-events:none',
   ].join(';')
 
+  /** 避難先の詳細。**DOM で組む**（HTML文字列のままだと中のボタンに
+   * イベントを付けられない）。押されたら初めて `onGo` を呼ぶ。 */
+  function openShelterInfo(m: ShelterMarkerSpec, marker: any) {
+    if (!shelterInfo) {
+      // ⚠️ **地図を動かして吹き出しを画面へ入れる（既定のまま）。** 端のピンを
+      //    押したとき、動かさないと吹き出しが画面の外に出て読めない。
+      //    ⚠️ 動くと `idle` → 表示範囲の通知 → ピンの作り直し、と回って以前は
+      //    その場で閉じていた。いまは作り直したピンへ**開き直す**ので消えない
+      //    （`setShelterMarkers` の `reopen`）
+      shelterInfo = new google.maps.InfoWindow()
+      shelterInfo.addListener('closeclick', () => {
+        shelterInfoId = null
+      })
+    }
+    shelterInfoId = m.id
+    shelterInfo.setContent(shelterContent(m))
+    shelterInfo.open(map, marker)
+  }
+
+  function shelterContent(m: ShelterMarkerSpec): HTMLElement {
+    const el = document.createElement('div')
+    if (m.detailHtml) {
+      el.innerHTML = m.detailHtml
+      const go = el.querySelector('[data-action="go"]')
+      // ⚠️ 押したら閉じる。経路が引かれると同じ避難先の要約が別に出るので、
+      //    詳細を残すと同じ施設の箱が2つ並ぶ
+      if (go && m.onGo) {
+        go.addEventListener('click', () => {
+          shelterInfo?.close()
+          shelterInfoId = null
+          m.onGo?.()
+        })
+      }
+    } else {
+      el.textContent = m.label
+    }
+    return el
+  }
+
   /** 要約の吹き出し1つ。**InfoWindow は使わない。**
    *
    * ⚠️ InfoWindow は必ず地点の上に出て、向きを選べない。経路が北から入って
@@ -106,6 +145,8 @@ export function createGoogleAdapter(): MapAdapter {
   //    quakeOpacity で復帰させていて、片方だけ濃さを変えると巻き添えで戻った
   let floodOpacity = 1
   let infoWindow: any = null
+  let shelterInfo: any = null // 避難先の詳細（**1つを使い回す**）
+  let shelterInfoId: string | null = null // いま詳細を開いている施設
   let clickCb: ((e: RouteClick) => void) | null = null
   let longPressCb: ((lngLat: LngLatTuple) => void) | null = null
   let viewportChangeCb: ((viewport: MapViewport) => void) | null = null
@@ -657,8 +698,20 @@ export function createGoogleAdapter(): MapAdapter {
       }
     },
 
+    // 避難先のピン。**押しても経路探索は始めない**（まず詳細を見せる）。
+    //
+    // ⚠️ 吹き出しは**1つを使い回す**。マーカーごとに持たせると、押した数だけ
+    //    開きっぱなしになり、地図が読めなくなる（以前は押した瞬間に画面が
+    //    切り替わっていたので問題にならなかった）。
     setShelterMarkers(list: ShelterMarkerSpec[]) {
       if (!map) return
+      // ⚠️ **開いている詳細を勝手に閉じない。** 地図を少し動かすたびにここへ来る。
+      //    まだ視界にいる施設なら、作り直したピンへ開き直す
+      const reopen = list.find((m) => m.id === shelterInfoId)
+      if (!reopen) {
+        shelterInfo?.close()
+        shelterInfoId = null
+      }
       while (shelterMarkers.length) shelterMarkers.pop().setMap(null)
       for (const m of list) {
         const color = m.shelterType === 'urgent' ? '#16a34a' : '#ca8a04'
@@ -671,11 +724,8 @@ export function createGoogleAdapter(): MapAdapter {
           title: m.label,
           icon: { url: `data:image/svg+xml,${svg}`, scaledSize: new google.maps.Size(24, 36) },
         })
-        const iw = new google.maps.InfoWindow({ content: m.label })
-        mk.addListener('click', () => {
-          iw.open(map, mk)
-          m.onClick?.()
-        })
+        mk.addListener('click', () => openShelterInfo(m, mk))
+        if (m.id === shelterInfoId) openShelterInfo(m, mk)
         shelterMarkers.push(mk)
       }
     },

@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Bundle, HazardRisk, RouteId, RouteStats } from '../types'
-import { pickAnchor, routeCallouts } from './route-callouts'
+import { calloutPadding, mergePadding, pickAnchor, routeCallouts } from './route-callouts'
 
 /** 度で与えた向きの単位ベクトル（0=北、90=東） */
 function toward(deg: number): [number, number] {
@@ -261,6 +261,51 @@ describe('routeCallouts', () => {
       )
       expect(list[0].anchor).toBe('top')
       expect(list[1].anchor).toBe('bottom')
+    })
+  })
+
+  describe('画面に収めるための余白', () => {
+    const at = (anchor: 'top' | 'bottom' | 'left' | 'right') => ({
+      id: 'dest',
+      lngLat: [139.7, 35.7] as [number, number],
+      html: '',
+      anchor,
+    })
+    const desktop = { w: 1400, h: 900 }
+
+    // ⚠️ 経路の端がそのまま吹き出しの位置なので、経路だけで収めるとはみ出す
+    it('吹き出しが出ている側にだけ足す', () => {
+      const padding = calloutPadding([at('bottom')], desktop)
+      expect(padding.bottom).toBeGreaterThan(0)
+      expect(padding.top).toBe(0)
+      expect(padding.left).toBe(0)
+      expect(padding.right).toBe(0)
+    })
+
+    it('複数の吹き出しがあればどちらの側にも足す', () => {
+      const padding = calloutPadding([at('top'), at('left')], desktop)
+      expect(padding.top).toBeGreaterThan(0)
+      expect(padding.left).toBeGreaterThan(0)
+      expect(padding.bottom).toBe(0)
+    })
+
+    it('吹き出しが無ければ足さない', () => {
+      expect(calloutPadding([], desktop)).toEqual({ top: 0, right: 0, bottom: 0, left: 0 })
+    })
+
+    // ⚠️ スマホの幅で200px足すと、収める余地が無くなって極端な引きの絵になる
+    it('画面が狭いときは頭打ちにする', () => {
+      const phone = calloutPadding([at('left'), at('top')], { w: 360, h: 640 })
+      expect(phone.left).toBeLessThanOrEqual(360 * 0.3)
+      expect(phone.top).toBeLessThanOrEqual(640 * 0.25)
+    })
+
+    it('もとの余白とは大きいほうを取る', () => {
+      const merged = mergePadding(
+        { top: 64, right: 64, bottom: 64, left: 480 },
+        { top: 130, right: 0, bottom: 0, left: 200 },
+      )
+      expect(merged).toEqual({ top: 130, right: 64, bottom: 64, left: 480 })
     })
   })
 
