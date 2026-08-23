@@ -25,6 +25,7 @@ import type { RouteId } from '../types'
 import type {
   AreaClick,
   BBox,
+  CalloutAnchor,
   CalloutSpec,
   LngLatTuple,
   MapAdapter,
@@ -52,6 +53,26 @@ const GSI_TILES = 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png'
 
 /** 要約の吹き出しをピンの上へ逃がす量(px)。MapLibre の既定マーカーは高さ41px */
 const CALLOUT_LIFT = 46
+/** 上以外の向きに置くときの隙間(px) */
+const CALLOUT_GAP = 16
+
+/** 吹き出しをどちら側へ置くか → Popup のどこを地点に合わせるか。
+ *
+ * ⚠️ **向きが逆になる。** 吹き出しを地点の上（`top`）に出したいときは、
+ * Popup の**下端**（`bottom`）を地点へ合わせる。 */
+const POPUP_ANCHOR = {
+  top: 'bottom',
+  bottom: 'top',
+  left: 'right',
+  right: 'left',
+} as const
+
+const POPUP_OFFSET: Record<CalloutAnchor, [number, number]> = {
+  top: [0, -CALLOUT_LIFT],
+  bottom: [0, CALLOUT_GAP],
+  left: [-CALLOUT_GAP, 0],
+  right: [CALLOUT_GAP, 0],
+}
 
 /** シートを掴んでいる間だけ切るジェスチャ。切ったものだけを元に戻す */
 const GESTURES = [
@@ -479,8 +500,9 @@ export function createMapLibreAdapter(): MapAdapter {
             closeOnClick: false,
             focusAfterOpen: false,
             maxWidth: '220px',
-            // ⚠️ ピンの高さぶん持ち上げる。既定では同じ地点に立つマーカーを覆う
-            offset: [0, -CALLOUT_LIFT],
+            // ⚠️ 上に置くときはピンの高さぶん持ち上げる（同じ地点に立つマーカーを覆う）
+            anchor: POPUP_ANCHOR[c.anchor],
+            offset: POPUP_OFFSET[c.anchor],
           })
             .setLngLat(c.lngLat)
             .setHTML(c.html)

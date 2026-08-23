@@ -60,7 +60,13 @@ export interface CalloutSpec {
   id: string
   lngLat: LngLatTuple
   html: string
+  /** 地点から見て**どちら側へ吹き出しを出すか**。経路とピンを避ける向きを
+   * 呼び出し側が決める（アダプタは向きの意味を知っているだけ） */
+  anchor: CalloutAnchor
 }
+
+/** 吹き出しを置く向き。`top` = 地点の上 */
+export type CalloutAnchor = 'top' | 'bottom' | 'left' | 'right'
 
 export interface RouteClick {
   lngLat: LngLatTuple

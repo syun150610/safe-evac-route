@@ -10,6 +10,7 @@
 import { loadMapsScript, mapsApiKey } from '../lib/google-maps'
 import type {
   AreaClick,
+  CalloutAnchor,
   CalloutSpec,
   LngLatTuple,
   MapAdapter,
@@ -32,6 +33,61 @@ export function createGoogleAdapter(): MapAdapter {
   // **マーカーの高さ（36px。地点に立つので上へ36px伸びる）＋余白**。
   // マーカーの大きさを変えたらここも変える（重なりが戻る）
   const CALLOUT_LIFT = 42
+  // 上以外の向きに置くときの隙間(px)。ピンの幅は24pxなので半分より広く取る
+  const CALLOUT_GAP = 16
+
+  /** 地点(0,0)を基準に、吹き出しをどちらへ置くか。
+   *
+   * ⚠️ **上だけはピンの高さぶん余分に逃がす。** ピンは地点から上へ伸びており、
+   * 素直に上へ置くと必ず重なる（2026-08-23の指摘）。 */
+  const CALLOUT_TRANSFORM: Record<CalloutAnchor, string> = {
+    top: `translate(-50%, calc(-100% - ${CALLOUT_LIFT}px))`,
+    bottom: `translate(-50%, ${CALLOUT_GAP}px)`,
+    left: `translate(calc(-100% - ${CALLOUT_GAP}px), -50%)`,
+    right: `translate(${CALLOUT_GAP}px, -50%)`,
+  }
+
+  const CALLOUT_STYLE = [
+    'position:absolute',
+    'background:#fff',
+    'border:1px solid #e2e8f0',
+    'border-radius:10px',
+    'padding:7px 9px',
+    'box-shadow:0 6px 18px rgb(15 23 42 / 22%)',
+    // ⚠️ **クリックを吸わせない。** 吹き出しは読むだけのもので、下の経路や
+    //    ピンを押せなくなると、区間タップも避難先の切り替えもできなくなる
+    'pointer-events:none',
+  ].join(';')
+
+  /** 要約の吹き出し1つ。**InfoWindow は使わない。**
+   *
+   * ⚠️ InfoWindow は必ず地点の上に出て、向きを選べない。経路が北から入って
+   * くると線に重なる（2026-08-23の指摘）。上下左右へ置けるように自前で描く。 */
+  function makeCallout(spec: CalloutSpec) {
+    const overlay = new google.maps.OverlayView() as any
+    let div: HTMLDivElement | null = null
+    overlay.onAdd = function onAdd(this: any) {
+      div = document.createElement('div')
+      div.style.cssText = CALLOUT_STYLE
+      div.innerHTML = spec.html
+      this.getPanes()?.floatPane?.appendChild(div)
+    }
+    overlay.draw = function draw(this: any) {
+      const point = this.getProjection()?.fromLatLngToDivPixel(
+        new google.maps.LatLng(spec.lngLat[1], spec.lngLat[0]),
+      )
+      if (!div || !point) return
+      div.style.left = `${point.x}px`
+      div.style.top = `${point.y}px`
+      div.style.transform = CALLOUT_TRANSFORM[spec.anchor]
+    }
+    overlay.onRemove = function onRemove() {
+      div?.remove()
+      div = null
+    }
+    overlay.setMap(map)
+    return overlay
+  }
 
   // Google には画面px基準の line-offset が無い。世界座標(m)でずらすしかないので、
   // 「現在のズームで何メートルが1pxか」を毎回計算して線を引き直す。
@@ -58,7 +114,7 @@ export function createGoogleAdapter(): MapAdapter {
   let reserved = 0
   const markers: any[] = []
   const shelterMarkers: any[] = []
-  const callouts: any[] = [] // 出しっぱなしの要約（google.maps.InfoWindow）
+  const callouts: any[] = [] // 出しっぱなしの要約（自前の OverlayView）
   const layers: Record<string, any> = {} // routeId -> { casing, main, hit, style, z }
   let mapInited = false
   let resolveReady: (() => void) | null = null
@@ -631,30 +687,11 @@ export function createGoogleAdapter(): MapAdapter {
       infoWindow.open(map)
     },
 
-    // 出しっぱなしの要約。**1件ずつ別の InfoWindow を持つ**（共用の infoWindow は
-    // 区間タップ用で、内容を上書きし合ってしまう）。
-    //
-    // ⚠️ `disableAutoPan` を必ず付ける。既定では開くたびに地図が動き、
-    //    複数出すと最後の1件へ勝手に寄っていく（fitBounds の結果が台無しになる）。
-    // ⚠️ `headerDisabled` で×ボタンを消す。要約は利用者が閉じるものではない
-    //    （Maps JS が知らない場合は無視されるだけで、害はない）。
-    // ⚠️ `pixelOffset` でピンの高さぶん持ち上げる。既定では吹き出しの先端が
-    //    地点そのものに来るので、**同じ地点に立っているピンを覆う**
-    //    （ユーザー指摘、2026-08-23）。値は CALLOUT_LIFT の説明を参照。
+    // 出しっぱなしの要約。渡し直すたびに全部作り直す（マーカーと同じ扱い）
     setCallouts(list: CalloutSpec[]) {
       if (!map) return
-      while (callouts.length) callouts.pop().close()
-      for (const c of list) {
-        const iw = new google.maps.InfoWindow({
-          content: c.html,
-          position: { lat: c.lngLat[1], lng: c.lngLat[0] },
-          disableAutoPan: true,
-          headerDisabled: true,
-          pixelOffset: new google.maps.Size(0, -CALLOUT_LIFT),
-        })
-        iw.open(map)
-        callouts.push(iw)
-      }
+      while (callouts.length) callouts.pop().setMap(null)
+      for (const c of list) callouts.push(makeCallout(c))
     },
 
     onClick(cb) {

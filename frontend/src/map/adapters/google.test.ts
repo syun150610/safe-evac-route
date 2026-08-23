@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RouteStyle } from '../constants'
 import type { RouteId } from '../types'
 import { createGoogleAdapter } from './google'
+import type { CalloutAnchor } from './types'
 
 interface FakeInfoWindow {
   html?: string
@@ -20,6 +21,7 @@ interface FakeInfoWindow {
 }
 
 interface Created {
+  floatPane: HTMLElement
   lines: FakePolyline[]
   markers: { o: Record<string, unknown> }[]
   mapOpts: Record<string, unknown> | null
@@ -58,7 +60,14 @@ let created: Created
 let fakeMap: any
 
 function installStub() {
-  created = { lines: [], markers: [], mapOpts: null, overlays: [], infoWindows: [] }
+  created = {
+    floatPane: document.createElement('div'),
+    lines: [],
+    markers: [],
+    mapOpts: null,
+    overlays: [],
+    infoWindows: [],
+  }
   class FakeMap {
     el: HTMLElement
     fits: { b: any; p: any }[] = []
@@ -159,6 +168,25 @@ function installStub() {
         }
         addListener() {}
         setMap() {}
+      },
+      // 要約の吹き出しは自前の OverlayView で描く。本物は setMap で
+      // onAdd → draw を呼ぶので、モックでも同じ順で呼ぶ
+      OverlayView: class {
+        onAdd?: () => void
+        draw?: () => void
+        onRemove?: () => void
+        setMap(m: unknown) {
+          if (m) {
+            this.onAdd?.()
+            this.draw?.()
+          } else this.onRemove?.()
+        }
+        getPanes() {
+          return { floatPane: created.floatPane }
+        }
+        getProjection() {
+          return { fromLatLngToDivPixel: () => ({ x: 120, y: 240 }) }
+        }
       },
       InfoWindow: class {
         html?: string
@@ -397,62 +425,63 @@ describe('adapter_google（スタブ）', () => {
   })
 
   describe('要約の吹き出し（setCallouts）', () => {
-    const callout = (id: string, lng: number, lat: number) => ({
+    const callout = (id: string, anchor: CalloutAnchor = 'top') => ({
       id,
-      lngLat: [lng, lat] as [number, number],
+      lngLat: [139.77, 35.71] as [number, number],
       html: `<b>${id}</b>`,
+      anchor,
     })
 
-    // 共用の infoWindow（区間タップ用）と混ざると内容を上書きし合う
-    it('件数ぶんの InfoWindow を別々に開く', async () => {
+    const boxes = () => Array.from(created.floatPane.children) as HTMLElement[]
+
+    it('件数ぶんの吹き出しを地図へ足す', async () => {
       const a = await makeAdapter()
-      const before = created.infoWindows.length
-      a.setCallouts([callout('dest', 139.77, 35.71), callout('alt', 139.54, 35.65)])
-      const added = created.infoWindows.slice(before)
-      expect(added).toHaveLength(2)
-      expect(added.every((w) => w.opened)).toBe(true)
-      expect(added[0].html).toBe('<b>dest</b>')
-      expect(added[0].pos).toEqual({ lat: 35.71, lng: 139.77 })
+      a.setCallouts([callout('dest'), callout('alt')])
+      expect(boxes()).toHaveLength(2)
+      expect(boxes()[0].innerHTML).toBe('<b>dest</b>')
+      expect(boxes()[0].style.left).toBe('120px')
+      expect(boxes()[0].style.top).toBe('240px')
     })
 
-    // ⚠️ 開くたびに地図が動くと fitBounds の結果が台無しになる
-    it('地図を勝手に動かさず、×ボタンも出さない', async () => {
+    // ⚠️ 吹き出しがクリックを吸うと、下の経路もピンも押せなくなる
+    it('クリックを吸わない', async () => {
       const a = await makeAdapter()
-      const before = created.infoWindows.length
-      a.setCallouts([callout('dest', 139.77, 35.71)])
-      const opts = created.infoWindows[before].opts
-      expect(opts.disableAutoPan).toBe(true)
-      expect(opts.headerDisabled).toBe(true)
+      a.setCallouts([callout('dest')])
+      expect(boxes()[0].style.pointerEvents).toBe('none')
     })
 
-    // ⚠️ 既定では吹き出しの先端が地点そのものに来るので、同じ地点に立つ
-    //    避難先のピンを覆ってしまう
-    it('ピンの高さぶん持ち上げる', async () => {
+    // ⚠️ ピンは地点から上へ伸びるので、上に置くときだけ余分に逃がす
+    it('上に置くときはピンの高さぶん持ち上げる', async () => {
       const a = await makeAdapter()
-      const before = created.infoWindows.length
-      a.setCallouts([callout('dest', 139.77, 35.71)])
-      const offset = created.infoWindows[before].opts.pixelOffset as { w: number; h: number }
-      expect(offset.w).toBe(0)
-      // マーカーは 24x36 で地点に立つ。それより上へ逃がす
-      expect(offset.h).toBeLessThanOrEqual(-36)
+      a.setCallouts([callout('dest', 'top')])
+      expect(boxes()[0].style.transform).toContain('-100%')
+      expect(boxes()[0].style.transform).toMatch(/- ?4\d+px/)
     })
 
-    it('渡し直すと前のものを閉じる', async () => {
+    it('指定された向きへ置く', async () => {
       const a = await makeAdapter()
-      const before = created.infoWindows.length
-      a.setCallouts([callout('dest', 139.77, 35.71)])
-      const first = created.infoWindows[before]
-      a.setCallouts([callout('dest', 139.78, 35.72)])
-      expect(first.opened).toBe(false)
-      expect(created.infoWindows[created.infoWindows.length - 1].opened).toBe(true)
+      for (const [anchor, expected] of [
+        ['bottom', 'translate(-50%, 16px)'],
+        ['right', 'translate(16px, -50%)'],
+        ['left', 'translate(calc(-100% - 16px), -50%)'],
+      ] as const) {
+        a.setCallouts([callout('dest', anchor)])
+        expect(boxes()[0].style.transform).toBe(expected)
+      }
+    })
+
+    it('渡し直すと前のものを消す', async () => {
+      const a = await makeAdapter()
+      a.setCallouts([callout('dest'), callout('alt')])
+      a.setCallouts([callout('dest')])
+      expect(boxes()).toHaveLength(1)
     })
 
     it('空配列で全部消す', async () => {
       const a = await makeAdapter()
-      const before = created.infoWindows.length
-      a.setCallouts([callout('dest', 139.77, 35.71), callout('alt', 139.54, 35.65)])
+      a.setCallouts([callout('dest'), callout('alt')])
       a.setCallouts([])
-      expect(created.infoWindows.slice(before).every((w) => !w.opened)).toBe(true)
+      expect(boxes()).toHaveLength(0)
     })
   })
 

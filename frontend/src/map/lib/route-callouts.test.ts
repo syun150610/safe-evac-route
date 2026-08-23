@@ -8,7 +8,23 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Bundle, HazardRisk, RouteId, RouteStats } from '../types'
-import { routeCallouts } from './route-callouts'
+import { pickAnchor, routeCallouts } from './route-callouts'
+
+/** 度で与えた向きの単位ベクトル（0=北、90=東） */
+function toward(deg: number): [number, number] {
+  const rad = (deg * Math.PI) / 180
+  return [Math.sin(rad), Math.cos(rad)]
+}
+
+/** 地点 dest へ deg の方向から入ってくる経路の線 */
+function lineFrom(deg: number, dest: [number, number] = [139.7774, 35.7141]) {
+  const [x, y] = toward(deg)
+  const coords: [number, number][] = []
+  for (let i = 8; i >= 0; i--) {
+    coords.push([dest[0] + x * 0.001 * i, dest[1] + y * 0.001 * i])
+  }
+  return coords
+}
 
 const RISK: HazardRisk = {
   label: '浸水30cm超',
@@ -187,6 +203,65 @@ describe('routeCallouts', () => {
     )
     expect(list[0].html).not.toContain('<script>')
     expect(list[0].html).toContain('&lt;script&gt;')
+  })
+
+  describe('吹き出しを置く向き', () => {
+    const routeFeature = (id: RouteId, deg: number, dest?: [number, number]) => ({
+      type: 'Feature' as const,
+      properties: { kind: 'route' as const, route: id },
+      geometry: { type: 'LineString' as const, coordinates: lineFrom(deg, dest) },
+    })
+
+    function anchorFor(...features: ReturnType<typeof routeFeature>[]) {
+      const list = routeCallouts(
+        bundle({
+          geojson: { type: 'FeatureCollection', features },
+        } as unknown as Partial<Bundle>),
+        { shown: {} },
+      )
+      return list[0].anchor
+    }
+
+    // ⚠️ 経路が北から入ってくるのに上へ出すと、線に重なる（2026-08-23の指摘）
+    it('北から来た経路の上に置かない', () => {
+      expect(anchorFor(routeFeature('flood', 0), routeFeature('baseline', 0))).toBe('bottom')
+      expect(anchorFor(routeFeature('flood', 45), routeFeature('baseline', 45))).not.toBe('top')
+    })
+
+    // 上が空いているなら上に出す。ピンの高さぶんは別に逃がしてある
+    it('上が空いていれば上に置く', () => {
+      expect(anchorFor(routeFeature('flood', 180), routeFeature('baseline', 180))).toBe('top')
+      expect(anchorFor(routeFeature('flood', 90), routeFeature('baseline', 90))).toBe('top')
+    })
+
+    // ⚠️ 2本が別々の方向から入ってくることがある（種類を両方選んだとき）
+    it('上下とも経路がいるなら横へ逃がす', () => {
+      const anchor = anchorFor(routeFeature('flood', 0), routeFeature('baseline', 180))
+      expect(['left', 'right']).toContain(anchor)
+    })
+
+    it('経路の線が無ければ上に置く', () => {
+      expect(pickAnchor([])).toBe('top')
+    })
+
+    // ⚠️ もう一方の避難先は行き先が違うので、線の向き（始点→終点）が逆になりうる
+    it('もう一方の避難先は自分の線だけで向きを決める', () => {
+      const alt = { ...shelter, id: 'urgent-2', name: '多摩川河川敷' }
+      const at: [number, number] = [139.5412, 35.6501]
+      const list = routeCallouts(
+        bundle({
+          shelter,
+          alt_shelter: { ...alt, stats: stats(1490, 0), route: 'shelter_alt' },
+          geojson: {
+            type: 'FeatureCollection',
+            features: [routeFeature('flood', 180), routeFeature('shelter_alt', 0, at)],
+          },
+        } as unknown as Partial<Bundle>),
+        { shown: {} },
+      )
+      expect(list[0].anchor).toBe('top')
+      expect(list[1].anchor).toBe('bottom')
+    })
   })
 
   it('地図を覆わないよう並べる経路は3本までにする', () => {
