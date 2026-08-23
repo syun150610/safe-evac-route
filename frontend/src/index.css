@@ -85,12 +85,21 @@ body,
   font-weight: 800;
 }
 
-.map-tool--locate {
-  bottom: calc(var(--sheet-peek, 74px) + 71px);
+/* 右下の道具は**意味のまとまりで並べる**。
+   上: 現在地（自分の居場所）
+   ―― 少し間を空ける ――
+   中: 地図に重ねる情報 / 下: その凡例（重ねたものの読み方。対で使う）
+   ⚠️ 順番と間隔を変えるときは、この対応も一緒に直すこと */
+.map-tool--legend {
+  bottom: calc(var(--sheet-peek, 74px) + 23px);
 }
 
 .map-tool--layers {
-  bottom: calc(var(--sheet-peek, 74px) + 23px);
+  bottom: calc(var(--sheet-peek, 74px) + 71px);
+}
+
+.map-tool--locate {
+  bottom: calc(var(--sheet-peek, 74px) + 131px);
 }
 
 @media (min-width: 900px) {
@@ -98,11 +107,15 @@ body,
     bottom: 12px;
   }
 
-  .map-tool--locate {
-    bottom: 103px;
+  .map-tool--legend {
+    bottom: 55px;
   }
 
   .map-tool--layers {
-    bottom: 55px;
+    bottom: 103px;
+  }
+
+  .map-tool--locate {
+    bottom: 163px;
   }
 }

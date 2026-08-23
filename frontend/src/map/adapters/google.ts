@@ -492,6 +492,10 @@ export function createGoogleAdapter(): MapAdapter {
             scaleControl: true,
             streetViewControl: false,
             fullscreenControl: false,
+            // ⚠️ **ベクタ地図の既定で右下に出るカメラ操作（傾き・回転）を消す。**
+            // アプリ側の道具（現在地・レイヤー・凡例）と同じ場所に重なる
+            // （ユーザー指摘、2026-08-23）。傾きと回転はこのアプリでは使わない
+            cameraControl: false,
             clickableIcons: false,
             // 航空写真に切り替えられると浸水オーバーレイが読めなくなる。
             // PCでは指標パネルの下に隠れて押せてもいないので、出さない

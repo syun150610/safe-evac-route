@@ -8,6 +8,7 @@ import { DataAttribution } from './components/DataAttribution'
 import { type Condition, HazardCondition } from './components/HazardCondition'
 import { HazardLegend } from './components/HazardLegend'
 import { LayerPicker } from './components/LayerPicker'
+import { LayersIcon, LegendIcon, LocateIcon } from './components/MapToolIcons'
 import { PlaceInput } from './components/PlaceInput'
 import { RouteRationale } from './components/RouteRationale'
 import { RouteTable } from './components/RouteTable'
@@ -25,6 +26,7 @@ import { useVector } from './hooks/useVector'
 import { distanceKm } from './lib/distance'
 import { nearestSegment, routeBounds } from './lib/geo'
 import { currentPosition, type Place } from './lib/gsi'
+import { legendFor } from './lib/map-legend'
 import type { PlaceSuggestion } from './lib/place-search'
 import { calloutPadding, mergePadding, routeCallouts } from './lib/route-callouts'
 import {
@@ -49,6 +51,9 @@ const FLOOD_ZOOM = { minzoom: 12, maxzoom: 15 }
  * 経路も地図も隠れるので**そのまま**にする。 */
 const FLOOD_OPACITY = 1
 const SHEET_SCREEN_CLASS = 'min-h-full bg-white px-4 py-4'
+/** 右下の道具から出るパネル。⚠️ **ボタンの列より左**に出す（指で隠れない） */
+const TOOL_POPOVER_CLASS =
+  'absolute right-[60px] bottom-[calc(var(--sheet-peek,74px)+23px)] z-[4] max-h-[min(60vh,420px)] w-[min(280px,calc(100%-84px))] overflow-auto rounded-xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgb(15_23_42/22%)] min-[900px]:bottom-[55px]'
 /** 指定地点から道路までの距離が、これ以上なら画面で断る(m)。
  * 実測（対象エリア内の施設4,550件）で中央値40m・95パーセンタイル84m。
  * 40mで出すと3回に1回出てしまい、読まれなくなる */
@@ -68,7 +73,9 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const mobile = useMobileLayout()
   const [state, dispatch] = useReducer(safeReducer, initialSafeState)
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [layersOpen, setLayersOpen] = useState(false)
+  /** 右下の道具のうち、いま開いているパネル。
+   * ⚠️ **同時に1つだけ**。凡例とレイヤーが同時に出ると地図が隠れる */
+  const [openTool, setOpenTool] = useState<'layers' | 'legend' | null>(null)
   const [shelterSearchLoading, setShelterSearchLoading] = useState(false)
   // 現在地の取得中。⚠️ **何を待っているか出さないと、故障に見える**（指摘）
   const [locating, setLocating] = useState(false)
@@ -82,8 +89,8 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const changingOrigin = useRef<'shelter' | 'route' | null>(null)
   const floodAdded = useRef(false)
   const quakeAdded = useRef(false)
-  const layersButtonRef = useRef<HTMLButtonElement>(null)
-  const layersPopoverRef = useRef<HTMLElement>(null)
+  const toolButtonsRef = useRef<HTMLDivElement>(null)
+  const toolPopoverRef = useRef<HTMLElement>(null)
   const { catalog, error: hazardError } = useHazards()
   const { area, error: areaError } = useArea()
   const search = useSearch()
@@ -102,6 +109,8 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     area?.bbox,
   )
   const layer = state.mapLayer
+  // ⚠️ 凡例は**地図に重ねているもの**で選ぶ（経路の条件ではない）
+  const mapLegend = legendFor(catalog, state.mapLayer)
   const floodUrl = layer === 'flood' ? tileUrlOf(catalog, 'flood', FLOOD_SCENARIO) : null
   const quakeScenario = catalog?.hazards.find((h) => h.id === 'quake')?.scenarios[0]?.id ?? 'total'
   const quakeUrl = layer === 'quake' ? vectorUrlOf(catalog, 'quake', quakeScenario) : null
@@ -154,31 +163,30 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   }, [])
 
   function openScreen(screen: 'home' | 'search' | 'route') {
-    setLayersOpen(false)
+    setOpenTool(null)
     if (screen === 'search') dispatch({ type: 'open_search', purpose: 'route' })
     else dispatch({ type: 'open', screen })
     setSheetOpen(screen !== 'home')
   }
 
-  function toggleLayers() {
-    setLayersOpen((open) => !open)
-  }
+  const toggleTool = (tool: 'layers' | 'legend') =>
+    setOpenTool((open) => (open === tool ? null : tool))
 
   useEffect(() => {
-    if (!layersOpen) return
+    if (!openTool) return
 
     function closeOnOutsidePointer(event: PointerEvent) {
       const target = event.target
       if (!(target instanceof Node)) return
-      if (layersButtonRef.current?.contains(target) || layersPopoverRef.current?.contains(target)) {
+      if (toolButtonsRef.current?.contains(target) || toolPopoverRef.current?.contains(target)) {
         return
       }
-      setLayersOpen(false)
+      setOpenTool(null)
     }
 
     document.addEventListener('pointerdown', closeOnOutsidePointer, true)
     return () => document.removeEventListener('pointerdown', closeOnOutsidePointer, true)
-  }, [layersOpen])
+  }, [openTool])
 
   const shelters = useMemo(() => {
     const origin = state.origin.place
@@ -446,7 +454,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const prepareDestination = useCallback(
     (place: Place) => {
       search.clear()
-      setLayersOpen(false)
+      setOpenTool(null)
       dispatch({ type: 'select_place', field: 'destination', place })
       dispatch({
         type: 'activate_field',
@@ -679,30 +687,48 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             <span>{state.destination.place?.title ?? '目的地・避難所を検索する'}</span>
           </button>
         )}
-        <button
-          type="button"
-          className="map-tool map-tool--locate"
-          onClick={() => void requestLocation()}
-          aria-label="現在地へ移動"
-        >
-          ◎
-        </button>
-        <button
-          ref={layersButtonRef}
-          type="button"
-          className="map-tool map-tool--layers"
-          onClick={toggleLayers}
-          aria-label="地図レイヤー"
-          aria-expanded={layersOpen}
-          aria-controls="map-layer-popover"
-        >
-          ▱
-        </button>
-        {layersOpen && (
+        {/* 右下の道具。⚠️ **意味のまとまりで並べる**（CSSの `.map-tool--*` と対）。
+            上=現在地、下の2つ=地図に重ねる情報とその凡例。
+            ⚠️ **記号1文字にしない。** 「◎」「▱」では何の機能か読み取れなかった
+            （ユーザー指摘、2026-08-23）。アイコンに加えて `title` も付ける */}
+        <div ref={toolButtonsRef}>
+          <button
+            type="button"
+            className="map-tool map-tool--locate"
+            onClick={() => void requestLocation()}
+            aria-label="現在地へ移動"
+            title="現在地へ移動"
+          >
+            <LocateIcon />
+          </button>
+          <button
+            type="button"
+            className="map-tool map-tool--layers"
+            onClick={() => toggleTool('layers')}
+            aria-label="地図に重ねる情報"
+            title="地図に重ねる情報"
+            aria-expanded={openTool === 'layers'}
+            aria-controls="map-layer-popover"
+          >
+            <LayersIcon />
+          </button>
+          <button
+            type="button"
+            className="map-tool map-tool--legend"
+            onClick={() => toggleTool('legend')}
+            aria-label="凡例（色の意味）"
+            title="凡例（色の意味）"
+            aria-expanded={openTool === 'legend'}
+            aria-controls="map-legend-popover"
+          >
+            <LegendIcon />
+          </button>
+        </div>
+        {openTool === 'layers' && (
           <section
-            ref={layersPopoverRef}
+            ref={toolPopoverRef}
             id="map-layer-popover"
-            className="absolute right-[60px] bottom-[calc(var(--sheet-peek,74px)+23px)] z-[4] w-[min(280px,calc(100%-84px))] rounded-xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgb(15_23_42/22%)] min-[900px]:bottom-[55px]"
+            className={TOOL_POPOVER_CLASS}
             aria-label="地図レイヤーの設定"
           >
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -710,7 +736,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               <button
                 type="button"
                 className="grid size-7 cursor-pointer place-items-center rounded-full border-0 bg-slate-100"
-                onClick={() => setLayersOpen(false)}
+                onClick={() => setOpenTool(null)}
                 aria-label="閉じる"
               >
                 ×
@@ -724,6 +750,46 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               callouts={state.showCallouts}
               onCalloutsChange={(shown) => dispatch({ type: 'show_callouts', shown })}
             />
+          </section>
+        )}
+        {/* ⚠️ **凡例はボトムシートの中だけに置かない。** スマホでは結果が出ると
+            シートが畳まれ、地図だけを見ている時間ができる。色の意味を確かめる
+            手段が地図の上に無いと、塗り分けを読めない（ユーザー指摘、2026-08-23） */}
+        {openTool === 'legend' && (
+          <section
+            ref={toolPopoverRef}
+            id="map-legend-popover"
+            className={TOOL_POPOVER_CLASS}
+            aria-label="凡例"
+          >
+            <div className="mb-1 flex items-center justify-between gap-3">
+              <h2 className="m-0 text-sm">凡例</h2>
+              <button
+                type="button"
+                className="grid size-7 cursor-pointer place-items-center rounded-full border-0 bg-slate-100"
+                onClick={() => setOpenTool(null)}
+                aria-label="閉じる"
+              >
+                ×
+              </button>
+            </div>
+            {mapLegend ? (
+              <HazardLegend hazardLabel={mapLegend.label} items={mapLegend.items} />
+            ) : (
+              // ⚠️ 何も重ねていないときに空の箱を出さない。次の一手を示す
+              <div className="grid gap-2">
+                <p className="text-[10px] leading-relaxed text-slate-600">
+                  いま地図に重ねている災害情報はありません。
+                </p>
+                <button
+                  type="button"
+                  className="min-h-9 cursor-pointer rounded-lg border border-slate-300 bg-white text-[11px] text-[#07156f]"
+                  onClick={() => setOpenTool('layers')}
+                >
+                  地図に表示する情報を選ぶ
+                </button>
+              </div>
+            )}
           </section>
         )}
         {/* ⚠️ **ボトムシートより上に出すこと。** 地図の中（`absolute`）に置くと、
