@@ -12,11 +12,19 @@ import type { RouteStyle } from '../constants'
 import type { RouteId } from '../types'
 import { createGoogleAdapter } from './google'
 
+interface FakeInfoWindow {
+  html?: string
+  pos?: unknown
+  opened: boolean
+  opts: Record<string, unknown>
+}
+
 interface Created {
   lines: FakePolyline[]
   markers: { o: Record<string, unknown> }[]
   mapOpts: Record<string, unknown> | null
   overlays: FloodType[]
+  infoWindows: FakeInfoWindow[]
 }
 
 interface FloodType {
@@ -50,7 +58,7 @@ let created: Created
 let fakeMap: any
 
 function installStub() {
-  created = { lines: [], markers: [], mapOpts: null, overlays: [] }
+  created = { lines: [], markers: [], mapOpts: null, overlays: [], infoWindows: [] }
   class FakeMap {
     el: HTMLElement
     fits: { b: any; p: any }[] = []
@@ -156,7 +164,13 @@ function installStub() {
         html?: string
         pos?: unknown
         opened = false
-        constructor(_o?: Record<string, unknown>) {}
+        opts: Record<string, unknown>
+        constructor(o?: Record<string, unknown>) {
+          this.opts = o ?? {}
+          this.html = o?.content as string | undefined
+          this.pos = o?.position
+          created.infoWindows.push(this)
+        }
         setContent(h: string) {
           this.html = h
         }
@@ -165,6 +179,9 @@ function installStub() {
         }
         open() {
           this.opened = true
+        }
+        close() {
+          this.opened = false
         }
       },
       event: { trigger() {} },
@@ -353,6 +370,18 @@ describe('adapter_google（スタブ）', () => {
       )
     })
 
+    // ⚠️ 以前は浸水の復帰値に地震の不透明度を使っていた。浸水だけ濃くすると
+    //    表示を切り替えるたびに地震側の薄さへ戻っていた
+    it('出し直しても地震の不透明度に引きずられない', async () => {
+      const a = await makeAdapter()
+      a.addRasterLayer('flood', url, { minzoom: 12, maxzoom: 17, opacity: 1 })
+      a.setLayerOpacity('quake', 0.4)
+      a.setLayerVisible('flood', false)
+      a.setLayerVisible('flood', true)
+      const t = created.overlays[0].getTile({ x: 14552, y: 6446 }, 14, document)
+      expect(t.style.opacity).toBe('1')
+    })
+
     it('差し替えで overlay を作り直し、不透明度を引き継ぐ', async () => {
       const a = await makeAdapter()
       a.addRasterLayer('flood', url, { minzoom: 12, maxzoom: 17, opacity: 0.7 })
@@ -364,6 +393,54 @@ describe('adapter_google（スタブ）', () => {
       const t = after.getTile({ x: 14552, y: 6446 }, 14, document)
       expect(t.style.backgroundImage).toContain('kandagawa')
       expect(t.style.opacity).toBe('0.4')
+    })
+  })
+
+  describe('要約の吹き出し（setCallouts）', () => {
+    const callout = (id: string, lng: number, lat: number) => ({
+      id,
+      lngLat: [lng, lat] as [number, number],
+      html: `<b>${id}</b>`,
+    })
+
+    // 共用の infoWindow（区間タップ用）と混ざると内容を上書きし合う
+    it('件数ぶんの InfoWindow を別々に開く', async () => {
+      const a = await makeAdapter()
+      const before = created.infoWindows.length
+      a.setCallouts([callout('dest', 139.77, 35.71), callout('alt', 139.54, 35.65)])
+      const added = created.infoWindows.slice(before)
+      expect(added).toHaveLength(2)
+      expect(added.every((w) => w.opened)).toBe(true)
+      expect(added[0].html).toBe('<b>dest</b>')
+      expect(added[0].pos).toEqual({ lat: 35.71, lng: 139.77 })
+    })
+
+    // ⚠️ 開くたびに地図が動くと fitBounds の結果が台無しになる
+    it('地図を勝手に動かさず、×ボタンも出さない', async () => {
+      const a = await makeAdapter()
+      const before = created.infoWindows.length
+      a.setCallouts([callout('dest', 139.77, 35.71)])
+      const opts = created.infoWindows[before].opts
+      expect(opts.disableAutoPan).toBe(true)
+      expect(opts.headerDisabled).toBe(true)
+    })
+
+    it('渡し直すと前のものを閉じる', async () => {
+      const a = await makeAdapter()
+      const before = created.infoWindows.length
+      a.setCallouts([callout('dest', 139.77, 35.71)])
+      const first = created.infoWindows[before]
+      a.setCallouts([callout('dest', 139.78, 35.72)])
+      expect(first.opened).toBe(false)
+      expect(created.infoWindows[created.infoWindows.length - 1].opened).toBe(true)
+    })
+
+    it('空配列で全部消す', async () => {
+      const a = await makeAdapter()
+      const before = created.infoWindows.length
+      a.setCallouts([callout('dest', 139.77, 35.71), callout('alt', 139.54, 35.65)])
+      a.setCallouts([])
+      expect(created.infoWindows.slice(before).every((w) => !w.opened)).toBe(true)
     })
   })
 

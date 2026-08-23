@@ -47,6 +47,21 @@ export interface ShelterMarkerSpec {
   onClick?: () => void
 }
 
+/** 地図に出しっぱなしにする吹き出し（経路の要約）。
+ *
+ * ⚠️ **`showPopup` とは役割が違う。** あちらは押したときに1つだけ出る一時的な
+ * 吹き出しで、`setCallouts` は検索結果の要約を出しっぱなしにする。
+ * 一覧を渡すたびに**全部作り直す**（マーカーと同じ扱い）。
+ *
+ * ⚠️ **`html` はエスケープ済みのものを渡すこと。** 施設名は API 由来の文字列で、
+ * ここへ素通しする（アダプタ側では組み立てない）。
+ */
+export interface CalloutSpec {
+  id: string
+  lngLat: LngLatTuple
+  html: string
+}
+
 export interface RouteClick {
   lngLat: LngLatTuple
   route: RouteId
@@ -94,6 +109,8 @@ export interface MapAdapter {
   /** 避難所・避難場所ピン。urgent=緑、designated=黄。空配列で全消し */
   setShelterMarkers(list: ShelterMarkerSpec[]): void
   showPopup(lngLat: LngLatTuple, html: string): void
+  /** 経路の要約を出しっぱなしにする吹き出し。空配列で全消し */
+  setCallouts(list: CalloutSpec[]): void
 
   /** cb は「押された経路ID + 座標」を受ける。区間の特定は共通側が座標から行う */
   onClick(cb: (e: RouteClick) => void): void

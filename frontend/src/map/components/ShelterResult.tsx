@@ -201,7 +201,9 @@ export function ShelterResult({ shelter, alt, candidates, query, risk, onSelect 
             {`ほかの候補（${GROUP[basis].title}）`}
           </p>
           <p className="mb-1.5 text-[8px] text-slate-400">{GROUP[basis].note}</p>
-          <ul className="grid list-none gap-1.5 p-0">
+          {/* ⚠️ **2列で並べる。** 候補は最大でも数件だが、1列だと1画面に
+              収まらず、近い順・危険が小さい順の比較がスクロール越しになる */}
+          <ul className="grid list-none grid-cols-2 gap-1.5 p-0">
             {rows.map((candidate) => (
               <CandidateRow
                 candidate={candidate}

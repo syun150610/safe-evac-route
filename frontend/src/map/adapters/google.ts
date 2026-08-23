@@ -10,6 +10,7 @@
 import { loadMapsScript, mapsApiKey } from '../lib/google-maps'
 import type {
   AreaClick,
+  CalloutSpec,
   LngLatTuple,
   MapAdapter,
   MapViewport,
@@ -36,11 +37,13 @@ export function createGoogleAdapter(): MapAdapter {
   let map: any = null
   let container: HTMLElement | null = null
   const quakePolys: any[] = [] // 地域危険度の町丁目（google.maps.Polygon）
-  let quakeOpacity = 0.55
   let areaRect: any = null // 対象エリアの枠（google.maps.Rectangle）
   let areaClickCb: ((e: AreaClick) => void) | null = null
   let flood: any = null
   let floodIndex = -1
+  // ⚠️ **浸水の不透明度を地震のものと共有しない。** 以前は setLayerVisible が
+  //    quakeOpacity で復帰させていて、片方だけ濃さを変えると巻き添えで戻った
+  let floodOpacity = 1
   let infoWindow: any = null
   let clickCb: ((e: RouteClick) => void) | null = null
   let longPressCb: ((lngLat: LngLatTuple) => void) | null = null
@@ -50,6 +53,7 @@ export function createGoogleAdapter(): MapAdapter {
   let reserved = 0
   const markers: any[] = []
   const shelterMarkers: any[] = []
+  const callouts: any[] = [] // 出しっぱなしの要約（google.maps.InfoWindow）
   const layers: Record<string, any> = {} // routeId -> { casing, main, hit, style, z }
   let mapInited = false
   let resolveReady: (() => void) | null = null
@@ -393,6 +397,7 @@ export function createGoogleAdapter(): MapAdapter {
     addRasterLayer(_id, url, opts = {}) {
       const { minzoom = MINZ_DEFAULT, maxzoom = MAXZ_DEFAULT, opacity = 1 } = opts
       if (!map) return
+      floodOpacity = opacity
       flood = makeFloodType(url, minzoom, maxzoom, opacity)
       floodIndex = map.overlayMapTypes.getLength()
       map.overlayMapTypes.push(flood)
@@ -414,10 +419,10 @@ export function createGoogleAdapter(): MapAdapter {
 
     setLayerOpacity(id, v) {
       if (id === 'quake') {
-        quakeOpacity = v
         for (const p of quakePolys) p.setOptions(areaStyle(v))
         return
       }
+      floodOpacity = v
       if (flood) flood.setOpacity(v)
     },
 
@@ -438,7 +443,6 @@ export function createGoogleAdapter(): MapAdapter {
       if (!map) return
       for (const p of quakePolys) p.setMap(null)
       quakePolys.length = 0
-      quakeOpacity = opacity
 
       for (const f of geojson?.features ?? []) {
         const g = f.geometry
@@ -470,7 +474,7 @@ export function createGoogleAdapter(): MapAdapter {
         for (const p of quakePolys) p.setVisible(on)
         return
       }
-      if (id === 'flood' && flood) flood.setOpacity(on ? quakeOpacity : 0)
+      if (id === 'flood' && flood) flood.setOpacity(on ? floodOpacity : 0)
     },
 
     // 対象エリアの枠。Rectangle は塗りを消せる（fillOpacity 0）ので線だけにする
@@ -620,6 +624,28 @@ export function createGoogleAdapter(): MapAdapter {
       infoWindow.setContent(html)
       infoWindow.setPosition({ lat: lngLat[1], lng: lngLat[0] })
       infoWindow.open(map)
+    },
+
+    // 出しっぱなしの要約。**1件ずつ別の InfoWindow を持つ**（共用の infoWindow は
+    // 区間タップ用で、内容を上書きし合ってしまう）。
+    //
+    // ⚠️ `disableAutoPan` を必ず付ける。既定では開くたびに地図が動き、
+    //    複数出すと最後の1件へ勝手に寄っていく（fitBounds の結果が台無しになる）。
+    // ⚠️ `headerDisabled` で×ボタンを消す。要約は利用者が閉じるものではない
+    //    （Maps JS が知らない場合は無視されるだけで、害はない）。
+    setCallouts(list: CalloutSpec[]) {
+      if (!map) return
+      while (callouts.length) callouts.pop().close()
+      for (const c of list) {
+        const iw = new google.maps.InfoWindow({
+          content: c.html,
+          position: { lat: c.lngLat[1], lng: c.lngLat[0] },
+          disableAutoPan: true,
+          headerDisabled: true,
+        })
+        iw.open(map)
+        callouts.push(iw)
+      }
     },
 
     onClick(cb) {

@@ -25,6 +25,7 @@ import type { RouteId } from '../types'
 import type {
   AreaClick,
   BBox,
+  CalloutSpec,
   LngLatTuple,
   MapAdapter,
   MapViewport,
@@ -72,6 +73,7 @@ export function createMapLibreAdapter(): MapAdapter {
   let locked: string[] | null = null
   const markers: Marker[] = []
   const shelterMarkers: Marker[] = []
+  const callouts: Popup[] = [] // 出しっぱなしの要約
 
   const handler = (n: string) => (map as unknown as Record<string, Handler>)[n]
 
@@ -455,6 +457,31 @@ export function createMapLibreAdapter(): MapAdapter {
 
     showPopup(lngLat: LngLatTuple, html: string) {
       popup.setLngLat(lngLat).setHTML(html).addTo(map)
+    },
+
+    // 出しっぱなしの要約。**共用の `popup` は使わない**（区間タップ用で、
+    // 内容を上書きし合う）。
+    //
+    // ⚠️ `closeOnClick` を切る。既定では地図を1回押すだけで全部消え、
+    //    利用者は消えた理由も戻し方も分からない。
+    // ⚠️ `focusAfterOpen` を切る。開くたびにフォーカスが吹き出しへ飛び、
+    //    シートの操作位置を見失う。
+    setCallouts(list: CalloutSpec[]) {
+      for (const p of callouts) p.remove()
+      callouts.length = 0
+      for (const c of list) {
+        callouts.push(
+          new Popup({
+            closeButton: false,
+            closeOnClick: false,
+            focusAfterOpen: false,
+            maxWidth: '220px',
+          })
+            .setLngLat(c.lngLat)
+            .setHTML(c.html)
+            .addTo(map),
+        )
+      }
     },
 
     onClick(cb) {
