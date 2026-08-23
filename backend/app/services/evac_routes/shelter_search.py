@@ -42,9 +42,8 @@ import math
 from app.services.evac_routes import search as S
 from app.services.shelters import loader
 from prep.hazard_sources import registry
-from prep.route_search import bundles as B
 from prep.route_search import csr_search as CS
-from prep.route_search.search import resolve_path_edges, route_stats, stitch
+from prep.route_search.search import resolve_path_edges, route_stats
 from prep.route_search.snap import graph_bbox
 from prep.route_search.weights import edge_cost
 
