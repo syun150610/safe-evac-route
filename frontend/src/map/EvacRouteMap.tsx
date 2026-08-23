@@ -156,6 +156,54 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   }, [bundle])
   const primaryHazard = consideredHazards[0] ?? null
 
+  /** いま入力中で、まだ地点が決まっていない。**このときだけ候補を出す。** */
+  const typing = active.query.trim() !== '' && active.place === null
+
+  /** 入力の真下に重ねる候補。
+   *
+   * ⚠️ **「対象外」と「まだ分からない」を混ぜない。** Places の候補は座標を
+   * 持たないので、押すまでエリア内か言えない。`inside === false` のときだけ断る。
+   */
+  const suggestionList = (
+    <>
+      <p className="px-3 pt-2 pb-1 text-[9px] text-slate-500">候補</p>
+      {geocode.loading && <p className="p-4 text-center text-[11px] text-slate-500">検索中…</p>}
+      {geocode.error && (
+        <p className="p-4 text-center text-[11px] text-slate-500">{geocode.error}</p>
+      )}
+      {!geocode.loading && !geocode.error && geocode.places.length === 0 && (
+        <p className="p-4 text-center text-[11px] text-slate-500">候補が見つかりません</p>
+      )}
+      {geocode.places.map((suggestion) => {
+        const known = suggestion.place
+        const inside = known ? inArea(area, known.lat, known.lon) : null
+        return (
+          <button
+            type="button"
+            role="option"
+            aria-selected="false"
+            key={suggestion.id}
+            onClick={() => void choosePlace(suggestion)}
+            disabled={inside === false}
+            className="grid w-full cursor-pointer grid-cols-[26px_1fr_auto] items-center gap-1 border-0 border-slate-100 border-t bg-transparent px-3 py-2.5 text-left hover:bg-slate-50 focus-visible:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span className="text-base text-[#07156f]">⌖</span>
+            <span className="min-w-0">
+              <strong className="block truncate text-xs">{suggestion.title}</strong>
+              <small className="mt-0.5 block truncate text-[9px] text-slate-500">
+                {suggestion.address ??
+                  (known ? `${known.lat.toFixed(5)}, ${known.lon.toFixed(5)}` : '')}
+              </small>
+            </span>
+            <em className="text-[8px] text-[#07156f] not-italic">
+              {inside === false ? '対象外' : '選択'}
+            </em>
+          </button>
+        )
+      })}
+    </>
+  )
+
   const [latestPost, setLatestPost] = useState<Post | null>(null)
 
   useEffect(() => {
@@ -1004,6 +1052,9 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                       dispatch({ type: 'clear_place', field })
                       dispatch({ type: 'activate_field', field })
                     }}
+                    // ⚠️ **入力しているものの下にだけ出す。** 候補は入力の真下に
+                    //    重ねる（PlaceInput 側で位置と読み上げを持つ）
+                    suggestions={typing && state.activeField === field ? suggestionList : undefined}
                   />
                 )
               })}
@@ -1043,45 +1094,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   {search.error}
                 </p>
               )}
-              {active.query.trim() && active.place === null ? (
-                <>
-                  <p className="mt-4 mb-2 text-[10px] font-bold text-slate-500">検索結果</p>
-                  <div className="border-t border-slate-100 [&>button]:grid [&>button]:min-h-[58px] [&>button]:w-full [&>button]:cursor-pointer [&>button]:grid-cols-[31px_1fr_auto] [&>button]:items-center [&>button]:border-0 [&>button]:border-b [&>button]:border-slate-100 [&>button]:bg-transparent [&>button]:px-1 [&>button]:py-2 [&>button]:text-left [&>button:disabled]:cursor-not-allowed [&>button:disabled]:opacity-50">
-                    {geocode.loading && (
-                      <p className="p-6 text-center text-[11px] text-slate-500">検索中…</p>
-                    )}
-                    {geocode.error && (
-                      <p className="p-6 text-center text-[11px] text-slate-500">{geocode.error}</p>
-                    )}
-                    {geocode.places.map((suggestion) => {
-                      // ⚠️ 座標を持たない候補（Places）では、エリア内かどうかを
-                      //    事前に言えない。**言えないことを「対象外」と出さない**
-                      const known = suggestion.place
-                      const inside = known ? inArea(area, known.lat, known.lon) : null
-                      return (
-                        <button
-                          type="button"
-                          key={suggestion.id}
-                          onClick={() => void choosePlace(suggestion)}
-                          disabled={inside === false}
-                        >
-                          <span className="text-lg text-[#07156f]">⌖</span>
-                          <span className="[&_small]:mt-1 [&_small]:block [&_small]:text-[9px] [&_small]:text-slate-500 [&_strong]:block [&_strong]:text-xs">
-                            <strong>{suggestion.title}</strong>
-                            <small>
-                              {suggestion.address ??
-                                (known ? `${known.lat.toFixed(5)}, ${known.lon.toFixed(5)}` : '')}
-                            </small>
-                          </span>
-                          <em className="text-[8px] text-[#07156f] not-italic">
-                            {inside === false ? '対象外' : '選択'}
-                          </em>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </>
-              ) : (
+              {typing ? null : (
                 <div className="grid justify-items-center px-4 pt-[30px] pb-[22px] text-center text-slate-500 [&>p]:my-1.5 [&>p]:text-[10px] [&>small]:text-[9px] [&>small]:text-slate-400 [&>strong]:text-xs [&>strong]:text-slate-700">
                   <span className="mb-2.5 grid size-[42px] place-items-center rounded-full bg-slate-100 text-xl text-[#07156f]">
                     ⌕
