@@ -21,6 +21,14 @@ describe('safeReducer', () => {
     expect(selected.destination).toEqual({ query: '上野駅', place: ueno })
   })
 
+  // ⚠️ 吹き出しはピンや経路と重なる場所が出るので、消せる必要がある
+  it('経路の要約は既定で出し、消したり戻したりできる', () => {
+    expect(initialSafeState.showCallouts).toBe(true)
+    const off = safeReducer(initialSafeState, { type: 'show_callouts', shown: false })
+    expect(off.showCallouts).toBe(false)
+    expect(safeReducer(off, { type: 'show_callouts', shown: true }).showCallouts).toBe(true)
+  })
+
   it('レイヤーを閉じると元の画面へ戻る', () => {
     const route = safeReducer(initialSafeState, { type: 'open', screen: 'route' })
     const layers = safeReducer(route, { type: 'open_layers' })

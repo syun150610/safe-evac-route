@@ -25,6 +25,8 @@ import type { RouteId } from '../types'
 import type {
   AreaClick,
   BBox,
+  CalloutAnchor,
+  CalloutSpec,
   LngLatTuple,
   MapAdapter,
   MapViewport,
@@ -49,6 +51,29 @@ setWorkerUrl(mlWorkerUrl)
 
 const GSI_TILES = 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png'
 
+/** 要約の吹き出しをピンの上へ逃がす量(px)。MapLibre の既定マーカーは高さ41px */
+const CALLOUT_LIFT = 46
+/** 上以外の向きに置くときの隙間(px) */
+const CALLOUT_GAP = 16
+
+/** 吹き出しをどちら側へ置くか → Popup のどこを地点に合わせるか。
+ *
+ * ⚠️ **向きが逆になる。** 吹き出しを地点の上（`top`）に出したいときは、
+ * Popup の**下端**（`bottom`）を地点へ合わせる。 */
+const POPUP_ANCHOR = {
+  top: 'bottom',
+  bottom: 'top',
+  left: 'right',
+  right: 'left',
+} as const
+
+const POPUP_OFFSET: Record<CalloutAnchor, [number, number]> = {
+  top: [0, -CALLOUT_LIFT],
+  bottom: [0, CALLOUT_GAP],
+  left: [-CALLOUT_GAP, 0],
+  right: [CALLOUT_GAP, 0],
+}
+
 /** シートを掴んでいる間だけ切るジェスチャ。切ったものだけを元に戻す */
 const GESTURES = [
   'dragPan',
@@ -72,6 +97,7 @@ export function createMapLibreAdapter(): MapAdapter {
   let locked: string[] | null = null
   const markers: Marker[] = []
   const shelterMarkers: Marker[] = []
+  const callouts: Popup[] = [] // 出しっぱなしの要約
 
   const handler = (n: string) => (map as unknown as Record<string, Handler>)[n]
 
@@ -455,6 +481,34 @@ export function createMapLibreAdapter(): MapAdapter {
 
     showPopup(lngLat: LngLatTuple, html: string) {
       popup.setLngLat(lngLat).setHTML(html).addTo(map)
+    },
+
+    // 出しっぱなしの要約。**共用の `popup` は使わない**（区間タップ用で、
+    // 内容を上書きし合う）。
+    //
+    // ⚠️ `closeOnClick` を切る。既定では地図を1回押すだけで全部消え、
+    //    利用者は消えた理由も戻し方も分からない。
+    // ⚠️ `focusAfterOpen` を切る。開くたびにフォーカスが吹き出しへ飛び、
+    //    シートの操作位置を見失う。
+    setCallouts(list: CalloutSpec[]) {
+      for (const p of callouts) p.remove()
+      callouts.length = 0
+      for (const c of list) {
+        callouts.push(
+          new Popup({
+            closeButton: false,
+            closeOnClick: false,
+            focusAfterOpen: false,
+            maxWidth: '220px',
+            // ⚠️ 上に置くときはピンの高さぶん持ち上げる（同じ地点に立つマーカーを覆う）
+            anchor: POPUP_ANCHOR[c.anchor],
+            offset: POPUP_OFFSET[c.anchor],
+          })
+            .setLngLat(c.lngLat)
+            .setHTML(c.html)
+            .addTo(map),
+        )
+      }
     },
 
     onClick(cb) {

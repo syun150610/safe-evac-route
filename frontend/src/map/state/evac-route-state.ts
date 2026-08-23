@@ -24,6 +24,12 @@ export interface SafeState {
   mapLayer: MapLayerChoice
   opacity: number
   shownRoutes: Partial<Record<RouteId, boolean>>
+  /** 地図の上に経路の要約（吹き出し）を出すか。
+   *
+   * ⚠️ **消せるようにしておく。** 吹き出しは避難先のピンの近くに出るので、
+   * ピンや経路と重なる場所がどうしても出る（ユーザー指摘、2026-08-23）。
+   * 既定はON（要約が見えることが目的の機能なので、既定で隠さない）。 */
+  showCallouts: boolean
 }
 
 export const initialSafeState: SafeState = {
@@ -38,6 +44,7 @@ export const initialSafeState: SafeState = {
   mapLayer: 'none',
   opacity: 0.65,
   shownRoutes: { baseline: true },
+  showCallouts: true,
 }
 
 export type SafeAction =
@@ -53,6 +60,7 @@ export type SafeAction =
   | { type: 'set_scenario'; scenario: string }
   | { type: 'set_layer'; layer: MapLayerChoice }
   | { type: 'set_opacity'; opacity: number }
+  | { type: 'show_callouts'; shown: boolean }
   | { type: 'show_route'; route: RouteId; shown: boolean }
   | { type: 'route_ready'; routes: RouteId[] }
   | { type: 'end_route' }
@@ -104,6 +112,8 @@ export function safeReducer(state: SafeState, action: SafeAction): SafeState {
       return { ...state, mapLayer: action.layer }
     case 'set_opacity':
       return { ...state, opacity: action.opacity }
+    case 'show_callouts':
+      return { ...state, showCallouts: action.shown }
     case 'show_route':
       return { ...state, shownRoutes: { ...state.shownRoutes, [action.route]: action.shown } }
     case 'route_ready':

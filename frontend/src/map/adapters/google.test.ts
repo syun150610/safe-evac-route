@@ -11,12 +11,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RouteStyle } from '../constants'
 import type { RouteId } from '../types'
 import { createGoogleAdapter } from './google'
+import type { CalloutAnchor } from './types'
+
+interface FakeInfoWindow {
+  html?: string
+  pos?: unknown
+  opened: boolean
+  opts: Record<string, unknown>
+}
 
 interface Created {
+  floatPane: HTMLElement
   lines: FakePolyline[]
   markers: { o: Record<string, unknown> }[]
   mapOpts: Record<string, unknown> | null
   overlays: FloodType[]
+  infoWindows: FakeInfoWindow[]
 }
 
 interface FloodType {
@@ -50,7 +60,14 @@ let created: Created
 let fakeMap: any
 
 function installStub() {
-  created = { lines: [], markers: [], mapOpts: null, overlays: [] }
+  created = {
+    floatPane: document.createElement('div'),
+    lines: [],
+    markers: [],
+    mapOpts: null,
+    overlays: [],
+    infoWindows: [],
+  }
   class FakeMap {
     el: HTMLElement
     fits: { b: any; p: any }[] = []
@@ -152,11 +169,36 @@ function installStub() {
         addListener() {}
         setMap() {}
       },
+      // 要約の吹き出しは自前の OverlayView で描く。本物は setMap で
+      // onAdd → draw を呼ぶので、モックでも同じ順で呼ぶ
+      OverlayView: class {
+        onAdd?: () => void
+        draw?: () => void
+        onRemove?: () => void
+        setMap(m: unknown) {
+          if (m) {
+            this.onAdd?.()
+            this.draw?.()
+          } else this.onRemove?.()
+        }
+        getPanes() {
+          return { floatPane: created.floatPane }
+        }
+        getProjection() {
+          return { fromLatLngToDivPixel: () => ({ x: 120, y: 240 }) }
+        }
+      },
       InfoWindow: class {
         html?: string
         pos?: unknown
         opened = false
-        constructor(_o?: Record<string, unknown>) {}
+        opts: Record<string, unknown>
+        constructor(o?: Record<string, unknown>) {
+          this.opts = o ?? {}
+          this.html = o?.content as string | undefined
+          this.pos = o?.position
+          created.infoWindows.push(this)
+        }
         setContent(h: string) {
           this.html = h
         }
@@ -165,6 +207,9 @@ function installStub() {
         }
         open() {
           this.opened = true
+        }
+        close() {
+          this.opened = false
         }
       },
       event: { trigger() {} },
@@ -353,6 +398,18 @@ describe('adapter_google（スタブ）', () => {
       )
     })
 
+    // ⚠️ 以前は浸水の復帰値に地震の不透明度を使っていた。浸水だけ濃くすると
+    //    表示を切り替えるたびに地震側の薄さへ戻っていた
+    it('出し直しても地震の不透明度に引きずられない', async () => {
+      const a = await makeAdapter()
+      a.addRasterLayer('flood', url, { minzoom: 12, maxzoom: 17, opacity: 1 })
+      a.setLayerOpacity('quake', 0.4)
+      a.setLayerVisible('flood', false)
+      a.setLayerVisible('flood', true)
+      const t = created.overlays[0].getTile({ x: 14552, y: 6446 }, 14, document)
+      expect(t.style.opacity).toBe('1')
+    })
+
     it('差し替えで overlay を作り直し、不透明度を引き継ぐ', async () => {
       const a = await makeAdapter()
       a.addRasterLayer('flood', url, { minzoom: 12, maxzoom: 17, opacity: 0.7 })
@@ -364,6 +421,67 @@ describe('adapter_google（スタブ）', () => {
       const t = after.getTile({ x: 14552, y: 6446 }, 14, document)
       expect(t.style.backgroundImage).toContain('kandagawa')
       expect(t.style.opacity).toBe('0.4')
+    })
+  })
+
+  describe('要約の吹き出し（setCallouts）', () => {
+    const callout = (id: string, anchor: CalloutAnchor = 'top') => ({
+      id,
+      lngLat: [139.77, 35.71] as [number, number],
+      html: `<b>${id}</b>`,
+      anchor,
+    })
+
+    const boxes = () => Array.from(created.floatPane.children) as HTMLElement[]
+
+    it('件数ぶんの吹き出しを地図へ足す', async () => {
+      const a = await makeAdapter()
+      a.setCallouts([callout('dest'), callout('alt')])
+      expect(boxes()).toHaveLength(2)
+      expect(boxes()[0].innerHTML).toBe('<b>dest</b>')
+      expect(boxes()[0].style.left).toBe('120px')
+      expect(boxes()[0].style.top).toBe('240px')
+    })
+
+    // ⚠️ 吹き出しがクリックを吸うと、下の経路もピンも押せなくなる
+    it('クリックを吸わない', async () => {
+      const a = await makeAdapter()
+      a.setCallouts([callout('dest')])
+      expect(boxes()[0].style.pointerEvents).toBe('none')
+    })
+
+    // ⚠️ ピンは地点から上へ伸びるので、上に置くときだけ余分に逃がす
+    it('上に置くときはピンの高さぶん持ち上げる', async () => {
+      const a = await makeAdapter()
+      a.setCallouts([callout('dest', 'top')])
+      expect(boxes()[0].style.transform).toContain('-100%')
+      expect(boxes()[0].style.transform).toMatch(/- ?4\d+px/)
+    })
+
+    it('指定された向きへ置く', async () => {
+      const a = await makeAdapter()
+      for (const [anchor, expected] of [
+        ['bottom', 'translate(-50%, 16px)'],
+        ['right', 'translate(16px, -50%)'],
+        ['left', 'translate(calc(-100% - 16px), -50%)'],
+      ] as const) {
+        a.setCallouts([callout('dest', anchor)])
+        expect(boxes()[0].style.transform).toBe(expected)
+      }
+    })
+
+    it('渡し直すと前のものを消す', async () => {
+      const a = await makeAdapter()
+      a.setCallouts([callout('dest'), callout('alt')])
+      a.setCallouts([callout('dest')])
+      expect(boxes()).toHaveLength(1)
+    })
+
+    it('空配列で全部消す', async () => {
+      const a = await makeAdapter()
+      a.setCallouts([callout('dest'), callout('alt')])
+      a.setCallouts([])
+      expect(boxes()).toHaveLength(0)
     })
   })
 

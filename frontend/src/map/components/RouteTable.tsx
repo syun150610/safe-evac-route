@@ -9,6 +9,7 @@
  * 閾値の判定はAPI（`rationale.hazards[].unevaluated_stage`）に任せ、
  * **ここで割合と閾値を比べ直さない。**
  */
+import { altRouteLabel } from '../lib/format'
 import type { Bundle, HazardRisk, Rationale, RouteId, RouteStats } from '../types'
 
 interface Props {
@@ -134,7 +135,7 @@ export function RouteTable({ bundle, shown, alt, risk, hazard, distance, onToggl
         />
         <span className="h-1 rounded-full [background:repeating-linear-gradient(90deg,#b45309_0_5px,transparent_5px_8px)]" />
         <span>
-          <strong>{hazard ? `${hazard.label}を考慮` : 'この災害を考慮'}</strong>
+          <strong>{altRouteLabel(hazard?.label)}</strong>
           <small>
             徒歩約{Math.round(alt.stats.duration_min_60)}分・{km(alt.stats.distance_m)}
           </small>

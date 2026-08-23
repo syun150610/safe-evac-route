@@ -10,6 +10,8 @@
 import { loadMapsScript, mapsApiKey } from '../lib/google-maps'
 import type {
   AreaClick,
+  CalloutAnchor,
+  CalloutSpec,
   LngLatTuple,
   MapAdapter,
   MapViewport,
@@ -27,6 +29,66 @@ export function createGoogleAdapter(): MapAdapter {
   // 論理ズーム（MapLibre基準）→ Google のズーム。**この +1 を共通側に漏らさない**
   const Z_SHIFT = 1
 
+  // 要約の吹き出しをピンの上へ逃がす量(px)。
+  // **マーカーの高さ（36px。地点に立つので上へ36px伸びる）＋余白**。
+  // マーカーの大きさを変えたらここも変える（重なりが戻る）
+  const CALLOUT_LIFT = 42
+  // 上以外の向きに置くときの隙間(px)。ピンの幅は24pxなので半分より広く取る
+  const CALLOUT_GAP = 16
+
+  /** 地点(0,0)を基準に、吹き出しをどちらへ置くか。
+   *
+   * ⚠️ **上だけはピンの高さぶん余分に逃がす。** ピンは地点から上へ伸びており、
+   * 素直に上へ置くと必ず重なる（2026-08-23の指摘）。 */
+  const CALLOUT_TRANSFORM: Record<CalloutAnchor, string> = {
+    top: `translate(-50%, calc(-100% - ${CALLOUT_LIFT}px))`,
+    bottom: `translate(-50%, ${CALLOUT_GAP}px)`,
+    left: `translate(calc(-100% - ${CALLOUT_GAP}px), -50%)`,
+    right: `translate(${CALLOUT_GAP}px, -50%)`,
+  }
+
+  const CALLOUT_STYLE = [
+    'position:absolute',
+    'background:#fff',
+    'border:1px solid #e2e8f0',
+    'border-radius:10px',
+    'padding:7px 9px',
+    'box-shadow:0 6px 18px rgb(15 23 42 / 22%)',
+    // ⚠️ **クリックを吸わせない。** 吹き出しは読むだけのもので、下の経路や
+    //    ピンを押せなくなると、区間タップも避難先の切り替えもできなくなる
+    'pointer-events:none',
+  ].join(';')
+
+  /** 要約の吹き出し1つ。**InfoWindow は使わない。**
+   *
+   * ⚠️ InfoWindow は必ず地点の上に出て、向きを選べない。経路が北から入って
+   * くると線に重なる（2026-08-23の指摘）。上下左右へ置けるように自前で描く。 */
+  function makeCallout(spec: CalloutSpec) {
+    const overlay = new google.maps.OverlayView() as any
+    let div: HTMLDivElement | null = null
+    overlay.onAdd = function onAdd(this: any) {
+      div = document.createElement('div')
+      div.style.cssText = CALLOUT_STYLE
+      div.innerHTML = spec.html
+      this.getPanes()?.floatPane?.appendChild(div)
+    }
+    overlay.draw = function draw(this: any) {
+      const point = this.getProjection()?.fromLatLngToDivPixel(
+        new google.maps.LatLng(spec.lngLat[1], spec.lngLat[0]),
+      )
+      if (!div || !point) return
+      div.style.left = `${point.x}px`
+      div.style.top = `${point.y}px`
+      div.style.transform = CALLOUT_TRANSFORM[spec.anchor]
+    }
+    overlay.onRemove = function onRemove() {
+      div?.remove()
+      div = null
+    }
+    overlay.setMap(map)
+    return overlay
+  }
+
   // Google には画面px基準の line-offset が無い。世界座標(m)でずらすしかないので、
   // 「現在のズームで何メートルが1pxか」を毎回計算して線を引き直す。
   // 固定のmでずらすと、ズームアウト時に5本が重なって見分けられなくなる
@@ -36,11 +98,13 @@ export function createGoogleAdapter(): MapAdapter {
   let map: any = null
   let container: HTMLElement | null = null
   const quakePolys: any[] = [] // 地域危険度の町丁目（google.maps.Polygon）
-  let quakeOpacity = 0.55
   let areaRect: any = null // 対象エリアの枠（google.maps.Rectangle）
   let areaClickCb: ((e: AreaClick) => void) | null = null
   let flood: any = null
   let floodIndex = -1
+  // ⚠️ **浸水の不透明度を地震のものと共有しない。** 以前は setLayerVisible が
+  //    quakeOpacity で復帰させていて、片方だけ濃さを変えると巻き添えで戻った
+  let floodOpacity = 1
   let infoWindow: any = null
   let clickCb: ((e: RouteClick) => void) | null = null
   let longPressCb: ((lngLat: LngLatTuple) => void) | null = null
@@ -50,6 +114,7 @@ export function createGoogleAdapter(): MapAdapter {
   let reserved = 0
   const markers: any[] = []
   const shelterMarkers: any[] = []
+  const callouts: any[] = [] // 出しっぱなしの要約（自前の OverlayView）
   const layers: Record<string, any> = {} // routeId -> { casing, main, hit, style, z }
   let mapInited = false
   let resolveReady: (() => void) | null = null
@@ -393,6 +458,7 @@ export function createGoogleAdapter(): MapAdapter {
     addRasterLayer(_id, url, opts = {}) {
       const { minzoom = MINZ_DEFAULT, maxzoom = MAXZ_DEFAULT, opacity = 1 } = opts
       if (!map) return
+      floodOpacity = opacity
       flood = makeFloodType(url, minzoom, maxzoom, opacity)
       floodIndex = map.overlayMapTypes.getLength()
       map.overlayMapTypes.push(flood)
@@ -414,10 +480,10 @@ export function createGoogleAdapter(): MapAdapter {
 
     setLayerOpacity(id, v) {
       if (id === 'quake') {
-        quakeOpacity = v
         for (const p of quakePolys) p.setOptions(areaStyle(v))
         return
       }
+      floodOpacity = v
       if (flood) flood.setOpacity(v)
     },
 
@@ -438,7 +504,6 @@ export function createGoogleAdapter(): MapAdapter {
       if (!map) return
       for (const p of quakePolys) p.setMap(null)
       quakePolys.length = 0
-      quakeOpacity = opacity
 
       for (const f of geojson?.features ?? []) {
         const g = f.geometry
@@ -470,7 +535,7 @@ export function createGoogleAdapter(): MapAdapter {
         for (const p of quakePolys) p.setVisible(on)
         return
       }
-      if (id === 'flood' && flood) flood.setOpacity(on ? quakeOpacity : 0)
+      if (id === 'flood' && flood) flood.setOpacity(on ? floodOpacity : 0)
     },
 
     // 対象エリアの枠。Rectangle は塗りを消せる（fillOpacity 0）ので線だけにする
@@ -620,6 +685,13 @@ export function createGoogleAdapter(): MapAdapter {
       infoWindow.setContent(html)
       infoWindow.setPosition({ lat: lngLat[1], lng: lngLat[0] })
       infoWindow.open(map)
+    },
+
+    // 出しっぱなしの要約。渡し直すたびに全部作り直す（マーカーと同じ扱い）
+    setCallouts(list: CalloutSpec[]) {
+      if (!map) return
+      while (callouts.length) callouts.pop().setMap(null)
+      for (const c of list) callouts.push(makeCallout(c))
     },
 
     onClick(cb) {

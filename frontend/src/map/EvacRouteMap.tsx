@@ -26,6 +26,7 @@ import { distanceKm } from './lib/distance'
 import { nearestSegment, routeBounds } from './lib/geo'
 import { currentPosition, type Place } from './lib/gsi'
 import type { PlaceSuggestion } from './lib/place-search'
+import { routeCallouts } from './lib/route-callouts'
 import {
   buildHazards,
   buildRouteSearchRequest,
@@ -39,6 +40,13 @@ import type { Rationale, ShelterCandidate, ShelterFeature } from './types'
 const CENTER: [number, number] = [139.792, 35.733]
 const EMPTY = { type: 'FeatureCollection' as const, features: [] }
 const FLOOD_ZOOM = { minzoom: 12, maxzoom: 15 }
+/** 浸水タイルの不透明度。
+ *
+ * ⚠️ **地震の面（`state.opacity`）と分ける。** 浸水は「どこが何m浸かるか」を
+ * 色の濃さで表すラスタで、薄めると浅い区間の色が下地に負けて読めない
+ * （ユーザー指摘、2026-08-23）。地震の町丁目は面が広く、薄くしないと
+ * 経路も地図も隠れるので**そのまま**にする。 */
+const FLOOD_OPACITY = 1
 const SHEET_SCREEN_CLASS = 'min-h-full bg-white px-4 py-4'
 /** 指定地点から道路までの距離が、これ以上なら画面で断る(m)。
  * 実測（対象エリア内の施設4,550件）で中央値40m・95パーセンタイル84m。
@@ -511,13 +519,13 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     if (!a || !ready) return
     if (floodUrl) {
       if (!floodAdded.current) {
-        a.addRasterLayer('flood', floodUrl, { ...FLOOD_ZOOM, opacity: state.opacity })
+        a.addRasterLayer('flood', floodUrl, { ...FLOOD_ZOOM, opacity: FLOOD_OPACITY })
         floodAdded.current = true
       } else a.setRasterTiles('flood', floodUrl)
       a.setLayerVisible('flood', true)
-      a.setLayerOpacity('flood', state.opacity)
+      a.setLayerOpacity('flood', FLOOD_OPACITY)
     } else if (floodAdded.current) a.setLayerVisible('flood', false)
-  }, [adapter, ready, floodUrl, state.opacity])
+  }, [adapter, ready, floodUrl])
 
   useEffect(() => {
     const a = adapter.current
@@ -529,6 +537,22 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       a.setLayerOpacity('quake', state.opacity)
     } else if (quakeAdded.current) a.setLayerVisible('quake', false)
   }, [adapter, ready, quakeData, state.opacity])
+
+  // 経路の要約を地図の上に出す。⚠️ **消した経路の数字を残さない**ので
+  // `shownRoutes` も見る（`routeCallouts` が絞る）
+  useEffect(() => {
+    const a = adapter.current
+    if (!a || !ready) return
+    a.setCallouts(
+      state.showCallouts
+        ? routeCallouts(bundle, {
+            risk: hazardMeta?.risk,
+            shown: state.shownRoutes,
+            hazardLabel: primaryHazard?.label,
+          })
+        : [],
+    )
+  }, [adapter, ready, bundle, hazardMeta, primaryHazard, state.shownRoutes, state.showCallouts])
 
   useEffect(() => {
     const a = adapter.current
@@ -667,6 +691,8 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               loading={quakeLoading}
               error={quakeError}
               onChange={(layer) => dispatch({ type: 'set_layer', layer })}
+              callouts={state.showCallouts}
+              onCalloutsChange={(shown) => dispatch({ type: 'show_callouts', shown })}
             />
           </section>
         )}
@@ -799,7 +825,9 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   loading={shelterSearchLoading}
                   onSearch={runShelterSearch}
                 />
-                <div className="grid gap-1.5">
+                {/* ⚠️ **2列で並べる。** 1列だと1画面に2〜3件しか入らず、
+                    近い順に見比べるのにスクロールが要る（ユーザー指摘、2026-08-23） */}
+                <div className="grid grid-cols-2 gap-1.5">
                   {nearbyShelters.map(({ feature, distance }) => (
                     <article
                       className="rounded-lg border border-slate-200 bg-white p-2 shadow-[0_2px_5px_rgb(15_23_42/4%)] [&_h3]:my-1 [&_h3]:text-xs [&_p]:mb-1.5 [&_p]:text-[9px] [&_p]:text-slate-600"
