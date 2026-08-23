@@ -380,7 +380,9 @@ describe('adapter_google（スタブ）', () => {
       a.addRasterLayer('flood', url, { minzoom: 12, maxzoom: 17, opacity: 0.7 })
       const t = created.overlays[0].getTile({ x: 14552, y: 6446 }, 14, document)
       expect(t.style.backgroundImage).toContain('/14/14552/6446.png')
-      expect(t.style.backgroundSize).toBe('256px 256px')
+      // ⚠️ **同じ画像を重ねて塗っている**（PNGに焼かれた不透明度が薄いため）。
+      //    重ねる枚数を変えるとここも変わる
+      expect(t.style.backgroundSize).toBe('256px 256px, 256px 256px')
       expect(t.style.opacity).toBe('0.7')
     })
 
@@ -390,8 +392,9 @@ describe('adapter_google（スタブ）', () => {
       // z19 → 親 z17。shift=2, scale=4。116417>>2=29104, 51571>>2=12892
       const t = created.overlays[0].getTile({ x: 116417, y: 51571 }, 19, document)
       expect(t.style.backgroundImage).toContain('/17/29104/12892.png')
-      expect(t.style.backgroundSize).toBe('1024px 1024px')
-      expect(t.style.backgroundPosition).toBe('-256px -768px') // 116417%4=1, 51571%4=3
+      expect(t.style.backgroundSize).toBe('1024px 1024px, 1024px 1024px')
+      // 116417%4=1, 51571%4=3
+      expect(t.style.backgroundPosition).toBe('-256px -768px, -256px -768px')
     })
 
     it('範囲外は空タイル / 経度をラップする', async () => {
@@ -415,6 +418,18 @@ describe('adapter_google（スタブ）', () => {
       a.setLayerVisible('flood', true)
       const t = created.overlays[0].getTile({ x: 14552, y: 6446 }, 14, document)
       expect(t.style.opacity).toBe('1')
+    })
+
+    // ⚠️ 焼かれた不透明度（浸水色 0.65）のままでは下地に負けて読めない
+    it('浸水タイルを重ね塗りして濃くする', async () => {
+      const a = await makeAdapter()
+      a.addRasterLayer('flood', url, { minzoom: 12, maxzoom: 17, opacity: 1 })
+      const t = created.overlays[0].getTile({ x: 14552, y: 6446 }, 14, document)
+      const layers = t.style.backgroundImage.split(', ')
+      expect(layers.length).toBeGreaterThan(1)
+      expect(new Set(layers).size).toBe(1) // 同じ画像を重ねる（別の絵を混ぜない）
+      // 色相は動かさない（凡例の色見本と食い違う）
+      expect(t.style.filter).toContain('saturate')
     })
 
     it('差し替えで overlay を作り直し、不透明度を引き継ぐ', async () => {
