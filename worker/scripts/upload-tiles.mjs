@@ -12,11 +12,11 @@ const CONCURRENCY = 24;
 // ⚠️ 生成物の枚数を変えたら、この値と docs の記載を一緒に更新すること。
 const EXPECTED_ASSETS = {
   "flood/gesuido": 2_491,
-  "flood/kensetsu": 6_308, // 23区+多摩の市街化区域（envelope 5,044 / 神田川 632 / 隅田川 632）
+  "flood/kensetsu": 6_358, // 23区+多摩の市街化区域（envelope 5,074 / 神田川 642 / 隅田川 642。z10〜15）
   quake: 3,
 };
 const PUBLIC_ROOTS = Object.keys(EXPECTED_ASSETS);
-const PUBLIC_KEY = /^(?:flood\/(?:gesuido|kensetsu)\/(?:envelope|kandagawa|sumidagawa)\/(?:12|13|14|15)\/\d+\/\d+\.png|quake\/(?:building|fire|total)\.geojson)$/;
+const PUBLIC_KEY = /^(?:flood\/(?:gesuido|kensetsu)\/(?:envelope|kandagawa|sumidagawa)\/(?:1[0-5])\/\d+\/\d+\.png|quake\/(?:building|fire|total)\.geojson)$/;
 const source = process.argv[2];
 const checkOnly = process.argv.includes("--check");
 

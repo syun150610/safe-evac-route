@@ -13,7 +13,10 @@ from prep.hazard_sources import registry
 # 浸水タイルのズーム範囲（prep.tile_render.render の ZOOMS と揃える）。
 # ⚠️ maxz は「焼いてある上限」で、拡大の上限ではない。超えた分は地図側が引き伸ばす。
 # データの格子が約10mなのでz16以降は情報が増えず、地図側のoverzoomに任せる。
-FLOOD_MINZ, FLOOD_MAXZ = 12, 15
+# ⚠️ **`prep/tile_render/render.py` の `ZOOMS` と揃えること。** ここだけ広げると
+# 焼いていないズームを取りに行って404になる。z10 まで下げたのは、東京都全体が
+# 入る縮尺で浸水レイヤーが消えていたため（ユーザー指摘、2026-08-24）。
+FLOOD_MINZ, FLOOD_MAXZ = 10, 15
 
 # 浸水の凡例。色は tile_render のパレットと同じ（国交省 浸水深標準色）
 FLOOD_LEGEND = [

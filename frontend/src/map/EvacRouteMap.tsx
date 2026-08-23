@@ -49,7 +49,9 @@ import type { Rationale, ShelterCandidate, ShelterFeature } from './types'
 
 const CENTER: [number, number] = [139.792, 35.733]
 const EMPTY = { type: 'FeatureCollection' as const, features: [] }
-const FLOOD_ZOOM = { minzoom: 12, maxzoom: 15 }
+// ⚠️ **`prep/tile_render/render.py` の `ZOOMS` と `catalog.py` の
+// `FLOOD_MINZ/MAXZ` に揃える。** 3箇所ずれると404か、焼いたタイルが使われない
+const FLOOD_ZOOM = { minzoom: 10, maxzoom: 15 }
 /** 浸水タイルの不透明度。
  *
  * ⚠️ **地震の面（`state.opacity`）と分ける。** 浸水は「どこが何m浸かるか」を

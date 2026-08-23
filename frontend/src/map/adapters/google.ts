@@ -285,7 +285,14 @@ export function createGoogleAdapter(): MapAdapter {
    *
    * PNGに焼かれた不透明度は浸水色 0.65 / 範囲外ハッチ 0.27。2回重ねると
    * それぞれ 0.88 / 0.47 になる。⚠️ 増やしすぎると下の道路が読めなくなる。 */
-  const FLOOD_PAINTS = 2
+  const FLOOD_PAINTS = 3
+  /** タイルを1枚あたり何px大きく描くか。
+   *
+   * ⚠️ **縦に細い隙間が見えるのを埋める。** タイルの絵自体には隙間が無い
+   * （端の列も中と同じ不透明度。実測）。小数ズームを許しているため、
+   * 隣り合うタイルの境目が端数pxになり、その1本が下地の色で抜けて見える
+   * （ユーザー指摘、2026-08-24）。**わずかに拡大して重ねる**ことで埋める。 */
+  const FLOOD_BLEED = 1
 
   function makeFloodType(url: string, minz: number, maxz: number, opacity: number) {
     const tpl = (z: number, x: number, y: number) =>
@@ -337,17 +344,23 @@ export function createGoogleAdapter(): MapAdapter {
         //    ⚠️ タイルを焼き直したくない（R2の6千枚＋凡例の作り直しになる）ので、
         //    描画側で濃くする。**色そのものは変えていない。**
         const src = `url(${tpl(z, x, y)})`
+        // ⚠️ 拡大したぶん、位置も同じ割合でずらす（ずらさないと絵が右下へ動く）
+        const size = 256 * scale + FLOOD_BLEED
+        const shiftX = -(256 * cx) * (size / (256 * scale))
+        const shiftY = -(256 * cy) * (size / (256 * scale))
         div.style.backgroundImage = Array(FLOOD_PAINTS).fill(src).join(', ')
-        div.style.backgroundSize = Array(FLOOD_PAINTS)
-          .fill(`${256 * scale}px ${256 * scale}px`)
-          .join(', ')
+        div.style.backgroundSize = Array(FLOOD_PAINTS).fill(`${size}px ${size}px`).join(', ')
         div.style.backgroundPosition = Array(FLOOD_PAINTS)
-          .fill(`${-256 * cx}px ${-256 * cy}px`)
+          .fill(`${shiftX}px ${shiftY}px`)
           .join(', ')
         div.style.imageRendering = 'pixelated' // 拡大時に補間でぼかさない
         // 標準色（国交省）は淡い黄・桃色で、色の付いた下地の上だと沈む。
         // ⚠️ 色相は動かさない（凡例の色見本と食い違う）。彩度だけ少し上げる
         div.style.filter = 'saturate(1.35)'
+        // ⚠️ **乗算で重ねる。** 普通に重ねると濃くはなるが、下の道路と地名を
+        //    塗りつぶしてしまい「どこの話か」が読めなくなる（実測）。乗算なら
+        //    白い下地はしっかり色が乗り、道路や文字の暗い線は残る
+        div.style.mixBlendMode = 'multiply'
         return div
       }
       releaseTile(div: any) {
