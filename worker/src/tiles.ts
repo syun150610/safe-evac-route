@@ -1,6 +1,12 @@
 const TILE_PREFIX = "/tiles/";
+// ⚠️ **ズームの範囲はここも含めて4箇所を揃えること。**
+//   backend/prep/tile_render/render.py  ZOOMS（焼く範囲）
+//   backend/app/services/hazards/catalog.py  FLOOD_MINZ / FLOOD_MAXZ（配るURLのzoom）
+//   frontend/src/map/EvacRouteMap.tsx  FLOOD_ZOOM（地図に載せる範囲）
+//   ここ（R2から出してよいキーの許可リスト）
+// ⚠️ **ここだけ古いと、R2に入れても404になる。**（2026-08-24に実際に踏んだ）
 const FLOOD_TILE =
-  /^flood\/(?:gesuido|kensetsu)\/(?:envelope|kandagawa|sumidagawa)\/(?:12|13|14|15)\/\d+\/\d+\.png$/;
+  /^flood\/(?:gesuido|kensetsu)\/(?:envelope|kandagawa|sumidagawa)\/(?:1[0-5])\/\d+\/\d+\.png$/;
 const QUAKE_VECTOR = /^quake\/(?:building|fire|total)\.geojson$/;
 const CACHE_CONTROL = "public, max-age=3600, s-maxage=86400";
 
