@@ -281,6 +281,12 @@ export function createGoogleAdapter(): MapAdapter {
   // Google は返した画像をタイル枠いっぱいに描くため、z18 では親タイル全体が
   // 4つの子タイル枠それぞれに描かれ、模様が4回繰り返される。
   // getTile で DOM を返し、background-size / background-position で象限を切り出す。
+  /** 浸水タイルを何回重ねて塗るか。
+   *
+   * PNGに焼かれた不透明度は浸水色 0.65 / 範囲外ハッチ 0.27。2回重ねると
+   * それぞれ 0.88 / 0.47 になる。⚠️ 増やしすぎると下の道路が読めなくなる。 */
+  const FLOOD_PAINTS = 2
+
   function makeFloodType(url: string, minz: number, maxz: number, opacity: number) {
     const tpl = (z: number, x: number, y: number) =>
       url.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y))
@@ -323,10 +329,25 @@ export function createGoogleAdapter(): MapAdapter {
         const cx = (((coord.x % nz) + nz) % nz) % scale
         const cy = coord.y % scale
 
-        div.style.backgroundImage = `url(${tpl(z, x, y)})`
-        div.style.backgroundSize = `${256 * scale}px ${256 * scale}px`
-        div.style.backgroundPosition = `${-256 * cx}px ${-256 * cy}px`
+        // ⚠️ **同じ画像を重ねて塗る。** 浸水タイルは**PNG自体に不透明度が
+        //    焼き込まれている**（浸水色 165/255、範囲外ハッチ 70/255。出所は
+        //    `backend/prep/tile_render/render.py` の `ALPHA` と `HATCH_RGBA`）。
+        //    レイヤの不透明度を1にしても地図の下地に負けて読めない
+        //    （ユーザー指摘、2026-08-23）。n回重ねると 1-(1-a)^n まで濃くなる。
+        //    ⚠️ タイルを焼き直したくない（R2の6千枚＋凡例の作り直しになる）ので、
+        //    描画側で濃くする。**色そのものは変えていない。**
+        const src = `url(${tpl(z, x, y)})`
+        div.style.backgroundImage = Array(FLOOD_PAINTS).fill(src).join(', ')
+        div.style.backgroundSize = Array(FLOOD_PAINTS)
+          .fill(`${256 * scale}px ${256 * scale}px`)
+          .join(', ')
+        div.style.backgroundPosition = Array(FLOOD_PAINTS)
+          .fill(`${-256 * cx}px ${-256 * cy}px`)
+          .join(', ')
         div.style.imageRendering = 'pixelated' // 拡大時に補間でぼかさない
+        // 標準色（国交省）は淡い黄・桃色で、色の付いた下地の上だと沈む。
+        // ⚠️ 色相は動かさない（凡例の色見本と食い違う）。彩度だけ少し上げる
+        div.style.filter = 'saturate(1.35)'
         return div
       }
       releaseTile(div: any) {
