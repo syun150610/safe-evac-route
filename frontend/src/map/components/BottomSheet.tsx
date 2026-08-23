@@ -2,7 +2,7 @@ import type { ReactNode, RefObject } from 'react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { MapAdapter } from '../adapters/types'
 import type { Bundle } from '../types'
-import { decideSheet, sheetSummary } from './bottomSheetLogic'
+import { compareText, decideSheet, sheetSummary } from './bottomSheetLogic'
 
 const MOBILE_QUERY = '(max-width: 700px)'
 const DRAG_SLOP = 6
@@ -17,6 +17,10 @@ interface Props {
   desktopMode?: 'overlay' | 'sidebar'
   /** 経路結果がないときに、折りたたみ部分へ表示する文言 */
   collapsedLabel?: ReactNode
+  /** 折りたたみ部分の見出し（「地震を考慮」など）。
+   * ⚠️ **ここで組み立てない。** 災害の呼び名は `/api/hazards` が配るので、
+   * 持っている側（`EvacRouteMap`）が完成した文字列で渡す */
+  conditionLabel?: string
   children?: ReactNode
 }
 
@@ -52,6 +56,7 @@ export function BottomSheet({
   onOpenChange,
   desktopMode = 'overlay',
   collapsedLabel = '避難経路の設定',
+  conditionLabel,
   children,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -206,15 +211,13 @@ export function BottomSheet({
         <span className="h-1 w-10 rounded-full bg-slate-300" />
         {summary ? (
           <span className="flex flex-wrap items-baseline justify-center gap-x-2 text-[12px]">
-            <b>{summary.label}</b>
+            <b>{conditionLabel ?? summary.label}</b>
             <span>{summary.distance}</span>
             <span>徒歩 {summary.minutes}分</span>
-            {summary.baselineDelta !== null && (
-              <span>
-                ①比 {summary.baselineDelta >= 0 ? '+' : ''}
-                {summary.baselineDelta}分
-              </span>
-            )}
+            {/* ⚠️ 「①比」のような記号で言わない。何と比べているかを言葉で書く。
+                ⚠️ **距離差も出す。** 「+8分」だけでは、どれだけ遠回りしているのか
+                   実感が湧かない */}
+            {summary.baselineDelta !== null && <span>{compareText(summary)}</span>}
           </span>
         ) : (
           <span className="text-[12px] text-slate-600">{collapsedLabel}</span>

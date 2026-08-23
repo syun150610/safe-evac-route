@@ -3,6 +3,7 @@ import { getPosts } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 import type { Post } from '../posts/types'
 import { BottomSheet, useMobileLayout } from './components/BottomSheet'
+import { sheetOpenAfterSearch } from './components/bottomSheetLogic'
 import { DataAttribution } from './components/DataAttribution'
 import { type Condition, HazardCondition } from './components/HazardCondition'
 import { HazardLegend } from './components/HazardLegend'
@@ -28,6 +29,7 @@ import {
   buildHazards,
   buildRouteSearchRequest,
   buildShelterSearchRequest,
+  FLOOD_SCENARIO,
 } from './lib/search-request'
 import { shelterIsVisible } from './lib/shelter-viewport'
 import { initialSafeState, type PlaceField, safeReducer } from './state/evac-route-state'
@@ -83,7 +85,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     area?.bbox,
   )
   const layer = state.mapLayer
-  const floodUrl = layer === 'flood' ? tileUrlOf(catalog, 'flood', state.scenario) : null
+  const floodUrl = layer === 'flood' ? tileUrlOf(catalog, 'flood', FLOOD_SCENARIO) : null
   const quakeScenario = catalog?.hazards.find((h) => h.id === 'quake')?.scenarios[0]?.id ?? 'total'
   const quakeUrl = layer === 'quake' ? vectorUrlOf(catalog, 'quake', quakeScenario) : null
   const { data: quakeData, loading: quakeLoading, error: quakeError } = useVector(quakeUrl)
@@ -92,6 +94,15 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   // 「考慮する災害」の定義。危険区間の呼び名も統計キーもAPIが配る
   // （`registry.py` の risk ブロック由来。ここに種別ごとの分岐を書かない）
   const hazardMeta = catalog?.hazards.find((h) => h.id === state.hazard) ?? null
+  /** 畳んだシートの見出し。⚠️ 災害の呼び名は `/api/hazards` 由来を使い、
+   * ここで新しい言い方を作らない。掛け合わせていない（＝最短しか引いていない）
+   * ときは「最短経路」と言う */
+  const conditionLabel =
+    bundle == null
+      ? undefined
+      : bundle.selected_route === 'baseline' || !hazardMeta
+        ? '最短経路'
+        : `${hazardMeta.label}を考慮`
 
   // ⚠️ **経路の重みに掛けた種別だけを見せる**（2026-08-22にユーザーと確認）。
   //    APIは登録済み種別を全部返し、`considered` で区別する。絞り込みはここで行い、
@@ -168,10 +179,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const nearbyShelters = useMemo(() => shelters.slice(0, 8), [shelters])
 
   /** いま画面が選んでいる条件。**再検索へはこれをそのまま渡す。** */
-  const condition = useMemo<Condition>(
-    () => ({ hazard: state.hazard, scenario: state.scenario }),
-    [state.hazard, state.scenario],
-  )
+  const condition = useMemo<Condition>(() => ({ hazard: state.hazard }), [state.hazard])
 
   const runRoute = useCallback(
     async (
@@ -182,7 +190,14 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         //    更新前の値になり、古い条件で引き直してしまう
         with: cond = condition,
         keepPrevious = false,
-      }: { origin?: Place | null; with?: Condition; keepPrevious?: boolean } = {},
+        // 条件の切り替えのように、シートを操作している最中の引き直しでは畳まない
+        collapseOnMobile = true,
+      }: {
+        origin?: Place | null
+        with?: Condition
+        keepPrevious?: boolean
+        collapseOnMobile?: boolean
+      } = {},
     ) => {
       dispatch({ type: 'select_place', field: 'destination', place: destination })
       // 条件の切り替えでは前の結果を消さない（消すと画面が一瞬空になる）
@@ -203,18 +218,26 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         flash('対象エリア内の地点を指定してください')
         return
       }
-      const base = buildShelterSearchRequest(origin, buildHazards(cond), cond.scenario)
+      const base = buildShelterSearchRequest(origin, buildHazards(cond), FLOOD_SCENARIO)
       const result = await search.run(buildRouteSearchRequest(base, destination))
       if (result) {
         dispatch({ type: 'route_ready', routes: result.routes.map((route) => route.id) })
-        setSheetOpen(true)
+        // ⚠️ **考慮した災害のタイルを自動で出す。** 経路だけ見せても、なぜその
+        //    迂回になったのかが地図から読み取れない
+        dispatch({ type: 'set_layer', layer: cond.hazard })
+        // ⚠️ スマホでは畳む。判定と理由は `bottomSheetLogic.sheetOpenAfterSearch`
+        setSheetOpen(sheetOpenAfterSearch(mobile, collapseOnMobile))
       }
     },
-    [area, condition, flash, search.clear, search.run, state.origin.place],
+    [area, condition, flash, mobile, search.clear, search.run, state.origin.place],
   )
 
   const runShelterSearch = useCallback(
-    async (selectedOrigin?: Place | null, cond: Condition = condition) => {
+    async (
+      selectedOrigin?: Place | null,
+      cond: Condition = condition,
+      { collapseOnMobile = true }: { collapseOnMobile?: boolean } = {},
+    ) => {
       if (shelterSearchRunning.current) return
       const origin = selectedOrigin ?? state.origin.place
       if (!origin) {
@@ -233,7 +256,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       shelterSearchRunning.current = true
       setShelterSearchLoading(true)
       try {
-        const request = buildShelterSearchRequest(origin, buildHazards(cond), cond.scenario)
+        const request = buildShelterSearchRequest(origin, buildHazards(cond), FLOOD_SCENARIO)
         const result = await search.runShelter(request)
         // 失敗（範囲外・該当避難先なし）のときは `search.error` に本文が入る。
         // ⚠️ ここで search.error を読むと**1つ前のレンダーの値**なので読まない。
@@ -250,7 +273,10 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
           },
         })
         dispatch({ type: 'route_ready', routes: result.routes.map((route) => route.id) })
-        setSheetOpen(true)
+        // 考慮した災害のタイルを自動で出す（runRoute と同じ理由）
+        dispatch({ type: 'set_layer', layer: cond.hazard })
+        // スマホでは畳む（runRoute と同じ）
+        setSheetOpen(sheetOpenAfterSearch(mobile, collapseOnMobile))
       } catch (error) {
         flash((error as Error).message)
       } finally {
@@ -258,7 +284,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         setShelterSearchLoading(false)
       }
     },
-    [area, condition, flash, search.runShelter, state.origin.place],
+    [area, condition, flash, mobile, search.runShelter, state.origin.place],
   )
 
   /** 考慮する災害を切り替える。**検索後なら、同じ探索を新しい条件で引き直す。**
@@ -274,12 +300,17 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const applyCondition = useCallback(
     (next: Condition) => {
       dispatch({ type: 'set_hazard', hazard: next.hazard })
-      dispatch({ type: 'set_scenario', scenario: next.scenario })
       if (state.screen !== 'route') return
+      // ⚠️ **ここでは畳まない。** 利用者はシートの中の切り替えを操作している
+      //    最中なので、押すたびにシートが消えると条件を比べられない
       if (bundle?.shelter) {
-        void runShelterSearch(state.origin.place, next)
+        void runShelterSearch(state.origin.place, next, { collapseOnMobile: false })
       } else if (state.destination.place) {
-        void runRoute(state.destination.place, { with: next, keepPrevious: true })
+        void runRoute(state.destination.place, {
+          with: next,
+          keepPrevious: true,
+          collapseOnMobile: false,
+        })
       }
     },
     [
@@ -488,7 +519,6 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     })
   }, [adapter, ready, state.screen, state.activeField, search.clear, flash])
 
-  const floodScenarios = catalog?.hazards.find((hazard) => hazard.id === 'flood')?.scenarios ?? []
   const error = areaError ?? hazardError ?? shelterError
   const shelterSearchMode = state.searchPurpose === 'shelter'
   const searchFields: readonly PlaceField[] = shelterSearchMode
@@ -585,7 +615,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                 className="size-5 shrink-0 animate-spin rounded-full border-[3px] border-slate-300 border-t-[#07156f] motion-reduce:animate-none"
                 aria-hidden="true"
               />
-              安全な経路を検索中…
+              {shelterSearchLoading ? '安全な避難先を検索中…' : '安全な経路を検索中…'}
             </div>
           </div>
         )}
@@ -594,6 +624,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       <BottomSheet
         adapter={adapter}
         bundle={bundle}
+        conditionLabel={conditionLabel}
         mobile={mobile}
         open={sheetOpen}
         onOpenChange={setSheetOpen}
@@ -687,12 +718,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                 {/* ⚠️ ここは出発地が既にあると**押した瞬間に検索が走る**ので、
                     先に災害を選べるようにしておく。検索画面へ入らないと
                     選べないままだと、既定（地震）で探したことに気づけない */}
-                <HazardCondition
-                  hazard={state.hazard}
-                  onChange={applyCondition}
-                  scenario={state.scenario}
-                  scenarios={floodScenarios}
-                />
+                <HazardCondition hazard={state.hazard} onChange={applyCondition} />
                 <SafeShelterSearchButton
                   loading={shelterSearchLoading}
                   onSearch={runShelterSearch}
@@ -748,12 +774,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   安全な避難先を探すため、現在地または出発地を指定してください。
                 </p>
               )}
-              <HazardCondition
-                hazard={state.hazard}
-                onChange={applyCondition}
-                scenario={state.scenario}
-                scenarios={floodScenarios}
-              />
+              <HazardCondition hazard={state.hazard} onChange={applyCondition} />
               {searchFields.map((field) => {
                 const value = state[field]
                 return (
@@ -894,8 +915,6 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                     : '切り替えると経路を引き直します'
                 }
                 onChange={applyCondition}
-                scenario={state.scenario}
-                scenarios={floodScenarios}
                 title="経路条件"
               />
               {search.loading && (
