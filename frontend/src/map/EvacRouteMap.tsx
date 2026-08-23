@@ -3,7 +3,8 @@ import { getPosts } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 import type { Post } from '../posts/types'
 import { BottomSheet, useMobileLayout } from './components/BottomSheet'
-import { sheetOpenAfterSearch } from './components/bottomSheetLogic'
+import { compareText, sheetOpenAfterSearch, sheetSummary } from './components/bottomSheetLogic'
+import { CompareLead } from './components/CompareLead'
 import { DataAttribution } from './components/DataAttribution'
 import { type Condition, HazardCondition } from './components/HazardCondition'
 import { HazardLegend } from './components/HazardLegend'
@@ -13,8 +14,14 @@ import { PlaceInput } from './components/PlaceInput'
 import { RouteRationale } from './components/RouteRationale'
 import { RouteTable } from './components/RouteTable'
 import { SafeShelterSearchButton } from './components/SafeShelterSearchButton'
+import { SearchOptions } from './components/SearchOptions'
 import { ShelterResult } from './components/ShelterResult'
-import { type ShelterKind, ShelterTypePicker, toParam } from './components/ShelterTypePicker'
+import {
+  kindsSummary,
+  type ShelterKind,
+  ShelterTypePicker,
+  toParam,
+} from './components/ShelterTypePicker'
 import { DRAW_ORDER, STYLE } from './constants'
 import { inArea, useArea } from './hooks/useArea'
 import { useGeocode } from './hooks/useGeocode'
@@ -203,6 +210,24 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       })}
     </>
   )
+  /** 「経路を比較」の要約。⚠️ **数値はAPIのものをそのまま使う**（ここで
+   * 引き算しない）。距離差の言い回しは畳んだシートと同じ `compareText`。 */
+  const compareLead = useMemo(() => {
+    if (!primaryHazard) return null
+    const summary = sheetSummary(bundle)
+    return (
+      <CompareLead
+        afterM={primaryHazard.after_m}
+        beforeM={primaryHazard.before_m}
+        compare={summary ? compareText(summary) : ''}
+        riskLabel={primaryHazard.risk_label}
+        shelterName={bundle?.alt_shelter ? bundle.shelter?.name : undefined}
+      />
+    )
+  }, [primaryHazard, bundle])
+
+  /** 畳んだ「検索の条件」に出す一行。⚠️ **災害の呼び名はAPI由来**を使う */
+  const conditionSummary = `${hazardMeta?.label ?? ''}を考慮 ・ ${kindsSummary(shelterKinds)}`
 
   const [latestPost, setLatestPost] = useState<Post | null>(null)
 
@@ -897,8 +922,12 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             </p>
           )}
           {state.screen === 'home' && (
-            <>
-              <section className="px-3 pb-2">
+            /* ⚠️ **2つのまとまりを溝で分ける。** 続きの文章のように縦に並んでいて、
+                どこまでが「みんなの声」でどこからが「近くの避難先」なのか
+                分かりにくかった（ユーザー指摘、2026-08-24）。地を薄い灰にし、
+                まとまりごとに白いカードへ載せる */
+            <div className="grid gap-2.5 bg-slate-100 p-2.5">
+              <section className="rounded-xl bg-white p-3 shadow-[0_1px_3px_rgb(15_23_42/6%)]">
                 <div className="mb-1.5 flex items-center justify-between [&_a]:text-[9px] [&_a]:font-bold [&_a]:text-[#07156f] [&_a]:no-underline [&_h2]:m-0 [&_h2]:text-sm">
                   <h2>みんなの声</h2>
                   <a href="/timeline">もっと見る</a>
@@ -932,14 +961,14 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                 ) : (
                   <p className="text-[9px] text-slate-400">投稿はまだありません</p>
                 )}
+                <a
+                  href="/posts/new"
+                  className="mt-2.5 flex min-h-9 w-full cursor-pointer items-center justify-center rounded-md bg-[#07156f] text-[10px] font-bold text-white no-underline"
+                >
+                  ▣ 投稿する
+                </a>
               </section>
-              <a
-                href="/posts/new"
-                className="mx-3 mb-2.5 flex min-h-9 w-[calc(100%-24px)] cursor-pointer items-center justify-center rounded-md bg-[#07156f] text-[10px] font-bold text-white no-underline"
-              >
-                ▣ 投稿する
-              </a>
-              <section className="border-t border-slate-200 px-3 pt-2.5 pb-3">
+              <section className="rounded-xl bg-white p-3 shadow-[0_1px_3px_rgb(15_23_42/6%)]">
                 <div className="mb-1.5 flex items-center justify-between [&_h2]:m-0 [&_h2]:text-sm [&_span]:text-[9px] [&_span]:font-bold [&_span]:text-[#07156f]">
                   <h2>近くの避難先</h2>
                   <span>{sheltersLoading ? '読込中…' : `${nearbyShelters.length}件表示`}</span>
@@ -970,10 +999,14 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   </button>
                 </p>
                 {/* ⚠️ ここは出発地が既にあると**押した瞬間に検索が走る**ので、
-                    先に災害を選べるようにしておく。検索画面へ入らないと
-                    選べないままだと、既定（地震）で探したことに気づけない */}
-                <HazardCondition hazard={state.hazard} onChange={applyCondition} />
-                <ShelterTypePicker onChange={applyShelterKinds} selected={shelterKinds} />
+                    畳んでいても**いまの条件を言葉で出す**（#48 の指摘）。
+                    ⚠️ ホームは「何ができるか」を見せる場所。条件は畳んで場所を空け、
+                    押してほしい2つ（投稿する・安全な避難先を探す）を目立たせる
+                    （ユーザー指摘、2026-08-24） */}
+                <SearchOptions summary={conditionSummary} title="検索の条件">
+                  <HazardCondition hazard={state.hazard} onChange={applyCondition} />
+                  <ShelterTypePicker onChange={applyShelterKinds} selected={shelterKinds} />
+                </SearchOptions>
                 <SafeShelterSearchButton
                   loading={shelterSearchLoading}
                   onSearch={runShelterSearch}
@@ -1004,18 +1037,21 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                         <h3>{feature.properties.name}</h3>
                         <p>{feature.properties.address}</p>
                       </button>
+                      {/* ⚠️ **濃い色にしない。** 一覧の8件が同じ強さで並ぶと、
+                          押してほしい「安全な避難先を探す」が埋もれる
+                          （ユーザー指摘、2026-08-24） */}
                       <button
                         type="button"
-                        className="min-h-8 w-full cursor-pointer rounded-md border-0 bg-[#07156f] text-[10px] font-bold text-white"
+                        className="min-h-8 w-full cursor-pointer rounded-md border border-slate-200 bg-white text-[10px] font-bold text-[#07156f]"
                         onClick={() => prepareDestination(shelterPlace(feature))}
                       >
-                        ◇ ここへ行く
+                        ここへ行く
                       </button>
                     </article>
                   ))}
                 </div>
               </section>
-            </>
+            </div>
           )}
 
           {state.screen === 'search' && (
@@ -1128,51 +1164,62 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   ×
                 </button>
                 <div className="min-w-0 flex-1">
-                  <small className="flex items-center gap-1.5">
-                    <span className="truncate">{state.origin.place?.title} →</span>
-                    {/* ⚠️ **検索後でも出発地を変えられるようにする。** ここに無いと
-                        経路を終了してやり直すしかなかった（2026-08-23の指摘） */}
-                    <button
-                      type="button"
-                      className="shrink-0 cursor-pointer rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] text-[#07156f]"
-                      onClick={() => {
-                        changingOrigin.current = bundle?.shelter ? 'shelter' : 'route'
-                        dispatch({
-                          type: 'open_search',
-                          purpose: bundle?.shelter ? 'shelter' : 'route',
-                        })
-                        dispatch({ type: 'activate_field', field: 'origin' })
-                        setSheetOpen(true)
-                      }}
-                    >
-                      出発地を変更
-                    </button>
-                  </small>
+                  <small>目的地</small>
                   <h2 className="truncate">{state.destination.place?.title}</h2>
                 </div>
               </div>
-              {/* 表示だけでなく、ここで切り替えて引き直せる */}
-              <HazardCondition
-                busy={search.loading}
-                hazard={state.hazard}
-                note={
-                  bundle?.shelter
-                    ? '切り替えると避難先から探し直します'
-                    : '切り替えると経路を引き直します'
-                }
-                onChange={applyCondition}
-                title="経路条件"
-              />
-              {/* ⚠️ 目的地を指定した経路では出さない。種類を変えても結果が
-                  変わらないので、押せると誤解を招く */}
-              {bundle?.shelter && (
-                <ShelterTypePicker
+              {/* ⚠️ **検索後でも出発地を変えられるようにする。** ここに無いと
+                  経路を終了してやり直すしかなかった（2026-08-23の指摘）。
+                  ⚠️ **見出しの中の小さな文字にしない。** 地味すぎて気づけない
+                  （ユーザー指摘、2026-08-24）。下の「検索の条件」と同じ形
+                  （ラベル＋いまの値＋変更）にして、押せる大きさを取る */}
+              <div className="mb-2 flex min-h-11 items-center gap-2 rounded-[10px] border border-slate-200 px-3">
+                <span className="shrink-0 text-[10px] text-slate-500">出発地</span>
+                <strong className="min-w-0 flex-1 truncate text-[11px] text-slate-800">
+                  {state.origin.place?.title ?? '未設定'}
+                </strong>
+                <button
+                  type="button"
+                  className="shrink-0 cursor-pointer border-0 bg-transparent text-[10px] text-[#07156f]"
+                  onClick={() => {
+                    changingOrigin.current = bundle?.shelter ? 'shelter' : 'route'
+                    dispatch({
+                      type: 'open_search',
+                      purpose: bundle?.shelter ? 'shelter' : 'route',
+                    })
+                    dispatch({ type: 'activate_field', field: 'origin' })
+                    setSheetOpen(true)
+                  }}
+                >
+                  変更
+                </button>
+              </div>
+              {/* ⚠️ **結果の画面では畳んでおく。** 見たいのは結果で、条件は
+                  確認と切り替えのため。畳んでも要約で何の条件かは分かる
+                  （ユーザー指摘、2026-08-24）。開けばその場で引き直せる */}
+              <SearchOptions summary={conditionSummary} title="検索の条件">
+                <HazardCondition
                   busy={search.loading}
-                  note="切り替えるとその種類で探し直します"
-                  onChange={applyShelterKinds}
-                  selected={shelterKinds}
+                  hazard={state.hazard}
+                  note={
+                    bundle?.shelter
+                      ? '切り替えると避難先から探し直します'
+                      : '切り替えると経路を引き直します'
+                  }
+                  onChange={applyCondition}
+                  title="経路条件"
                 />
-              )}
+                {/* ⚠️ 目的地を指定した経路では出さない。種類を変えても結果が
+                    変わらないので、押せると誤解を招く */}
+                {bundle?.shelter && (
+                  <ShelterTypePicker
+                    busy={search.loading}
+                    note="切り替えるとその種類で探し直します"
+                    onChange={applyShelterKinds}
+                    selected={shelterKinds}
+                  />
+                )}
+              </SearchOptions>
               {search.loading && (
                 <p className="mb-3 text-[9px] text-slate-500" role="status">
                   新しい条件で引き直しています…
@@ -1194,7 +1241,6 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   shown={state.shownRoutes}
                   risk={hazardMeta?.risk}
                   hazard={primaryHazard}
-                  distance={bundle.rationale?.distance ?? null}
                   onToggle={(route, shown) => dispatch({ type: 'show_route', route, shown })}
                 />
               )}
@@ -1203,6 +1249,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   この部品は分解せず、置き場所を変えるだけで使う */}
               {consideredHazards.length > 0 && (
                 <RouteRationale
+                  lead={compareLead}
                   rationale={{
                     ...(bundle?.rationale as Rationale),
                     hazards: consideredHazards,
@@ -1220,9 +1267,6 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   risk={hazardMeta?.risk}
                   shelter={bundle.shelter}
                 />
-              )}
-              {hazardMeta?.legend && (
-                <HazardLegend hazardLabel={hazardMeta.label} items={hazardMeta.legend} />
               )}
               <button
                 type="button"

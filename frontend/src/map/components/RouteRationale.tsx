@@ -23,7 +23,7 @@
  * ⚠️ **並び順を変えない。** 「全区間評価済みの種別が先、未評価のある種別が後」に
  * API側で並べてある。確かなことから先に述べるため。
  */
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 
 import type { Rationale, RationaleHazard } from '../types'
 
@@ -96,11 +96,15 @@ function HazardRow({ h }: { h: RationaleHazard }) {
   )
 }
 
-export function RouteRationale({ rationale }: { rationale: Rationale }) {
+/** ⚠️ **数字の箱を分けない。** 以前は「危険区間◯m」「最短との差◯分」の
+ * タイルと、この根拠の箱が別々に並んでいて、同じことを3箇所で言っていた
+ * （ユーザー指摘、2026-08-24）。要約は `lead` として同じ箱の中に入れる。 */
+export function RouteRationale({ rationale, lead }: { rationale: Rationale; lead?: ReactNode }) {
   if (!rationale.hazards.length) return null
   return (
     <section className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1">
       <h2 className="sr-only">この経路を選んだ根拠</h2>
+      {lead && <div className="border-slate-200 border-b py-1.5 text-[12px]">{lead}</div>}
       <ul className="text-[12px] leading-snug">
         {rationale.hazards.map((h) => (
           <HazardRow key={h.id} h={h} />

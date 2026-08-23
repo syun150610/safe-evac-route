@@ -124,7 +124,9 @@ export function ShelterResult({ shelter, alt, candidates, query, risk, onSelect 
 
   return (
     <section className="mb-4">
-      <h3 className="mt-5 mb-2 text-[13px]">この災害での避難先</h3>
+      {/* ⚠️ 見出しは3つのまとまり（検索の条件 / 経路を比較 / 避難先の候補）に
+          合わせる。どこに何があるか、見出しだけで分かるようにする */}
+      <h3 className="mt-5 mb-2 text-[13px]">避難先の候補</h3>
 
       <article className="mb-3 grid gap-1 rounded-[10px] border border-indigo-300 bg-indigo-50/60 p-3">
         <span className="flex items-center gap-1.5">
