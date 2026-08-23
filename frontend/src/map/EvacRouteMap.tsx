@@ -72,16 +72,24 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const { data: quakeData, loading: quakeLoading, error: quakeError } = useVector(quakeUrl)
   const bundle = search.bundle
 
+  // 「考慮する災害」の定義。危険区間の呼び名も統計キーもAPIが配る
+  // （`registry.py` の risk ブロック由来。ここに種別ごとの分岐を書かない）
   const hazardMeta = catalog?.hazards.find((h) => h.id === state.hazard) ?? null
+
+  // ⚠️ **経路の重みに掛けた種別だけを見せる**（2026-08-22にユーザーと確認）。
+  //    APIは登録済み種別を全部返し、`considered` で区別する。絞り込みはここで行い、
+  //    `RouteRationale` は渡されたものを全部描く自己完結の部品のままにする。
   const consideredHazards = bundle?.rationale?.hazards.filter((h) => h.considered) ?? []
   const primaryHazard = consideredHazards[0] ?? null
 
   const [latestPost, setLatestPost] = useState<Post | null>(null)
 
   useEffect(() => {
-    void getPosts({ limit: 1, offset: 0, sort: 'recent', userId: '' }).then((result) => {
-      setLatestPost(result.items[0] ?? null)
-    })
+    void getPosts({ limit: 1, offset: 0, sort: 'recent', userId: 'anonymous' })
+      .then((result) => {
+        setLatestPost(result.items[0] ?? null)
+      })
+      .catch(() => undefined)
   }, [])
 
   const flash = useCallback((message: string) => {
@@ -543,14 +551,17 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                       </span>
                       <strong>{latestPost.user_name}</strong>
                       <time>
-                        {new Date(
-                          latestPost.created_at.replace(' ', 'T').replace(/([^Z+])$/, '$1Z'),
-                        ).toLocaleString('ja-JP', {
-                          month: 'numeric',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                        {(() => {
+                          const iso = latestPost.created_at.replace(' ', 'T')
+                          return new Date(
+                            /[Z+]/.test(iso.slice(-6)) ? iso : `${iso}Z`,
+                          ).toLocaleString('ja-JP', {
+                            month: 'numeric',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        })()}
                       </time>
                     </div>
                     <p>{latestPost.content}</p>
