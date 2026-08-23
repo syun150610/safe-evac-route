@@ -58,7 +58,9 @@ class PostsRepository:
                     detail="latitude and longitude are required for nearby sort",
                 )
             order_sql = (
-                "((p.latitude - ?) * (p.latitude - ?)"
+                "CASE WHEN p.latitude IS NULL OR p.longitude IS NULL "
+                "THEN 1 ELSE 0 END ASC,"
+                " ((p.latitude - ?) * (p.latitude - ?)"
                 " + (p.longitude - ?) * (p.longitude - ?)) ASC"
             )
             order_params: list = [latitude, latitude, longitude, longitude]
