@@ -36,16 +36,28 @@ export function createGoogleAdapter(): MapAdapter {
   // 上以外の向きに置くときの隙間(px)。ピンの幅は24pxなので半分より広く取る
   const CALLOUT_GAP = 16
 
-  /** 地点(0,0)を基準に、吹き出しをどちらへ置くか。
+  /** 地点を基準に、吹き出しの左上をどこへ置くか(px)。
    *
-   * ⚠️ **上だけはピンの高さぶん余分に逃がす。** ピンは地点から上へ伸びており、
-   * 素直に上へ置くと必ず重なる（2026-08-23の指摘）。 */
-  const CALLOUT_TRANSFORM: Record<CalloutAnchor, string> = {
-    top: `translate(-50%, calc(-100% - ${CALLOUT_LIFT}px))`,
-    bottom: `translate(-50%, ${CALLOUT_GAP}px)`,
-    left: `translate(calc(-100% - ${CALLOUT_GAP}px), -50%)`,
-    right: `translate(${CALLOUT_GAP}px, -50%)`,
+   * ⚠️ **上に置くときだけピンの高さぶん余分に逃がす。** ピンは地点から上へ
+   * 伸びており、素直に上へ置くと必ず重なる（2026-08-23の指摘）。 */
+  const CALLOUT_DELTA: Record<CalloutAnchor, (w: number, h: number) => [number, number]> = {
+    top: (w, h) => [-w / 2, -h - CALLOUT_LIFT],
+    'top-right': (_w, h) => [CALLOUT_GAP, -h - CALLOUT_GAP],
+    'top-left': (w, h) => [-w - CALLOUT_GAP, -h - CALLOUT_GAP],
+    bottom: (w) => [-w / 2, CALLOUT_GAP],
+    'bottom-right': () => [CALLOUT_GAP, CALLOUT_GAP],
+    'bottom-left': (w) => [-w - CALLOUT_GAP, CALLOUT_GAP],
+    left: (w, h) => [-w - CALLOUT_GAP, -h / 2],
+    right: (_w, h) => [CALLOUT_GAP, -h / 2],
   }
+
+  /** 画面の縁からの最小の隙間(px)。
+   *
+   * ⚠️ **下だけ広く取る。** 地図の下端には Google のロゴ・「地図データ ©」・
+   * 利用規約の帯と、その上にオープンデータの出典チップが重なっている。
+   * **どちらも覆ってはいけない**ので、吹き出しはその上で止める
+   * （実機で出典チップに重なった。2026-08-23） */
+  const CALLOUT_MARGIN = { top: 8, right: 8, bottom: 64, left: 8 }
 
   const CALLOUT_STYLE = [
     'position:absolute',
@@ -109,16 +121,39 @@ export function createGoogleAdapter(): MapAdapter {
       div = document.createElement('div')
       div.style.cssText = CALLOUT_STYLE
       div.innerHTML = spec.html
+      // ⚠️ ×だけがクリックを受ける（`CALLOUT_STYLE` は pointer-events:none）
+      const dismiss = div.querySelector('[data-action="dismiss"]')
+      if (dismiss && spec.onDismiss) dismiss.addEventListener('click', spec.onDismiss)
       this.getPanes()?.floatPane?.appendChild(div)
+      // ⚠️ **並べ終わってからもう一度置き直す。** 最初の `draw` の時点では
+      //    まだ大きさが決まっておらず、画面の内側へ押し戻す計算が効かない
+      //    （実機で下端が切れた）
+      requestAnimationFrame(() => this.draw())
     }
+    // ⚠️ **画面からはみ出さないところまで寄せる。** 地図を収めるときの余白
+    //    （`calloutPadding`）だけでは、狭い画面で足りずに端が切れる
+    //    （実機で左端が切れた。2026-08-23の指摘）。向きは保ったまま、
+    //    最後に画面の内側へ押し戻す。
     overlay.draw = function draw(this: any) {
-      const point = this.getProjection()?.fromLatLngToDivPixel(
-        new google.maps.LatLng(spec.lngLat[1], spec.lngLat[0]),
-      )
-      if (!div || !point) return
-      div.style.left = `${point.x}px`
-      div.style.top = `${point.y}px`
-      div.style.transform = CALLOUT_TRANSFORM[spec.anchor]
+      const projection = this.getProjection()
+      if (!div || !projection) return
+      const latLng = new google.maps.LatLng(spec.lngLat[1], spec.lngLat[0])
+      // div座標＝地図と一緒に動く層、container座標＝画面。**両方要る**。
+      // 画面基準で押し戻し、その結果を div 座標へ戻す
+      const inDiv = projection.fromLatLngToDivPixel(latLng)
+      const inContainer = projection.fromLatLngToContainerPixel(latLng)
+      if (!inDiv || !inContainer) return
+      const w = div.offsetWidth
+      const h = div.offsetHeight
+      const [dx, dy] = CALLOUT_DELTA[spec.anchor](w, h)
+      const view = { w: container?.clientWidth ?? 0, h: container?.clientHeight ?? 0 }
+      // ⚠️ 押し戻す余地が無いとき（吹き出しより画面が狭い）はそのまま置く
+      const clamp = (v: number, lo: number, hi: number) =>
+        hi < lo ? v : Math.min(Math.max(v, lo), hi)
+      const x = clamp(inContainer.x + dx, CALLOUT_MARGIN.left, view.w - w - CALLOUT_MARGIN.right)
+      const y = clamp(inContainer.y + dy, CALLOUT_MARGIN.top, view.h - h - CALLOUT_MARGIN.bottom)
+      div.style.left = `${x + (inDiv.x - inContainer.x)}px`
+      div.style.top = `${y + (inDiv.y - inContainer.y)}px`
     }
     overlay.onRemove = function onRemove() {
       div?.remove()

@@ -222,16 +222,32 @@ describe('routeCallouts', () => {
       return list[0].anchor
     }
 
-    // ⚠️ 経路が北から入ってくるのに上へ出すと、線に重なる（2026-08-23の指摘）
-    it('北から来た経路の上に置かない', () => {
-      expect(anchorFor(routeFeature('flood', 0), routeFeature('baseline', 0))).toBe('bottom')
-      expect(anchorFor(routeFeature('flood', 45), routeFeature('baseline', 45))).not.toBe('top')
+    // ⚠️ 経路が来ている向きへ出すと線に重なる（2026-08-23の指摘）
+    it('経路が来ている向きには置かない', () => {
+      expect(['top', 'top-right', 'top-left']).not.toContain(
+        anchorFor(routeFeature('flood', 0), routeFeature('baseline', 0)),
+      )
+      expect(['bottom', 'bottom-right', 'bottom-left']).not.toContain(
+        anchorFor(routeFeature('flood', 180), routeFeature('baseline', 180)),
+      )
+      expect(['right', 'top-right', 'bottom-right']).not.toContain(
+        anchorFor(routeFeature('flood', 90), routeFeature('baseline', 90)),
+      )
     })
 
-    // 上が空いているなら上に出す。ピンの高さぶんは別に逃がしてある
-    it('上が空いていれば上に置く', () => {
-      expect(anchorFor(routeFeature('flood', 180), routeFeature('baseline', 180))).toBe('top')
-      expect(anchorFor(routeFeature('flood', 90), routeFeature('baseline', 90))).toBe('top')
+    // ⚠️ 8方位ある。4方位だと斜めから入る経路に逃げ場が無い
+    it('斜めから来た経路も避ける', () => {
+      // 北東から入ってくるので、南寄りのどこかへ逃げる（東西は出発地の側で決まる）
+      expect(['bottom', 'bottom-right', 'bottom-left']).toContain(
+        anchorFor(routeFeature('flood', 45), routeFeature('baseline', 45)),
+      )
+    })
+
+    // ⚠️ 画面は出発地を含むように収めるので、出発地の側には必ず余地がある
+    it('経路が同じだけ空いているなら出発地の側へ寄せる', () => {
+      // 出発地は目的地から見て北東（fixture の od）
+      expect(pickAnchor([], [Math.SQRT1_2, Math.SQRT1_2])).toBe('top-right')
+      expect(pickAnchor([], [0, -1])).toBe('bottom')
     })
 
     // ⚠️ 2本が別々の方向から入ってくることがある（種類を両方選んだとき）
@@ -259,13 +275,14 @@ describe('routeCallouts', () => {
         } as unknown as Partial<Bundle>),
         { shown: {} },
       )
-      expect(list[0].anchor).toBe('top')
-      expect(list[1].anchor).toBe('bottom')
+      // 目的地へは南から、もう一方へは北から入るので、避ける向きが逆になる
+      expect(['bottom', 'bottom-right', 'bottom-left']).not.toContain(list[0].anchor)
+      expect(['top', 'top-right', 'top-left']).not.toContain(list[1].anchor)
     })
   })
 
   describe('画面に収めるための余白', () => {
-    const at = (anchor: 'top' | 'bottom' | 'left' | 'right') => ({
+    const at = (anchor: 'top' | 'bottom' | 'left' | 'right' | 'bottom-left') => ({
       id: 'dest',
       lngLat: [139.7, 35.7] as [number, number],
       html: '',
@@ -274,19 +291,39 @@ describe('routeCallouts', () => {
     const desktop = { w: 1400, h: 900 }
 
     // ⚠️ 経路の端がそのまま吹き出しの位置なので、経路だけで収めるとはみ出す
-    it('吹き出しが出ている側にだけ足す', () => {
+    it('出ている側に足す', () => {
       const padding = calloutPadding([at('bottom')], desktop)
       expect(padding.bottom).toBeGreaterThan(0)
       expect(padding.top).toBe(0)
-      expect(padding.left).toBe(0)
+    })
+
+    // ⚠️ 上下に出すときの箱は**左右中央**。幅の半分ずつ横にもはみ出す
+    //    （実機で左端が切れた）
+    it('左右中央に出る向きでは横の余白も見る', () => {
+      const padding = calloutPadding([at('bottom')], desktop)
+      expect(padding.left).toBeGreaterThan(0)
+      expect(padding.right).toBeGreaterThan(0)
+      expect(padding.left).toBeLessThan(calloutPadding([at('left')], desktop).left)
+    })
+
+    it('斜めに出る向きでは2辺に広がる', () => {
+      const padding = calloutPadding([at('bottom-left')], desktop)
+      expect(padding.bottom).toBeGreaterThan(0)
+      expect(padding.left).toBeGreaterThan(0)
+      expect(padding.top).toBe(0)
       expect(padding.right).toBe(0)
     })
 
-    it('複数の吹き出しがあればどちらの側にも足す', () => {
-      const padding = calloutPadding([at('top'), at('left')], desktop)
-      expect(padding.top).toBeGreaterThan(0)
-      expect(padding.left).toBeGreaterThan(0)
-      expect(padding.bottom).toBe(0)
+    // 辺ごとに、いちばん大きく広がる吹き出しに合わせる
+    it('複数の吹き出しがあれば辺ごとに大きいほうを取る', () => {
+      const both = calloutPadding([at('top'), at('left')], desktop)
+      const top = calloutPadding([at('top')], desktop)
+      const left = calloutPadding([at('left')], desktop)
+      for (const side of ['top', 'right', 'bottom', 'left'] as const) {
+        expect(both[side]).toBe(Math.max(top[side], left[side]))
+      }
+      expect(both.top).toBeGreaterThan(0)
+      expect(both.left).toBeGreaterThan(0)
     })
 
     it('吹き出しが無ければ足さない', () => {

@@ -485,6 +485,9 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             risk: hazardMeta?.risk,
             shown: state.shownRoutes,
             hazardLabel: primaryHazard?.label,
+            // ⚠️ 消したら地図レイヤーのメニューから戻す。×だけ用意して戻す道が
+            //    無いと、消したあとに出し方が分からなくなる
+            onDismiss: () => dispatch({ type: 'show_callouts', shown: false }),
           })
         : [],
     [bundle, hazardMeta, primaryHazard, state.shownRoutes, state.showCallouts],

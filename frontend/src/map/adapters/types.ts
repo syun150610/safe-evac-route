@@ -73,13 +73,29 @@ export interface CalloutSpec {
   id: string
   lngLat: LngLatTuple
   html: string
+  /** 吹き出しの×を押したとき。`data-action="dismiss"` の要素に繋ぐ。
+   *
+   * ⚠️ **繋ぐ要素だけ `pointer-events` を戻すこと。** 吹き出し全体で
+   * クリックを受けると、下の経路とピンが押せなくなる。 */
+  onDismiss?: () => void
   /** 地点から見て**どちら側へ吹き出しを出すか**。経路とピンを避ける向きを
    * 呼び出し側が決める（アダプタは向きの意味を知っているだけ） */
   anchor: CalloutAnchor
 }
 
-/** 吹き出しを置く向き。`top` = 地点の上 */
-export type CalloutAnchor = 'top' | 'bottom' | 'left' | 'right'
+/** 吹き出しを置く向き。`top` = 地点の上。
+ *
+ * ⚠️ **8方位ある。** 上下左右の4方位だと、経路が斜めから入ってくるときに
+ * 逃げ場が無く、経路か画面の外かのどちらかになる（ユーザー指摘、2026-08-23）。 */
+export type CalloutAnchor =
+  | 'top'
+  | 'top-right'
+  | 'right'
+  | 'bottom-right'
+  | 'bottom'
+  | 'bottom-left'
+  | 'left'
+  | 'top-left'
 
 export interface RouteClick {
   lngLat: LngLatTuple

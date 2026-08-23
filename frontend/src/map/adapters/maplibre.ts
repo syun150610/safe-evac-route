@@ -60,16 +60,24 @@ const CALLOUT_GAP = 16
  *
  * ⚠️ **向きが逆になる。** 吹き出しを地点の上（`top`）に出したいときは、
  * Popup の**下端**（`bottom`）を地点へ合わせる。 */
-const POPUP_ANCHOR = {
+const POPUP_ANCHOR: Record<CalloutAnchor, string> = {
   top: 'bottom',
+  'top-right': 'bottom-left',
+  'top-left': 'bottom-right',
   bottom: 'top',
+  'bottom-right': 'top-left',
+  'bottom-left': 'top-right',
   left: 'right',
   right: 'left',
-} as const
+}
 
 const POPUP_OFFSET: Record<CalloutAnchor, [number, number]> = {
   top: [0, -CALLOUT_LIFT],
+  'top-right': [CALLOUT_GAP, -CALLOUT_GAP],
+  'top-left': [-CALLOUT_GAP, -CALLOUT_GAP],
   bottom: [0, CALLOUT_GAP],
+  'bottom-right': [CALLOUT_GAP, CALLOUT_GAP],
+  'bottom-left': [-CALLOUT_GAP, CALLOUT_GAP],
   left: [-CALLOUT_GAP, 0],
   right: [CALLOUT_GAP, 0],
 }
@@ -503,6 +511,13 @@ export function createMapLibreAdapter(): MapAdapter {
     // ⚠️ `focusAfterOpen` を切る。開くたびにフォーカスが吹き出しへ飛び、
     //    シートの操作位置を見失う。
     setCallouts(list: CalloutSpec[]) {
+      const calloutContent = (c: CalloutSpec) => {
+        const el = document.createElement('div')
+        el.innerHTML = c.html
+        const dismiss = el.querySelector('[data-action="dismiss"]')
+        if (dismiss && c.onDismiss) dismiss.addEventListener('click', c.onDismiss)
+        return el
+      }
       for (const p of callouts) p.remove()
       callouts.length = 0
       for (const c of list) {
@@ -513,11 +528,11 @@ export function createMapLibreAdapter(): MapAdapter {
             focusAfterOpen: false,
             maxWidth: '220px',
             // ⚠️ 上に置くときはピンの高さぶん持ち上げる（同じ地点に立つマーカーを覆う）
-            anchor: POPUP_ANCHOR[c.anchor],
+            anchor: POPUP_ANCHOR[c.anchor] as 'top' | 'bottom' | 'left' | 'right',
             offset: POPUP_OFFSET[c.anchor],
           })
             .setLngLat(c.lngLat)
-            .setHTML(c.html)
+            .setDOMContent(calloutContent(c))
             .addTo(map),
         )
       }

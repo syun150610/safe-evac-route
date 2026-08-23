@@ -22,6 +22,8 @@ interface FakeInfoWindow {
 
 interface Created {
   floatPane: HTMLElement
+  /** 吹き出しの基準点（container座標）。テストごとに動かす */
+  point: { x: number; y: number }
   lines: FakePolyline[]
   markers: { o: Record<string, unknown> }[]
   mapOpts: Record<string, unknown> | null
@@ -62,6 +64,7 @@ let fakeMap: any
 function installStub() {
   created = {
     floatPane: document.createElement('div'),
+    point: { x: 300, y: 300 },
     lines: [],
     markers: [],
     mapOpts: null,
@@ -185,7 +188,11 @@ function installStub() {
           return { floatPane: created.floatPane }
         }
         getProjection() {
-          return { fromLatLngToDivPixel: () => ({ x: 120, y: 240 }) }
+          // div座標＝地図と一緒に動く層 / container座標＝画面。ずれも再現する
+          return {
+            fromLatLngToDivPixel: () => ({ x: created.point.x + 1000, y: created.point.y + 1000 }),
+            fromLatLngToContainerPixel: () => ({ ...created.point }),
+          }
         }
       },
       InfoWindow: class {
@@ -425,6 +432,12 @@ describe('adapter_google（スタブ）', () => {
   })
 
   describe('要約の吹き出し（setCallouts）', () => {
+    const W = 200
+    const H = 120
+    const VIEW = { w: 520, h: 900 }
+    // div座標は container座標 + この値（地図と一緒に動く層のぶん）
+    const SHIFT = 1000
+
     const callout = (id: string, anchor: CalloutAnchor = 'top') => ({
       id,
       lngLat: [139.77, 35.71] as [number, number],
@@ -434,13 +447,23 @@ describe('adapter_google（スタブ）', () => {
 
     const boxes = () => Array.from(created.floatPane.children) as HTMLElement[]
 
+    // jsdom は大きさを 0 で返す。押し戻しの計算に大きさが要るので持たせる
+    beforeEach(() => {
+      for (const [prop, value] of [
+        ['offsetWidth', W],
+        ['offsetHeight', H],
+        ['clientWidth', VIEW.w],
+        ['clientHeight', VIEW.h],
+      ] as const) {
+        Object.defineProperty(HTMLElement.prototype, prop, { value, configurable: true })
+      }
+    })
+
     it('件数ぶんの吹き出しを地図へ足す', async () => {
       const a = await makeAdapter()
       a.setCallouts([callout('dest'), callout('alt')])
       expect(boxes()).toHaveLength(2)
       expect(boxes()[0].innerHTML).toBe('<b>dest</b>')
-      expect(boxes()[0].style.left).toBe('120px')
-      expect(boxes()[0].style.top).toBe('240px')
     })
 
     // ⚠️ 吹き出しがクリックを吸うと、下の経路もピンも押せなくなる
@@ -453,21 +476,47 @@ describe('adapter_google（スタブ）', () => {
     // ⚠️ ピンは地点から上へ伸びるので、上に置くときだけ余分に逃がす
     it('上に置くときはピンの高さぶん持ち上げる', async () => {
       const a = await makeAdapter()
+      created.point = { x: 300, y: 400 }
       a.setCallouts([callout('dest', 'top')])
-      expect(boxes()[0].style.transform).toContain('-100%')
-      expect(boxes()[0].style.transform).toMatch(/- ?4\d+px/)
+      const box = boxes()[0]
+      expect(box.style.left).toBe(`${300 - W / 2 + SHIFT}px`)
+      // 高さぶん上へ出し、さらにピン(36px)より上へ逃がす
+      expect(Number.parseInt(box.style.top, 10)).toBeLessThanOrEqual(400 - H - 36 + SHIFT)
     })
 
     it('指定された向きへ置く', async () => {
       const a = await makeAdapter()
-      for (const [anchor, expected] of [
-        ['bottom', 'translate(-50%, 16px)'],
-        ['right', 'translate(16px, -50%)'],
-        ['left', 'translate(calc(-100% - 16px), -50%)'],
+      created.point = { x: 300, y: 400 }
+      for (const [anchor, left, top] of [
+        ['bottom', 300 - W / 2, 400 + 16],
+        ['bottom-left', 300 - W - 16, 400 + 16],
+        ['left', 300 - W - 16, 400 - H / 2],
       ] as const) {
         a.setCallouts([callout('dest', anchor)])
-        expect(boxes()[0].style.transform).toBe(expected)
+        expect(boxes()[0].style.left).toBe(`${left + SHIFT}px`)
+        expect(boxes()[0].style.top).toBe(`${top + SHIFT}px`)
       }
+    })
+
+    // ⚠️ 収めるときの余白（`calloutPadding`）だけでは、狭い画面で端が切れる
+    it('画面からはみ出すなら内側へ押し戻す', async () => {
+      const a = await makeAdapter()
+      created.point = { x: 30, y: 400 }
+      a.setCallouts([callout('dest', 'bottom-left')])
+      expect(boxes()[0].style.left).toBe(`${8 + SHIFT}px`)
+
+      created.point = { x: VIEW.w - 10, y: 400 }
+      a.setCallouts([callout('dest', 'right')])
+      expect(boxes()[0].style.left).toBe(`${VIEW.w - W - 8 + SHIFT}px`)
+    })
+
+    // ⚠️ 地図の下端は Google のロゴ・「地図データ ©」・出典の並び。規約上覆えない
+    it('下端の帰属表示より上で止める', async () => {
+      const a = await makeAdapter()
+      created.point = { x: 300, y: VIEW.h + 200 } // 画面の下の外
+      a.setCallouts([callout('dest', 'bottom')])
+      const top = Number.parseInt(boxes()[0].style.top, 10) - SHIFT
+      expect(top + H).toBeLessThanOrEqual(VIEW.h - 30)
     })
 
     it('渡し直すと前のものを消す', async () => {
@@ -482,6 +531,15 @@ describe('adapter_google（スタブ）', () => {
       a.setCallouts([callout('dest'), callout('alt')])
       a.setCallouts([])
       expect(boxes()).toHaveLength(0)
+    })
+
+    // ⚠️ ×だけがクリックを受ける（吹き出し全体は pointer-events:none）
+    it('×を押したら消したいことを伝える', async () => {
+      const a = await makeAdapter()
+      const onDismiss = vi.fn()
+      a.setCallouts([{ ...callout('dest'), onDismiss, html: '<button data-action="dismiss" />' }])
+      boxes()[0].querySelector<HTMLElement>('[data-action="dismiss"]')?.click()
+      expect(onDismiss).toHaveBeenCalledTimes(1)
     })
   })
 
