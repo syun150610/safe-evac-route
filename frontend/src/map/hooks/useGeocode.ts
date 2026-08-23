@@ -1,22 +1,30 @@
-/** 住所サジェスト（国土地理院の住所検索API）。
+/** 地点サジェスト。提供元の選択は `lib/place-search.ts` が持つ。
  *
- * ⚠️ **入力ごとに叩かない。** 250ms 止まってから1回だけ投げ、
- * 古いリクエストは AbortController で捨てる。相手は公共の無料APIなので、
- * 打鍵のたびに投げるのは行儀が悪いし、結果の順序も保証できない。
+ * ⚠️ **入力ごとに叩かない。** 250ms 止まってから1回だけ投げ、古いリクエストは
+ * AbortController で捨てる。国土地理院は公共の無料APIで打鍵ごとは行儀が悪く、
+ * Google Places は**1回ごとに課金**される。どちらにせよ投げすぎない。
+ *
+ * ⚠️ **候補は座標を持たないことがある。** Places は選択時に初めて座標を引く
+ * （`PlaceSuggestion.resolve()`）。呼び出し側は `place` の有無で
+ * 「エリア内かどうかを事前に言えるか」を出し分けること。
  */
 import { useEffect, useRef, useState } from 'react'
 
-import { type Place, searchAddress } from '../lib/gsi'
+import type { Bbox, PlaceSource, PlaceSuggestion } from '../lib/place-search'
+import { searchPlaces } from '../lib/place-search'
 
 const DEBOUNCE_MS = 250
 const MIN_CHARS = 2
 // ⚠️ ここでは**絞りすぎない。** 呼び出し側が「対象エリア内を先に」並べ替えてから
 //    表示件数に切る。ここで8件に切ると、エリア内の候補が全国の同名地点に
-//    押し出されて消える（「上野駅」で実際に起きた）
+//    押し出されて消える（「上野駅」で実際に起きた）。
+//    Places 側は `locationRestriction` で範囲外をそもそも返させないので、
+//    この上限に当たるのは国土地理院を使っているときだけになる
 const MAX_ITEMS = 40
 
-export function useGeocode(query: string, enabled = true) {
-  const [places, setPlaces] = useState<Place[]>([])
+export function useGeocode(query: string, enabled = true, bbox?: Bbox | null) {
+  const [places, setPlaces] = useState<PlaceSuggestion[]>([])
+  const [source, setSource] = useState<PlaceSource>('google')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const abort = useRef<AbortController | null>(null)
@@ -34,9 +42,11 @@ export function useGeocode(query: string, enabled = true) {
     abort.current = ac
     setLoading(true)
     const t = setTimeout(() => {
-      searchAddress(q, ac.signal)
+      searchPlaces(q, { bbox, signal: ac.signal })
         .then((r) => {
-          setPlaces(r.slice(0, MAX_ITEMS))
+          if (ac.signal.aborted) return
+          setPlaces(r.items.slice(0, MAX_ITEMS))
+          setSource(r.source)
           setError(null)
         })
         .catch((e: Error) => {
@@ -50,7 +60,7 @@ export function useGeocode(query: string, enabled = true) {
       clearTimeout(t)
       ac.abort()
     }
-  }, [query, enabled])
+  }, [query, enabled, bbox])
 
-  return { places, error, loading }
+  return { places, source, error, loading }
 }

@@ -22,6 +22,7 @@ import { useVector } from './hooks/useVector'
 import { distanceKm } from './lib/distance'
 import { nearestSegment, routeBounds } from './lib/geo'
 import { currentPosition, type Place } from './lib/gsi'
+import type { PlaceSuggestion } from './lib/place-search'
 import {
   buildHazards,
   buildRouteSearchRequest,
@@ -35,6 +36,10 @@ const CENTER: [number, number] = [139.792, 35.733]
 const EMPTY = { type: 'FeatureCollection' as const, features: [] }
 const FLOOD_ZOOM = { minzoom: 12, maxzoom: 15 }
 const SHEET_SCREEN_CLASS = 'min-h-full bg-white px-4 py-4'
+/** 指定地点から道路までの距離が、これ以上なら画面で断る(m)。
+ * 実測（対象エリア内の施設4,550件）で中央値40m・95パーセンタイル84m。
+ * 40mで出すと3回に1回出てしまい、読まれなくなる */
+const SNAP_NOTE_M = 80
 
 function shelterPlace(feature: ShelterFeature): Place {
   return {
@@ -68,7 +73,13 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   } = useShelters(true, area?.bbox)
 
   const active = state[state.activeField]
-  const geocode = useGeocode(active.query, state.screen === 'search' && active.place === null)
+  // ⚠️ 探索範囲を渡す。Places は `locationRestriction` で範囲外をそもそも
+  //    返さなくなる（「上野駅」で全国の同名地点が出るのを止める）
+  const geocode = useGeocode(
+    active.query,
+    state.screen === 'search' && active.place === null,
+    area?.bbox,
+  )
   const layer = state.mapLayer
   const floodUrl = layer === 'flood' ? tileUrlOf(catalog, 'flood', state.scenario) : null
   const quakeScenario = catalog?.hazards.find((h) => h.id === 'quake')?.scenarios[0]?.id ?? 'total'
@@ -84,6 +95,17 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   //    APIは登録済み種別を全部返し、`considered` で区別する。絞り込みはここで行い、
   //    `RouteRationale` は渡されたものを全部描く自己完結の部品のままにする。
   const consideredHazards = bundle?.rationale?.hazards.filter((h) => h.considered) ?? []
+  // 指定地点から道路までの距離。⚠️ **実測の95パーセンタイル（84m）を目安にする。**
+  // 中央値の40mで出すと3回に1回出て、読まれなくなる
+  const snapNote = useMemo(() => {
+    const far = (['origin', 'dest'] as const)
+      .map((k) => ({ k, m: bundle?.od?.[k]?.snap_m ?? 0 }))
+      .filter((x) => x.m >= SNAP_NOTE_M)
+    if (far.length === 0) return null
+    const label = { origin: '出発地', dest: '目的地' }
+    const parts = far.map((x) => `${label[x.k]}から約${Math.round(x.m)}m`)
+    return `${parts.join('・')}離れた道路から経路を引いています（指定した地点は建物・敷地の代表点で、道路上の点ではありません）。`
+  }, [bundle])
   const primaryHazard = consideredHazards[0] ?? null
 
   const [latestPost, setLatestPost] = useState<Post | null>(null)
@@ -298,9 +320,24 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     void requestLocation()
   }, [requestLocation])
 
-  function choosePlace(place: Place) {
+  /** 候補を選ぶ。
+   *
+   * ⚠️ **座標はここで初めて確定することがある。** Places の候補は選ぶまで
+   * 座標を持たない（`PlaceSuggestion.resolve()` が Place Details を1回叩く）。
+   * 国土地理院の候補は最初から持っているので、その場合は即座に決まる。
+   */
+  async function choosePlace(suggestion: PlaceSuggestion) {
     const field = state.activeField
-    dispatch({ type: 'select_place', field, place })
+    try {
+      const place = suggestion.place ?? (await suggestion.resolve())
+      if (!inArea(area, place.lat, place.lon)) {
+        flash('対象エリア内の地点を指定してください')
+        return
+      }
+      dispatch({ type: 'select_place', field, place })
+    } catch (e) {
+      flash((e as Error).message)
+    }
   }
 
   const prepareDestination = useCallback(
@@ -758,24 +795,28 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                     {geocode.error && (
                       <p className="p-6 text-center text-[11px] text-slate-500">{geocode.error}</p>
                     )}
-                    {geocode.places.map((place) => {
-                      const inside = inArea(area, place.lat, place.lon)
+                    {geocode.places.map((suggestion) => {
+                      // ⚠️ 座標を持たない候補（Places）では、エリア内かどうかを
+                      //    事前に言えない。**言えないことを「対象外」と出さない**
+                      const known = suggestion.place
+                      const inside = known ? inArea(area, known.lat, known.lon) : null
                       return (
                         <button
                           type="button"
-                          key={`${place.title}-${place.lat}-${place.lon}`}
-                          onClick={() => choosePlace(place)}
-                          disabled={!inside}
+                          key={suggestion.id}
+                          onClick={() => void choosePlace(suggestion)}
+                          disabled={inside === false}
                         >
                           <span className="text-lg text-[#07156f]">⌖</span>
                           <span className="[&_small]:mt-1 [&_small]:block [&_small]:text-[9px] [&_small]:text-slate-500 [&_strong]:block [&_strong]:text-xs">
-                            <strong>{place.title}</strong>
+                            <strong>{suggestion.title}</strong>
                             <small>
-                              {place.lat.toFixed(5)}, {place.lon.toFixed(5)}
+                              {suggestion.address ??
+                                (known ? `${known.lat.toFixed(5)}, ${known.lon.toFixed(5)}` : '')}
                             </small>
                           </span>
                           <em className="text-[8px] text-[#07156f] not-italic">
-                            {inside ? '選択' : '対象外'}
+                            {inside === false ? '対象外' : '選択'}
                           </em>
                         </button>
                       )
@@ -837,6 +878,15 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               {search.loading && (
                 <p className="mb-3 text-[9px] text-slate-500" role="status">
                   新しい条件で引き直しています…
+                </p>
+              )}
+              {/* ⚠️ 指定した地点と経路の端がずれることを黙らない。
+                  施設・住所の代表点は道路上の点ではないので、探索は最寄りの
+                  道路ノードから始まる（実測: 都内の施設4,550件で中央値40m、
+                  95%が84m以内、300m超は0.77%）。目立つときだけ言う */}
+              {snapNote && (
+                <p className="mb-3 rounded-lg bg-slate-100 px-3 py-2 text-[9px] leading-relaxed text-slate-600">
+                  {snapNote}
                 </p>
               )}
               {bundle && (
