@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildHazards, buildRouteSearchRequest, buildShelterSearchRequest } from './search-request'
+import {
+  buildHazards,
+  buildRouteSearchRequest,
+  buildShelterSearchRequest,
+  FLOOD_SCENARIO,
+} from './search-request'
 
 const origin = { title: '上野駅', lat: 35.7138, lon: 139.7773 }
 const destination = { title: '浅草駅', lat: 35.7119, lon: 139.7982 }
@@ -28,19 +33,14 @@ describe('search request builders', () => {
 
 describe('buildHazards', () => {
   it('地震は variant が total 固定（焼いてあるのが総合ランクだけ）', () => {
-    expect(buildHazards({ hazard: 'quake', scenario: 'kandagawa' })).toEqual({ quake: 'total' })
+    expect(buildHazards({ hazard: 'quake' })).toEqual({ quake: 'total' })
   })
 
-  it('浸水は選んでいる想定図をそのまま variant にする', () => {
-    expect(buildHazards({ hazard: 'flood', scenario: 'kandagawa' })).toEqual({
-      flood: 'kandagawa',
-    })
-  })
-
-  it('渡された条件だけから作る（画面の状態を混ぜない）', () => {
-    // ⚠️ 切り替え直後に state を読むと更新前の値なので、
-    //    「新しい種別 ＋ 古い想定」で投げてしまう
-    const next = { hazard: 'flood', scenario: 'sumidagawa' } as const
-    expect(buildHazards(next)).toEqual({ flood: 'sumidagawa' })
+  it('⚠️ 浸水は全河川（想定最大）固定。単一河川は選ばせない', () => {
+    // 単一河川の想定図は流域の外を評価していないので、流域外を出発地に
+    // すると「経路の100%が評価範囲外」になり、危険が無いのか判断材料が
+    // 無いのかを読み分けられない（江戸川区平井×神田川で実際にそうなった）
+    expect(buildHazards({ hazard: 'flood' })).toEqual({ flood: FLOOD_SCENARIO })
+    expect(FLOOD_SCENARIO).toBe('envelope')
   })
 })

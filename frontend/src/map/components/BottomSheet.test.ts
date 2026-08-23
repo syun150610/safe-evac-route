@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { MapAdapter } from '../adapters/types'
 import type { Bundle, RouteInfo, RouteStats } from '../types'
 import { BottomSheet } from './BottomSheet'
-import { decideSheet, sheetSummary } from './bottomSheetLogic'
+import { decideSheet, sheetOpenAfterSearch, sheetSummary } from './bottomSheetLogic'
 
 let host: HTMLDivElement | null = null
 
@@ -128,5 +128,20 @@ describe('BottomSheet', () => {
     expect(lockGestures).toHaveBeenLastCalledWith(false)
 
     await act(async () => root.unmount())
+  })
+})
+
+describe('sheetOpenAfterSearch', () => {
+  it('⚠️ スマホでは結果が返ったら畳む（地図が隠れて経路が見えない）', () => {
+    expect(sheetOpenAfterSearch(true, true)).toBe(false)
+  })
+
+  it('PCでは畳まない（地図と並んでいて隠れない）', () => {
+    expect(sheetOpenAfterSearch(false, true)).toBe(true)
+  })
+
+  it('⚠️ 条件の切り替えによる引き直しでは、スマホでも畳まない', () => {
+    // シートの中を操作している最中なので、押すたびに消えると条件を比べられない
+    expect(sheetOpenAfterSearch(true, false)).toBe(true)
   })
 })

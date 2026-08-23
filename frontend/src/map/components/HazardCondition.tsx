@@ -1,28 +1,29 @@
 /** 「どの災害で経路を引くか」の入力。**検索前も検索後も同じ部品を使う。**
  *
- * ⚠️ **変更は1つのコールバックで、次の条件をまとめて渡す。**
- * 種別と浸水想定を別々の `onChange` にすると、呼び出し側が
- * 「新しい種別 ＋ 古い想定」で再検索してしまう（Reactのstateは
- * 同じイベント内では更新前の値のままなので、押した直後に読めない）。
- * ここで完成した条件を渡せば、呼び出し側はそれをそのまま投げられる。
+ * ⚠️ **浸水想定は「全河川（想定最大）」固定で、選ばせない**（2026-08-23の判断）。
+ * 単一河川の想定図（神田川・隅田川）は流域の外を一切評価していないので、
+ * 流域外を出発地にすると「この経路の100.0%は整備対象流域の外です」となり、
+ * 危険が無いのか判断材料が無いのかを利用者が読み分けられない
+ * （江戸川区平井×神田川で実際にそうなった）。包絡なら都内10流域を覆う。
+ * データ自体は残してあるので、戻すならここへ選択UIを足すだけでよい。
  *
- * ⚠️ **種別名をここに書かない。** 地震/浸水の出し分けは `HazardPicker`、
- * 浸水想定の一覧は `/api/hazards` が配る。この部品は並べるだけ。
+ * ⚠️ **変更は1つのコールバックで、次の条件をまとめて渡す。**
+ * いまは種別しか変わらないが、条件が増えたときに呼び出し側が
+ * 「新しい種別 ＋ 古い何か」で再検索するのを防ぐため、形は崩さない
+ * （Reactのstateは同じイベント内では更新前の値のままなので、押した直後に読めない）。
+ *
+ * ⚠️ **種別名をここに書かない。** 地震/浸水の出し分けは `HazardPicker` が持つ。
  */
-import type { HazardScenario } from '../types'
 import { HazardPicker } from './HazardPicker'
 
 export type HazardChoice = 'quake' | 'flood'
 
 export interface Condition {
   hazard: HazardChoice
-  scenario: string
 }
 
 interface Props extends Condition {
-  /** 浸水想定の選択肢（`/api/hazards` の flood.scenarios） */
-  scenarios: HazardScenario[]
-  /** 次の条件。**種別と想定がそろった形で来る** */
+  /** 次の条件 */
   onChange: (next: Condition) => void
   title?: string
   /** 補足。検索後は「切り替えると引き直す」ことを伝える */
@@ -33,8 +34,6 @@ interface Props extends Condition {
 
 export function HazardCondition({
   hazard,
-  scenario,
-  scenarios,
   onChange,
   title = '考慮する災害',
   note,
@@ -52,25 +51,8 @@ export function HazardCondition({
       <HazardPicker
         compact
         value={hazard}
-        onChange={(next) => !busy && onChange({ hazard: next, scenario })}
+        onChange={(next) => !busy && onChange({ hazard: next })}
       />
-      {hazard === 'flood' && (
-        <label className="ml-auto min-w-28 flex-1 text-[9px] text-slate-600 min-[420px]:max-w-36 [&_select]:min-h-7 [&_select]:w-full [&_select]:rounded-md [&_select]:border [&_select]:border-slate-200 [&_select]:bg-white [&_select]:px-1.5 [&_select]:text-[9px]">
-          <span className="sr-only">浸水想定</span>
-          <select
-            aria-label="浸水想定"
-            disabled={busy}
-            value={scenario}
-            onChange={(event) => onChange({ hazard, scenario: event.target.value })}
-          >
-            {scenarios.map((option) => (
-              <option value={option.id} key={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
     </section>
   )
 }
