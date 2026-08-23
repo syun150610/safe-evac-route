@@ -51,9 +51,18 @@ const FLOOD_ZOOM = { minzoom: 12, maxzoom: 15 }
  * 経路も地図も隠れるので**そのまま**にする。 */
 const FLOOD_OPACITY = 1
 const SHEET_SCREEN_CLASS = 'min-h-full bg-white px-4 py-4'
-/** 右下の道具から出るパネル。⚠️ **ボタンの列より左**に出す（指で隠れない） */
+/** 右下の道具から出るパネル。
+ *
+ * ⚠️ **ボタンの列より左**に出す（指で隠れない）。
+ * ⚠️ **下端は出典表示より上で止める。** 地図の下には Google のロゴ・
+ * 「地図データ ©」の帯と、オープンデータの出典チップが並ぶ。**規約上これを
+ * 覆ってはいけない**（実機で重なった。2026-08-23）。
+ *
+ * チップ（`DataAttribution`）の位置は実測で
+ * スマホ `bottom: sheet-peek + 32px`・PC `bottom: 28px`、高さ32px。
+ * その上端よりさらに8px上で止める。**チップの位置を変えたらここも変える。** */
 const TOOL_POPOVER_CLASS =
-  'absolute right-[60px] bottom-[calc(var(--sheet-peek,74px)+23px)] z-[4] max-h-[min(60vh,420px)] w-[min(280px,calc(100%-84px))] overflow-auto rounded-xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgb(15_23_42/22%)] min-[900px]:bottom-[55px]'
+  'absolute right-[60px] bottom-[calc(var(--sheet-peek,74px)+72px)] z-[4] max-h-[min(60vh,420px)] w-[min(280px,calc(100%-84px))] overflow-auto rounded-xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgb(15_23_42/22%)] min-[900px]:bottom-[68px]'
 /** 指定地点から道路までの距離が、これ以上なら画面で断る(m)。
  * 実測（対象エリア内の施設4,550件）で中央値40m・95パーセンタイル84m。
  * 40mで出すと3回に1回出てしまい、読まれなくなる */
