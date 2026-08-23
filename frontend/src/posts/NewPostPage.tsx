@@ -2,6 +2,7 @@ import { type ChangeEvent, type FormEvent, useState } from 'react'
 import { createPost } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 import { reverseGeocode } from './geocode'
+import { compressPostImage, ImageCompressionError } from './image-compression'
 import type { CreatePostRequest } from './types'
 
 const initialForm: CreatePostRequest = {
@@ -24,16 +25,26 @@ export function NewPostPage() {
   const [locationName, setLocationName] = useState<string | null>(null)
   const [locationLoading, setLocationLoading] = useState(false)
 
-  function selectImage(event: ChangeEvent<HTMLInputElement>) {
+  async function selectImage(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file) return
-    if (file.size > 1_000_000) {
-      setError('画像は1MB以下にしてください')
-      return
+
+    setError(null)
+    try {
+      const imageUrl = await compressPostImage(file)
+      setForm((current) => ({ ...current, image_url: imageUrl }))
+    } catch (error) {
+      setError(
+        error instanceof ImageCompressionError ? error.message : '画像を処理できませんでした',
+      )
+    } finally {
+      // 同じファイルを選び直した場合も onChange が発火するようにする。
+      event.target.value = ''
     }
-    const reader = new FileReader()
-    reader.onload = () => setForm((current) => ({ ...current, image_url: String(reader.result) }))
-    reader.readAsDataURL(file)
+  }
+
+  function clearImage() {
+    setForm((current) => ({ ...current, image_url: null }))
   }
 
   function toggleLocation() {
@@ -116,7 +127,7 @@ export function NewPostPage() {
           <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#e9e9ed] text-2xl font-bold text-slate-600">
             ◎
           </span>
-          <p className="text-xl font-semibold text-slate-700">登録ユーザーとして投稿</p>
+          <p className="text-xl font-semibold text-slate-700">{user?.name ?? 'ユーザー'}</p>
         </div>
         <textarea
           className="mt-10 min-h-[360px] w-full resize-none border-0 bg-transparent text-2xl font-medium leading-relaxed outline-none placeholder:text-slate-400"
@@ -125,14 +136,29 @@ export function NewPostPage() {
           value={form.content}
           onChange={(e) => setForm({ ...form, content: e.target.value })}
         />
-        <label className="mt-8 flex min-h-48 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#c5c5d8] text-center text-slate-600">
-          <span className="text-3xl">▧</span>
-          <span className="mt-2 font-semibold">写真を追加</span>
-          <input className="sr-only" type="file" accept="image/*" onChange={selectImage} />
+        <div className="relative mt-8">
+          <label className="flex min-h-48 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-[#c5c5d8] text-center text-slate-600">
+            <input className="sr-only" type="file" accept="image/*" onChange={selectImage} />
+            {form.image_url ? (
+              <img className="h-48 w-full object-contain" src={form.image_url} alt="選択した画像" />
+            ) : (
+              <>
+                <span className="text-3xl">▧</span>
+                <span className="mt-2 font-semibold">写真を追加</span>
+              </>
+            )}
+          </label>
           {form.image_url && (
-            <img className="mt-3 max-h-32 rounded-lg" src={form.image_url} alt="選択した画像" />
+            <button
+              className="absolute right-3 top-3 grid size-8 place-items-center rounded-full bg-slate-900/75 text-lg leading-none text-white shadow hover:bg-slate-900"
+              aria-label="選択した画像を取り消す"
+              type="button"
+              onClick={clearImage}
+            >
+              ×
+            </button>
           )}
-        </label>
+        </div>
         <div className="mt-8 flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
           <div>
             <p className="text-sm font-bold">現在地</p>
