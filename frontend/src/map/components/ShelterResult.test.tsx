@@ -216,3 +216,31 @@ describe('ShelterResult（対応の登録と危険の断り）', () => {
     expect(html).not.toContain('安全な経路がある状態ではありません')
   })
 })
+
+describe('ShelterResult（もう一方の種類）', () => {
+  const alt = {
+    ...candidate({ id: 'alt', type: 'urgent', type_label: '指定緊急避難場所' }),
+    name: '多摩川河川敷',
+    stats: stats(1477, 0),
+  }
+
+  it('⚠️ 両方選んでいるなら、もう一方の種類も出す', () => {
+    const html = renderToStaticMarkup(
+      <ShelterResult
+        alt={alt}
+        candidates={[NEAR, FAR]}
+        onSelect={() => {}}
+        query={QUERY}
+        risk={RISK}
+        shelter={(({ stats: _s, ...rest }) => rest)(NEAR)}
+      />,
+    )
+    expect(html).toContain('多摩川河川敷')
+    expect(html).toContain('指定緊急避難場所')
+  })
+
+  it('片方だけ選んでいるときは出さない', () => {
+    const html = render([NEAR, FAR])
+    expect(html).not.toContain('多摩川河川敷')
+  })
+})

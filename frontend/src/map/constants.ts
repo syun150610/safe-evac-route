@@ -20,14 +20,26 @@ export const STYLE: Record<RouteId, RouteStyle> = {
   combined: { color: '#0b8a3d', width: 5.5, offset: -5, dash: null, casing: true },
   quake: { color: '#d81e1e', width: 4.0, offset: 10, dash: [0.9, 1.1], casing: false },
   minimax: { color: '#7c3aed', width: 3.5, offset: -10, dash: [1.8, 1.5], casing: false },
+  // ⚠️ **行き先が違う線。** 避難先の種類を両方選んだときの「もう一方」。
+  //    既存の5本と取り違えないよう、色も破線の刻みも変えてある
+  shelter_alt: { color: '#b45309', width: 4.0, offset: 15, dash: [3, 2.2], casing: true },
 }
 
 /** 下から上への描画順。④（推奨経路）を最前面にする */
-export const DRAW_ORDER: RouteId[] = ['minimax', 'quake', 'baseline', 'flood', 'combined']
+export const DRAW_ORDER: RouteId[] = [
+  'minimax',
+  'shelter_alt',
+  'quake',
+  'baseline',
+  'flood',
+  'combined',
+]
 
 /** 初期表示。⑤とminimaxは既定OFF（D-2） */
 export const INITIAL_ON: Record<RouteId, boolean> = {
   baseline: true,
+  // もう一方の種類の経路。比較のために描くので既定ON
+  shelter_alt: true,
   flood: true,
   combined: true,
   quake: false,

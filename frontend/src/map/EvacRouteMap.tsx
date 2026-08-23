@@ -1027,6 +1027,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   ⚠️ 候補に通し番号の順位を振らないこと（ShelterResult 冒頭） */}
               {bundle?.shelter && bundle.shelter_candidates && bundle.shelter_query && (
                 <ShelterResult
+                  alt={bundle.alt_shelter}
                   candidates={bundle.shelter_candidates}
                   onSelect={chooseCandidate}
                   query={bundle.shelter_query}

@@ -8,7 +8,16 @@ import type { FeatureCollection, LineString } from 'geojson'
  */
 
 /** 経路の識別子。番号 ①②④⑤ は docs/findings/検証記録.md 10章と対応 */
-export type RouteId = 'baseline' | 'flood' | 'combined' | 'quake' | 'minimax'
+export type RouteId =
+  | 'baseline'
+  | 'flood'
+  | 'combined'
+  | 'quake'
+  | 'minimax'
+  /** ⚠️ **これだけ行き先が `od.dest` と違う。** 避難先の種類を両方選んだときに
+   * 描く「もう一方の種類の最善」への経路（`alt_shelter`）。
+   * `routes[]` には入らないので、比較表や根拠の対象にもならない */
+  | 'shelter_alt'
 
 export type RouteRole = 'recommended' | 'compare' | 'counterexample' | 'bound'
 
@@ -194,6 +203,10 @@ export interface Bundle {
   shelter_candidates?: ShelterCandidate[]
   /** 同。どう絞って何で足切りしたか */
   shelter_query?: ShelterQuery
+  /** 種類を両方選んだときだけ。**もう一方の種類でいちばん条件のよい避難先。**
+   * ⚠️ 経路は geojson に `route: 'shelter_alt'` で入っており、`routes[]` には
+   * 入らない（`od.dest` と行き先が違うため） */
+  alt_shelter?: Omit<ShelterCandidate, 'stats'> & { stats: RouteStats; route: 'shelter_alt' }
 }
 
 /** POST /search/shelter が推奨した避難先。 */

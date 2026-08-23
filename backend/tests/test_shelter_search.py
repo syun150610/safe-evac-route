@@ -419,3 +419,44 @@ def test_api_rejects_an_unknown_shelter_type():
     # FastAPI のバリデーションエラー。**detail は配列**
     assert r.status_code == 422
     assert isinstance(r.json()["detail"], list)
+
+
+def test_draws_the_other_kind_when_both_are_selected():
+    """⚠️ **両方選んでいるなら、もう一方の種類の最善も描く。**
+
+    役割が違う2種類を両方選んでいるのに片方の線しか出ないと比べようがない。
+    """
+    r = SS.search(CHOFU, hazards=QUAKE, shelter_type="all")
+    alt = r["alt_shelter"]
+    assert alt["type"] != r["shelter"]["type"]
+
+    ids = {
+        f["properties"]["route"]
+        for f in r["geojson"]["features"]
+        if f["properties"]["kind"] == "route"
+    }
+    assert SS.ALT_ROUTE_ID in ids
+
+    # ⚠️ `routes[]` には入れない。あちらは `od` の1組に対する経路の集まりで、
+    #    行き先の違う線を混ぜると読み違える
+    assert SS.ALT_ROUTE_ID not in {x["id"] for x in r["routes"]}
+
+
+def test_no_other_kind_when_one_is_selected():
+    for kind in ("urgent", "designated"):
+        r = SS.search(CHOFU, hazards=QUAKE, shelter_type=kind)
+        assert "alt_shelter" not in r, kind
+        ids = {
+            f["properties"]["route"]
+            for f in r["geojson"]["features"]
+            if f["properties"]["kind"] == "route"
+        }
+        assert SS.ALT_ROUTE_ID not in ids, kind
+
+
+def test_internal_edges_never_leak_into_the_response():
+    """⚠️ 2本目を描くために持っていたエッジ列を、応答へ出さないこと。"""
+    r = SS.search(CHOFU, hazards=QUAKE, shelter_type="all")
+    assert all("_edges" not in c for c in r["shelter_candidates"])
+    assert "_edges" not in r["shelter"]
+    assert "_edges" not in r["alt_shelter"]

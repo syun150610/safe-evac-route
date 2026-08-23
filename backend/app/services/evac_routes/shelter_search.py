@@ -42,8 +42,9 @@ import math
 from app.services.evac_routes import search as S
 from app.services.shelters import loader
 from prep.hazard_sources import registry
+from prep.route_search import bundles as B
 from prep.route_search import csr_search as CS
-from prep.route_search.search import resolve_path_edges, route_stats
+from prep.route_search.search import resolve_path_edges, route_stats, stitch
 from prep.route_search.snap import graph_bbox
 from prep.route_search.weights import edge_cost
 
@@ -77,6 +78,10 @@ DANGER_RATIO_LIMIT = 0.3
 # ⚠️ **推奨にはしない。** 「自治体がこの災害向けに指定した先はここ」という
 # 情報を一覧から消さないためだけのもの
 MATCHED_EXTRA = 2
+
+# 両方の種類を選んでいるときに描く「もう一方」の経路ID。
+# ⚠️ **`od.dest` とは行き先が違う。** 既存の経路IDと混ぜないこと
+ALT_ROUTE_ID = "shelter_alt"
 
 # 見つからないときの案内で使う呼び名
 _TYPE_LABEL = {
@@ -233,6 +238,8 @@ def search(
                 row["basis"] = basis
                 row["cost"] = round(cost, 1)
                 row["stats"] = st
+                # 2本目を描くときに使う。**応答へ出す前に必ず捨てる**
+                row["_edges"] = edges
 
     # ⚠️ **両方を混ぜて探すときだけ**、災害種別が確認できている避難先を
     #    一覧から消さないようにする。指定避難所（種別の登録が無い）は数が多く
@@ -259,6 +266,7 @@ def search(
                     basis="hazard",
                     cost=round(cost, 1),
                     stats=route_stats(G, edges),
+                    _edges=edges,
                 )
 
     if not cands:
@@ -338,7 +346,49 @@ def search(
         chosen["stats"] = selected["stats"]
         chosen["within_limit"] = selected["stats"]["distance_m"] <= limit_m
 
-    result["shelter"] = {k: v for k, v in chosen.items() if k != "stats"}
+    # ⚠️ **両方を選んでいるなら、もう片方の種類の最善も描く。**
+    #    「まず逃げ込む先」と「そのあと生活する先」は役割が違うので、
+    #    両方ONのときに片方しか線が出ないと比べようがない（2026-08-23の指摘）。
+    # ⚠️ **`routes[]` には入れない。** あちらは `od` の1組に対する経路の集まりで、
+    #    行き先の違う線を混ぜると読み違える。geojson には別のIDで足し、
+    #    メタ情報は `alt_shelter` に分けて置く
+    alt = None
+    if shelter_type == "all":
+        others = [r for r in rows if r["type"] != chosen["type"]]
+        calm_others = [
+            r
+            for r in others
+            if r["within_limit"] and r["danger_ratio"] <= DANGER_RATIO_LIMIT
+        ]
+        alt = min(calm_others or others, key=lambda r: r["cost"], default=None)
+    if alt is not None and alt.get("_edges"):
+        result["geojson"]["features"].append(
+            B.feature(
+                stitch(G, alt["_edges"]),
+                {
+                    "kind": "route",
+                    # ⚠️ **行き先が `od.dest` と違う線。** IDを分けて、
+                    #    既存の経路と取り違えられないようにする
+                    "route": ALT_ROUTE_ID,
+                    "no": "",
+                    "label": f"もう一方の{alt['type_label']}",
+                    "role": "compare",
+                    "desc": "選んでいるもう一方の種類で、"
+                    "いちばん条件のよい避難先への経路",
+                    "weight": "shelter_alt",
+                    **alt["stats"],
+                },
+            )
+        )
+        result["alt_shelter"] = {
+            k: v for k, v in alt.items() if k not in ("stats", "_edges")
+        } | {"stats": alt["stats"], "route": ALT_ROUTE_ID}
+
+    for r in rows:
+        r.pop("_edges", None)
+    result["shelter"] = {
+        k: v for k, v in chosen.items() if k not in ("stats", "_edges")
+    }
     result["shelter_candidates"] = rows
     result["shelter_query"] = {
         "limit": limit,
