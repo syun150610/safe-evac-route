@@ -41,6 +41,7 @@ import math
 
 from app.services.evac_routes import search as S
 from app.services.shelters import loader
+from prep.hazard_sources import registry
 from prep.route_search import csr_search as CS
 from prep.route_search.search import resolve_path_edges, route_stats
 from prep.route_search.snap import graph_bbox
@@ -62,6 +63,20 @@ DEFAULT_LIMIT = 5
 # 変更前後の値と理由をここに残すこと。
 DETOUR_RATIO = 1.5
 DETOUR_SLACK_M = 500.0
+
+# 経路のうち危険区間がこの割合を超える避難先は推奨しない（一覧には残す）。
+# ⚠️ **これも仮の値。** 実測（グラフ上の無作為30地点）では、推奨経路の
+# 危険区間割合の中央値は洪水・地震とも0.0%で、30%を超えるのは
+# 洪水で17%・地震で3%の地点だった。「例外的に危ない経路だけ弾く」高さ。
+# ⚠️ **全部が超えるときは弾かない。** 江戸川区のように周囲一帯が想定区域内の
+# 場所では候補が空になる。そのときは従来どおり選び、`all_candidates_dangerous`
+# で「どれも危ない」ことを伝える
+DANGER_RATIO_LIMIT = 0.3
+
+# 種別が一致する避難先が1件も入らなかったときに、追加で引く件数。
+# ⚠️ **推奨にはしない。** 「自治体がこの災害向けに指定した先はここ」という
+# 情報を一覧から消さないためだけのもの
+MATCHED_EXTRA = 2
 
 
 class NoShelter(Exception):
@@ -85,7 +100,22 @@ def _pool(o_lat, o_lon, hazard_ids, shelter_type):
     return out[:CANDIDATE_POOL]
 
 
-def _shelter_info(feature, straight_m, node_id, snap_m):
+def _danger_ratio(stats, hazard_ids) -> float:
+    """選んだ災害の危険区間割合。複数選んでいれば**大きい方**を取る。
+
+    ⚠️ **キー名をここに書かない。** 種別ごとの `ratio_key` は
+    `prep.hazard_sources.registry` の `risk` ブロックが持つ。種別が増えても
+    このファイルは無変更（`rationale.py` と同じ規則）。
+    """
+    out = 0.0
+    for hid in hazard_ids or ():
+        risk = registry.risk(hid)
+        if risk:
+            out = max(out, float(stats.get(risk["ratio_key"], 0.0) or 0.0))
+    return out
+
+
+def _shelter_info(feature, straight_m, node_id, snap_m, hazard_ids=()):
     p = feature["properties"]
     lon, lat = feature["geometry"]["coordinates"]
     return {
@@ -98,6 +128,9 @@ def _shelter_info(feature, straight_m, node_id, snap_m):
         # ⚠️ 空でも「対応していない」ではない。指定避難所は元データが
         #    災害種別を持たない（loader.eligible の注意書き）
         "hazard_types": p.get("hazard_types") or [],
+        # この災害への対応が**データ上言えるか**。False は「対応していない」
+        # ではなく「登録が無い」。画面で言い分けること
+        "hazard_match": loader.hazard_match(p, hazard_ids),
         "latlon": [lat, lon],
         "straight_m": round(straight_m, 1),
         "node": int(node_id),
@@ -111,7 +144,7 @@ def search(
     include=None,
     scenario=None,
     limit=DEFAULT_LIMIT,
-    shelter_type="urgent",
+    shelter_type="all",
 ) -> dict:
     """出発地の近くで、一番安全に着ける避難先の経路を返す。
 
@@ -136,8 +169,7 @@ def search(
     pool = _pool(o_lat, o_lon, hs, shelter_type)
     if not pool:
         raise NoShelter(
-            f"出発地から{MAX_POOL_RADIUS_M / 1000:.0f}km以内に、"
-            "この災害に対応した避難場所が見つかりません。"
+            f"出発地から{MAX_POOL_RADIUS_M / 1000:.0f}km以内に避難先が見つかりません。"
         )
 
     # ノード1つに複数の避難場所が乗ることがある（同じ交差点が最寄り）。
@@ -158,7 +190,7 @@ def search(
             at_origin.append(feature["properties"]["name"])
             continue
         if node_id not in targets:
-            targets[node_id] = _shelter_info(feature, straight_m, node_id, snap_m)
+            targets[node_id] = _shelter_info(feature, straight_m, node_id, snap_m, hs)
     if not targets:
         raise NoShelter(
             "近くの避難場所から歩ける道へ入れませんでした。"
@@ -194,6 +226,28 @@ def search(
                 row["cost"] = round(cost, 1)
                 row["stats"] = st
 
+    # ⚠️ **災害種別が確認できている避難先を、一覧から消さない。**
+    #    指定避難所（種別の登録が無い）は数が多く近いので、放っておくと
+    #    上位k件を占めて、自治体がその災害向けに指定した避難場所が
+    #    1件も出なくなる（調布駅・地震で実際にそうなった）。
+    #    足りなければ、種別が一致する施設だけでもう一度引いて足す
+    if hs and not any(r["hazard_match"] for r in cands.values()):
+        matched = {n: t for n, t in targets.items() if t["hazard_match"]}
+        if matched:
+            for node_id, cost, path in CS.nearest_targets(
+                G.csr, o, matched, hs, k=MATCHED_EXTRA
+            ):
+                if node_id in cands:
+                    continue
+                edges, _amb = resolve_path_edges(G, path, edge_cost(hs))
+                cands[node_id] = dict(
+                    targets[node_id],
+                    baseline_distance_m=None,
+                    basis="hazard",
+                    cost=round(cost, 1),
+                    stats=route_stats(G, edges),
+                )
+
     if not cands:
         raise NoShelter("近くの避難場所へたどり着ける道がありませんでした。")
 
@@ -214,6 +268,7 @@ def search(
     rows = list(cands.values())
     for r in rows:
         r["within_limit"] = r["stats"]["distance_m"] <= limit_m
+        r["danger_ratio"] = round(_danger_ratio(r["stats"], hs), 4)
 
     # ⚠️ **推奨はハザード重みの探索（②）からしか選ばない。**
     #    ①の候補と `cost` を突き合わせると、距離とハザードコストという
@@ -223,9 +278,22 @@ def search(
     #    避難所が混ざる）
     safest = [r for r in rows if r["basis"] == "hazard" and r["within_limit"]]
     safest.sort(key=lambda r: (r["cost"], r["stats"]["distance_m"]))
+
+    # ⚠️ **危険区間だらけの経路は推奨しない。** 掛け合わせのコストが最小でも、
+    #    経路の大半が危険区間なら「そこへ向かえ」とは言えない。
+    # ⚠️ **全部が超えるときは弾かない。** 周囲一帯が想定区域内の場所
+    #    （江戸川区など）で候補が空になる。そのときは従来どおり選び、
+    #    `all_candidates_dangerous` で「どれも危ない」ことを伝える
+    calm = [r for r in safest if r["danger_ratio"] <= DANGER_RATIO_LIMIT]
+    all_dangerous = bool(safest) and not calm
+
     # 上限の内側が1つも無いのは、危険が小さい候補がどれも遠すぎるとき。
     # そのときは最短で行ける避難所に戻す（遠い候補も一覧には残す）
-    chosen = safest[0] if safest else min(rows, key=lambda r: r["stats"]["distance_m"])
+    chosen = (
+        (calm or safest)[0]
+        if safest
+        else min(rows, key=lambda r: r["stats"]["distance_m"])
+    )
 
     # 並びは 推奨 → 安全な順（②） → 近い順（①だけに出たもの）。
     # 別単位の cost が隣り合って比較されないように、群を分けてから並べる
@@ -275,6 +343,13 @@ def search(
         # 上限内に安全な候補が無く、最短の避難先へ戻した
         # 種別を選んでいなければ②を引いていないので「戻した」ではない
         "fell_back_to_nearest": bool(hs) and not safest,
+        # ⚠️ 上限内の候補がどれも危険区間だらけだった。**推奨を出しつつ、
+        #    「ここが安全だ」とは言っていない**ことを画面で伝えること
+        "all_candidates_dangerous": all_dangerous,
+        "danger_ratio_limit": DANGER_RATIO_LIMIT,
+        # 指定避難所は災害種別の登録が無いので、対応の保証ができない。
+        # 何件そういう候補が混ざっているか
+        "without_hazard_match": sum(1 for r in rows if not r["hazard_match"]),
         # 出発地と同じノードに乗っていた避難場所（＝すでにその場にいる）
         "at_origin": at_origin,
     }

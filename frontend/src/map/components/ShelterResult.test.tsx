@@ -48,6 +48,8 @@ function candidate(over: Partial<ShelterCandidate> & { id: string }): ShelterCan
     node: 1,
     snap_m: 10,
     rank: 1,
+    hazard_match: true,
+    danger_ratio: 0.3,
     stats: stats(1500, 0.3),
     basis: 'length',
     cost: 1500,
@@ -58,16 +60,27 @@ function candidate(over: Partial<ShelterCandidate> & { id: string }): ShelterCan
 }
 
 /** 江戸川区平井の実測に対応する形。近くは危険、遠くは安全 */
-const NEAR = candidate({ id: 'a', basis: 'length', stats: stats(1562, 0.303, 0.378) })
+const NEAR = candidate({
+  id: 'a',
+  basis: 'length',
+  danger_ratio: 0.303,
+  stats: stats(1562, 0.303, 0.378),
+})
 const FAR = candidate({
   id: 'b',
   basis: 'hazard',
   cost: 7685,
   baseline_distance_m: null,
   within_limit: false,
+  danger_ratio: 0.045,
   stats: stats(6142, 0.045),
 })
-const OTHER_NEAR = candidate({ id: 'c', basis: 'length', stats: stats(2684, 0.61) })
+const OTHER_NEAR = candidate({
+  id: 'c',
+  basis: 'length',
+  danger_ratio: 0.61,
+  stats: stats(2684, 0.61),
+})
 
 const QUERY: ShelterQuery = {
   limit: 5,
@@ -82,6 +95,9 @@ const QUERY: ShelterQuery = {
   detour_slack_m: 500,
   fell_back_to_nearest: true,
   at_origin: [],
+  all_candidates_dangerous: false,
+  danger_ratio_limit: 0.3,
+  without_hazard_match: 0,
 }
 
 function render(
@@ -155,5 +171,48 @@ describe('ShelterResult', () => {
     const html = render([NEAR], { ...QUERY, fell_back_to_nearest: false })
     expect(html).toContain(NEAR.name)
     expect(html).not.toContain('ほかの候補')
+  })
+})
+
+describe('ShelterResult（対応の登録と危険の断り）', () => {
+  it('⚠️ 候補行に「この災害の登録なし」を出す（「対応していない」とは書かない）', () => {
+    const chosen = candidate({ id: 'x', hazard_match: true, type: 'urgent' })
+    const noMatch = candidate({
+      id: 'd',
+      basis: 'length',
+      hazard_match: false,
+      type: 'designated',
+    })
+    const html = render([chosen, noMatch], QUERY, chosen)
+    expect(html).toContain('この災害の登録なし')
+    expect(html).not.toContain('この災害に対応していません')
+  })
+
+  it('⚠️ おすすめ自体に登録が無ければ、カードにも断りを出す', () => {
+    const noMatch = candidate({ id: 'd', hazard_match: false, type: 'designated' })
+    const html = render([noMatch, FAR], QUERY, noMatch)
+    expect(html).toContain('対応していないという意味ではありません')
+  })
+
+  it('登録がある避難先には但し書きを出さない', () => {
+    const matched = candidate({ id: 'e', hazard_match: true, type: 'urgent' })
+    const html = render([matched, FAR], QUERY, matched)
+    expect(html).not.toContain('この災害の登録なし')
+    expect(html).not.toContain('対応していないという意味ではありません')
+  })
+
+  it('種別のバッジを出す（地図のピンと同じ意味）', () => {
+    const urgent = candidate({ id: 'f', type: 'urgent', type_label: '指定緊急避難場所' })
+    expect(render([urgent, FAR], QUERY, urgent)).toContain('指定緊急避難場所')
+  })
+
+  it('⚠️ どれも危ないときは黙って推さない', () => {
+    const html = render([NEAR, FAR], { ...QUERY, all_candidates_dangerous: true })
+    expect(html).toContain('安全な経路がある状態ではありません')
+  })
+
+  it('危なくないときはその断りを出さない', () => {
+    const html = render([NEAR, FAR], { ...QUERY, all_candidates_dangerous: false })
+    expect(html).not.toContain('安全な経路がある状態ではありません')
   })
 })

@@ -19,6 +19,14 @@
  *
  * ⚠️ **足切りしたことを黙らない。** `fell_back_to_nearest` のとき、
  * 「近所に安全な避難先がある」と読ませない一文を必ず出す。
+ *
+ * ⚠️ **「その災害への登録が無い」を隠さない。** 指定避難所は元データに
+ * 災害種別の欄が無く、`hazard_match` は必ず false になる。近くて経路も
+ * 安全なので候補には入るが、**その災害に対応しているとは言えない**。
+ * false を「対応していない」と読ませず、「登録が無い」と書く。
+ *
+ * ⚠️ **どれも危ないときに黙って推さない。** `all_candidates_dangerous` は
+ * 「行き先は示すが、ここが安全だとは言っていない」状態。必ず断る。
  */
 import type { HazardRisk, RouteStats, ShelterCandidate, ShelterInfo, ShelterQuery } from '../types'
 
@@ -72,6 +80,21 @@ function CandidateRow({
             </em>
           )}
         </span>
+        <span className="flex flex-wrap items-center gap-1">
+          <em
+            className={`rounded-full px-1.5 text-[8px] not-italic ${
+              candidate.type === 'urgent'
+                ? 'bg-green-50 text-green-800'
+                : 'bg-amber-50 text-amber-800'
+            }`}
+          >
+            {candidate.type_label}
+          </em>
+          {/* ⚠️ 「対応していない」ではなく「登録が無い」 */}
+          {!candidate.hazard_match && (
+            <em className="text-[8px] text-slate-500 not-italic">この災害の登録なし</em>
+          )}
+        </span>
         <small className="text-[9px] text-slate-500">
           {`${candidate.municipality}・徒歩約${Math.round(candidate.stats.duration_min_60)}分・${km(candidate.stats.distance_m)}`}
         </small>
@@ -123,7 +146,20 @@ export function ShelterResult({ shelter, candidates, query, risk, onSelect }: Pr
             {`※この経路の${pct(unevaluated)}は評価範囲外です（安全という意味ではありません）`}
           </span>
         )}
+        {/* ⚠️ 施設がその災害に対応しているかは、指定避難所のデータからは分からない */}
+        {!shelter.hazard_match && (
+          <span className="text-[9px] text-slate-600">
+            ※この施設にはこの災害への対応が登録されていません（対応していないという意味ではありません）
+          </span>
+        )}
       </article>
+
+      {/* ⚠️ どれも危ないときに黙って推さない */}
+      {query.all_candidates_dangerous && (
+        <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-[9px] leading-relaxed text-red-800">
+          {`近くの避難先はどこへ向かっても、経路の${pct(query.danger_ratio_limit)}以上が危険区間になります。いちばん危険の少ない先を出していますが、安全な経路がある状態ではありません。`}
+        </p>
+      )}
 
       {/* ⚠️ 足切りしたことを黙らない */}
       {query.fell_back_to_nearest && (

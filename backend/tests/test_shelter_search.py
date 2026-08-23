@@ -34,7 +34,11 @@ UENO = {"lat": 35.7141, "lon": 139.7774, "label": "上野"}
 # 「近所では回避できない」が正しい答えになる場所
 HIRAI = {"lat": 35.7069, "lon": 139.8455, "label": "江戸川区平井"}
 
+# 指定緊急避難場所が河川敷・公園に集中し、近いのは指定避難所ばかりの市
+CHOFU = {"lat": 35.6521, "lon": 139.5446, "label": "調布駅"}
+
 FLOOD = {"flood": "envelope"}
+QUAKE = {"quake": "total"}
 
 
 @pytest.fixture(scope="module")
@@ -104,78 +108,121 @@ def test_nearest_targets_returns_empty_when_unreachable(graph):
 # ---------------- 避難先の絞り込み ----------------
 
 
-def test_eligible_filters_by_hazard_type():
-    """⚠️ 災害種別を持つのは指定緊急避難場所だけ。指定避難所は空である。"""
-    urgent = loader.eligible(("flood",), "urgent")
+def test_eligible_keeps_designated_shelters():
+    """⚠️ **指定避難所を災害種別で落とさない**（2026-08-23に変更）。
+
+    元データに種別の欄が無いので、絞ると1件も残らない。落としていた頃は、
+    調布駅のように近い9件がすべて指定避難所の場所で、1.4km先の河川敷まで
+    案内していた。無作為400地点の65%で指定避難所の方が近い。
+    """
+    both = loader.eligible(("flood",))
+    kinds = {f["properties"]["type"] for f in both}
+    assert kinds == {"urgent", "designated"}
+
+    # 指定緊急避難場所は種別が一致するものだけ
+    urgent = [f for f in both if f["properties"]["type"] == "urgent"]
     assert urgent
-    assert all(f["properties"]["type"] == "urgent" for f in urgent)
     assert all("flood" in f["properties"]["hazard_types"] for f in urgent)
 
-    # 種別を渡さなければ絞らない（災害を選んでいないとき）
-    assert len(loader.eligible((), "urgent")) > len(urgent)
-    # 指定避難所は hazard_types が空なので、種別で絞ると1件も残らない
-    assert loader.eligible(("flood",), "designated") == []
+    # 指定避難所は絞らずに全部残る
+    designated = [f for f in both if f["properties"]["type"] == "designated"]
+    assert len(designated) == len(loader.eligible((), "designated"))
+
+
+def test_hazard_match_says_registered_not_safe():
+    """⚠️ False は「対応していない」ではなく「登録が無い」。"""
+    urgent = next(
+        f["properties"]
+        for f in loader.eligible(("flood",))
+        if f["properties"]["type"] == "urgent"
+    )
+    designated = next(
+        f["properties"]
+        for f in loader.eligible(("flood",))
+        if f["properties"]["type"] == "designated"
+    )
+    assert loader.hazard_match(urgent, ("flood",)) is True
+    assert loader.hazard_match(designated, ("flood",)) is False
+    # 災害を選んでいなければ、そもそも問わない
+    assert loader.hazard_match(designated, ()) is True
 
 
 # ---------------- 推奨の決め方 ----------------
 
 
-def test_recommends_safer_shelter_within_detour_limit():
-    """迂回上限の中に危険の小さい避難先があれば、最短より安全な方を推す。"""
+def test_recommends_a_calm_route_over_a_nearer_dangerous_one():
+    """⚠️ **危険区間だらけの経路は、近くても推奨しない。**
+
+    北千住には308mの避難先があるが、そこへの経路は7割超が浸水30cm超になる。
+    掛け合わせのコストが最小でも「そこへ向かえ」とは言えない。
+    """
     r = SS.search(KITASENJU, hazards=FLOOD)
     q = r["shelter_query"]
     chosen = r["shelter_candidates"][0]
 
     assert chosen["id"] == r["shelter"]["id"]
     assert chosen["within_limit"]
-    assert q["fell_back_to_nearest"] is False
-    assert chosen["stats"]["distance_m"] <= q["detour_limit_m"]
+    assert chosen["danger_ratio"] <= q["danger_ratio_limit"]
+    assert q["all_candidates_dangerous"] is False
 
-    # 最短で行ける避難先より危険区間が長くなっていないこと。
-    # ⚠️ 一番近い避難所がそのまま一番安全なこともあるので `<=`。
-    #    逆転していたら、単位の違うコスト（距離とハザードコスト）を
-    #    突き合わせて選んでいる
-    nearest = min(
-        (c for c in r["shelter_candidates"] if c["baseline_distance_m"] is not None),
-        key=lambda c: c["baseline_distance_m"],
-    )
-    assert chosen["stats"]["ratio_over_03"] <= nearest["stats"]["ratio_over_03"]
-
-    # 推奨は「上限の内側でハザードコスト最小」。並べ替えの取り違えで
-    # ①側の候補が混ざっていないことを、コストそのもので押さえる
-    safest = [
+    # 足切りされた側が一覧に残っていること（隠さない）
+    dangerous = [
         c
         for c in r["shelter_candidates"]
-        if c["basis"] == "hazard" and c["within_limit"]
+        if c["danger_ratio"] > q["danger_ratio_limit"]
     ]
-    assert chosen["cost"] == min(c["cost"] for c in safest)
+    assert dangerous, "危険な候補が1件も無いと、この地点では検証にならない"
+    # そのうち少なくとも1件は、推奨より近い（＝近さでは勝っている）
+    assert any(
+        c["stats"]["distance_m"] < chosen["stats"]["distance_m"] for c in dangerous
+    )
 
-    # 最短のままなら通っていた危険区間を、迂回で減らせていること
-    flood = next(h for h in r["rationale"]["hazards"] if h["id"] == "flood")
-    assert flood["after_m"] < flood["before_m"]
+
+def test_recommends_a_near_designated_shelter():
+    """⚠️ **近くの指定避難所を素通りしない**（2026-08-23に変更）。
+
+    調布市は指定緊急避難場所を河川敷・公園など10件しか登録しておらず、
+    学校32件は指定避難所。以前は1.4km先の多摩川河川敷まで案内していた。
+    """
+    r = SS.search(CHOFU, hazards=QUAKE)
+    chosen = r["shelter_candidates"][0]
+    assert chosen["id"] == r["shelter"]["id"]
+    assert chosen["stats"]["distance_m"] < 1000
+    # 種別の登録が無い施設を推しているので、それが応答から分かること
+    assert chosen["hazard_match"] is False
+    assert r["shelter_query"]["without_hazard_match"] > 0
 
 
-def test_falls_back_to_nearest_when_safe_shelters_are_too_far():
+def test_keeps_hazard_matched_shelters_in_the_list():
+    """⚠️ **自治体がその災害向けに指定した避難場所を、一覧から消さない。**
+
+    指定避難所は数が多く近いので、放っておくと上位を占めてしまう。
+    推奨にはしなくても、「この災害向けの指定はここ」は見せ続ける。
+    """
+    r = SS.search(CHOFU, hazards=QUAKE)
+    matched = [c for c in r["shelter_candidates"] if c["hazard_match"]]
+    assert matched, "種別が一致する避難先が一覧から消えている"
+    assert all(c["type"] == "urgent" for c in matched)
+
+
+def test_says_so_when_every_candidate_is_dangerous():
     """⚠️ **「近所に安全な避難先がある」と言わせない。**
 
-    平井は近くの避難場所がどれも浸水想定内にある。危険最小だけで選ぶと
-    区外へ数km送ることになるので、上限の外なら最短の避難先へ戻す。
-    そのとき「遠いが安全な候補」を一覧から消さないことも併せて確認する。
+    平井は周囲一帯が浸水想定区域内で、どの避難先への経路も危険区間だらけ。
+    そのときは候補を空にせず（＝行き先は示す）、「どれも危ない」ことを
+    応答で伝える。
     """
     r = SS.search(HIRAI, hazards=FLOOD)
     q = r["shelter_query"]
-    assert q["fell_back_to_nearest"] is True
 
+    assert q["all_candidates_dangerous"] is True
     chosen = r["shelter_candidates"][0]
     assert chosen["id"] == r["shelter"]["id"]
-    assert chosen["within_limit"]
-
-    outside = [c for c in r["shelter_candidates"] if not c["within_limit"]]
-    assert outside, "上限の外にある候補を一覧から落としてはいけない"
-    # 遠い候補の方が安全だからこそ足切りしている。その事実を隠さない
-    assert (
-        min(c["stats"]["ratio_over_03"] for c in outside)
-        < chosen["stats"]["ratio_over_03"]
+    # 全部超えているので、推奨も閾値を超えたまま。**それを隠さない**
+    assert chosen["danger_ratio"] > q["danger_ratio_limit"]
+    # それでも、より危険な候補よりはましなものを選んでいる
+    assert chosen["danger_ratio"] < max(
+        c["danger_ratio"] for c in r["shelter_candidates"]
     )
 
 
@@ -193,11 +240,14 @@ def test_no_hazard_returns_the_nearest_shelter():
 
 
 def test_candidates_carry_unevaluated_ratio():
-    """⚠️ 危険区間0mでも未評価区間は別途示す。「安全」と「判断材料が無い」は別物。"""
-    r = SS.search(HIRAI, hazards=FLOOD)
+    """⚠️ 危険区間0mでも未評価区間は別途示す。「安全」と「判断材料が無い」は別物。
+
+    平井を神田川シナリオで測ると、経路の全区間がその想定図の整備対象流域の
+    外になる。**危険区間0%で「安全」と見せてはいけない**のがまさにこの形。
+    """
+    r = SS.search(HIRAI, hazards={"flood": "kandagawa"})
     for c in r["shelter_candidates"]:
         assert "out_of_coverage_ratio" in c["stats"]
-    # 平井は想定図の外に出る区間が実際にある。0で塗りつぶしていないこと
     assert max(c["stats"]["out_of_coverage_ratio"] for c in r["shelter_candidates"]) > 0
 
 
@@ -241,7 +291,10 @@ def test_api_returns_a_route_to_a_shelter():
     )
     assert r.status_code == 200
     body = r.json()
-    assert body["shelter"]["type"] == "urgent"
+    # ⚠️ 種別は絞らない（指定避難所も候補）。代わりに「その災害への登録が
+    #    あるか」を必ず載せる
+    assert body["shelter"]["type"] in ("urgent", "designated")
+    assert isinstance(body["shelter"]["hazard_match"], bool)
     assert body["geojson"]["features"]
     assert body["shelter_candidates"][0]["id"] == body["shelter"]["id"]
 

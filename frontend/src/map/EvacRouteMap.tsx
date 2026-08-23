@@ -736,7 +736,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                       >
                         <div className="flex items-center justify-between">
                           <span
-                            className={`inline-flex min-h-4 items-center rounded-full px-1.5 text-[8px] font-bold ${feature.properties.type === 'urgent' ? 'bg-orange-50 text-orange-800' : 'bg-emerald-50 text-emerald-800'}`}
+                            className={`inline-flex min-h-4 items-center rounded-full px-1.5 text-[8px] font-bold ${feature.properties.type === 'urgent' ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-800'}`}
                           >
                             {feature.properties.type_label}
                           </span>
