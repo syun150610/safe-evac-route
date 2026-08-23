@@ -12,6 +12,7 @@ import { AuthPage } from './auth/AuthPage'
 import { AuthProvider, useAuth } from './auth/AuthProvider'
 import { EvacRouteMap } from './map'
 import type { Platform } from './map/hooks/useMapAdapter'
+import { MyPage } from './mypage/MyPage'
 import { NewPostPage } from './posts/NewPostPage'
 import { TimelinePage } from './posts/TimelinePage'
 
@@ -37,6 +38,7 @@ function AppInner() {
 
   if (location.pathname === '/timeline') return <TimelinePage />
   if (location.pathname === '/posts/new') return <NewPostPage />
+  if (location.pathname === '/mypage') return <MyPage />
   return <EvacRouteMap platform={platformFromUrl()} />
 }
 

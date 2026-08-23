@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { getPosts } from '../api/client'
+import { useAuth } from '../auth/AuthProvider'
 import type { Post } from '../posts/types'
 import { BottomSheet, useMobileLayout } from './components/BottomSheet'
 import { DataAttribution } from './components/DataAttribution'
@@ -50,6 +51,7 @@ function shelterPlace(feature: ShelterFeature): Place {
 }
 
 export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform }) {
+  const { user } = useAuth()
   const { adapter, ready } = useMapAdapter(platform, 'safe-map', CENTER, 13)
   const mobile = useMobileLayout()
   const [state, dispatch] = useReducer(safeReducer, initialSafeState)
@@ -504,14 +506,11 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
           </span>
           <strong>SAFE</strong>
         </div>
-        <button
-          type="button"
-          className="size-[30px] cursor-pointer rounded-full border-0 bg-[#e8d6c5] text-[11px] text-[#433024]"
-          onClick={() => flash('プロフィールは準備中です')}
-          aria-label="プロフィール"
-        >
-          人
-        </button>
+        <a href="/mypage" aria-label="マイページ">
+          <span className="grid size-[30px] place-items-center rounded-full bg-[#07145f] text-[11px] font-bold text-white">
+            {user?.name.slice(0, 1).toUpperCase() ?? '?'}
+          </span>
+        </a>
       </header>
 
       <section
