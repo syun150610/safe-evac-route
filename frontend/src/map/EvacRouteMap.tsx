@@ -68,6 +68,9 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const [toast, setToast] = useState<string | null>(null)
   const requestedLocation = useRef(false)
   const shelterSearchRunning = useRef(false)
+  /** 「出発地を変更」から検索画面へ来たか。**×で結果を消しても覚えておく。**
+   * 覚えていないと、消してから選び直したときだけ引き直されない */
+  const changingOrigin = useRef<'shelter' | 'route' | null>(null)
   const floodAdded = useRef(false)
   const quakeAdded = useRef(false)
   const layersButtonRef = useRef<HTMLButtonElement>(null)
@@ -414,6 +417,18 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         return
       }
       dispatch({ type: 'select_place', field, place })
+      // ⚠️ **出発地を選び直したら、同じ探索をその場で引き直す。** 選んだあとに
+      //    もう一度ボタンを押させると、変えたのに前の結果が残って見える。
+      //    目的地の選び直しは従来どおり（別にボタンがある）
+      if (field === 'origin') {
+        const mode = bundle ? (bundle.shelter ? 'shelter' : 'route') : changingOrigin.current
+        changingOrigin.current = null
+        if (mode === 'shelter') {
+          void runShelterSearch(place)
+        } else if (mode === 'route' && state.destination.place) {
+          void runRoute(state.destination.place, { origin: place })
+        }
+      }
     } catch (e) {
       flash((e as Error).message)
     }
@@ -435,6 +450,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   )
 
   function endRoute() {
+    changingOrigin.current = null
     search.clear()
     dispatch({ type: 'end_route' })
     setSheetOpen(false)
@@ -965,9 +981,28 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                 <button type="button" onClick={endRoute} aria-label="経路を終了">
                   ×
                 </button>
-                <div>
-                  <small>{state.origin.place?.title} →</small>
-                  <h2>{state.destination.place?.title}</h2>
+                <div className="min-w-0 flex-1">
+                  <small className="flex items-center gap-1.5">
+                    <span className="truncate">{state.origin.place?.title} →</span>
+                    {/* ⚠️ **検索後でも出発地を変えられるようにする。** ここに無いと
+                        経路を終了してやり直すしかなかった（2026-08-23の指摘） */}
+                    <button
+                      type="button"
+                      className="shrink-0 cursor-pointer rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] text-[#07156f]"
+                      onClick={() => {
+                        changingOrigin.current = bundle?.shelter ? 'shelter' : 'route'
+                        dispatch({
+                          type: 'open_search',
+                          purpose: bundle?.shelter ? 'shelter' : 'route',
+                        })
+                        dispatch({ type: 'activate_field', field: 'origin' })
+                        setSheetOpen(true)
+                      }}
+                    >
+                      出発地を変更
+                    </button>
+                  </small>
+                  <h2 className="truncate">{state.destination.place?.title}</h2>
                 </div>
               </div>
               {/* 表示だけでなく、ここで切り替えて引き直せる */}
