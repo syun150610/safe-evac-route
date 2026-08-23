@@ -95,14 +95,21 @@ export function NewPostPage() {
           </span>
           <strong>SAFE</strong>
         </a>
-        <button
-          className={`rounded-full px-5 py-2 text-sm font-bold text-white disabled:opacity-60 ${valid && !saving ? 'bg-[#ff6b00] shadow-md' : 'bg-[#e3e3e8] text-slate-400'}`}
-          disabled={!valid || saving}
-          type="submit"
-          form="new-post-form"
-        >
-          {saving ? '投稿中' : '投稿'}
-        </button>
+        <div className="flex items-center gap-3">
+          <a href="/mypage" aria-label="マイページ">
+            <span className="grid size-8 place-items-center rounded-full bg-[#07145f] text-xs font-bold text-white">
+              {user?.name.slice(0, 1).toUpperCase() ?? '?'}
+            </span>
+          </a>
+          <button
+            className={`rounded-full px-5 py-2 text-sm font-bold text-white disabled:opacity-60 ${valid && !saving ? 'bg-[#ff6b00] shadow-md' : 'bg-[#e3e3e8] text-slate-400'}`}
+            disabled={!valid || saving}
+            type="submit"
+            form="new-post-form"
+          >
+            {saving ? '投稿中' : '投稿'}
+          </button>
+        </div>
       </header>
       <form className="mx-auto max-w-xl px-8 py-8" id="new-post-form" onSubmit={submit}>
         <div className="flex items-center gap-4">

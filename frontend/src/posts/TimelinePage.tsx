@@ -120,13 +120,20 @@ export function TimelinePage() {
           </span>
           <strong>SAFE</strong>
         </a>
-        <a
-          className="flex h-[30px] items-center rounded-full bg-[#ff6b00] px-4 text-xs font-bold text-white"
-          href="/posts/new"
-          aria-label="新規投稿を作成"
-        >
-          ✎ 投稿
-        </a>
+        <div className="flex items-center gap-3">
+          <a href="/mypage" aria-label="マイページ">
+            <span className="grid size-8 place-items-center rounded-full bg-[#07145f] text-xs font-bold text-white">
+              {user?.name.slice(0, 1).toUpperCase() ?? '?'}
+            </span>
+          </a>
+          <a
+            className="flex h-[30px] items-center rounded-full bg-[#ff6b00] px-4 text-xs font-bold text-white"
+            href="/posts/new"
+            aria-label="新規投稿を作成"
+          >
+            ✎ 投稿
+          </a>
+        </div>
       </header>
       <section className="mx-auto max-w-xl px-5 pt-7">
         <p className="mb-2 text-sm font-bold tracking-[0.22em] text-[#ff6b00]">COMMUNITY REPORTS</p>
