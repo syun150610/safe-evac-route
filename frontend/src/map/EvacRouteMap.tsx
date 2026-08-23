@@ -62,7 +62,7 @@ function shelterPlace(feature: ShelterFeature): Place {
 }
 
 export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform }) {
-  const { user } = useAuth()
+  const { status: authStatus, user } = useAuth()
   const { adapter, ready } = useMapAdapter(platform, 'safe-map', CENTER, 13)
   const mobile = useMobileLayout()
   const [state, dispatch] = useReducer(safeReducer, initialSafeState)
@@ -626,11 +626,24 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
           </span>
           <strong>SAFE</strong>
         </div>
-        <a href="/mypage" aria-label="マイページ">
-          <span className="grid size-[30px] place-items-center rounded-full bg-[#07145f] text-[11px] font-bold text-white">
-            {user?.name.slice(0, 1).toUpperCase() ?? '?'}
-          </span>
-        </a>
+        {/* ⚠️ **未ログインでも地図は使える**ので、ここが唯一のログイン導線になる。
+            「?」のアバターだけだと、押せばログインできると分からない。
+            ⚠️ 確認中は何も出さない（一瞬「ログイン」が出てからアバターに
+            変わると、ログアウトしたように見える） */}
+        {authStatus === 'initializing' ? null : user ? (
+          <a href="/mypage" aria-label="マイページ">
+            <span className="grid size-[30px] place-items-center rounded-full bg-[#07145f] text-[11px] font-bold text-white">
+              {user.name.slice(0, 1).toUpperCase()}
+            </span>
+          </a>
+        ) : (
+          <a
+            className="flex h-[30px] items-center rounded-full border border-slate-200 px-3 text-[11px] font-bold text-[#07156f]"
+            href="/mypage"
+          >
+            ログイン
+          </a>
+        )}
       </header>
 
       <section

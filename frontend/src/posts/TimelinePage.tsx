@@ -23,8 +23,11 @@ function relativeDate(value: string) {
 }
 
 export function TimelinePage() {
-  const { user } = useAuth()
-  const userId = user?.id ?? ''
+  const { status: authStatus, user } = useAuth()
+  // ⚠️ **空文字で投げない。** `GET /api/posts` の `user_id` は `min_length=1` で、
+  //    空だと422になり「投稿を読み込めませんでした」しか出ない（未ログインで再現）。
+  //    既定値は API 側も "anonymous"（地図のホームも同じ値で読んでいる）
+  const userId = user?.id ?? 'anonymous'
   const [posts, setPosts] = useState<Post[]>([])
   const [sort, setSort] = useState<'recent' | 'nearby' | 'helpful'>('recent')
   const [position, setPosition] = useState<{ latitude: number; longitude: number } | null>(null)
@@ -99,6 +102,13 @@ export function TimelinePage() {
   }
 
   async function helpful(post: Post) {
+    // ⚠️ **未ログインのまま投げない。** 読み取りは "anonymous" で通るが、
+    //    書き込みまで通すと誰の評価か分からないものが積まれる。押しても
+    //    エラーだけ出るのでは何が足りないのか分からないので、理由を出す
+    if (!user) {
+      setError('「役に立った」の登録にはログインが必要です（右上のログインから）')
+      return
+    }
     try {
       const updated = await markPostHelpful(post.id, userId)
       setPosts((current) => current.map((item) => (item.id === updated.id ? updated : item)))
@@ -121,11 +131,21 @@ export function TimelinePage() {
           <strong>SAFE</strong>
         </a>
         <div className="flex items-center gap-3">
-          <a href="/mypage" aria-label="マイページ">
-            <span className="grid size-8 place-items-center rounded-full bg-[#07145f] text-xs font-bold text-white">
-              {user?.name.slice(0, 1).toUpperCase() ?? '?'}
-            </span>
-          </a>
+          {/* ⚠️ 閲覧は未ログインでもできる。ここがログインへの導線になる */}
+          {authStatus === 'initializing' ? null : user ? (
+            <a href="/mypage" aria-label="マイページ">
+              <span className="grid size-8 place-items-center rounded-full bg-[#07145f] text-xs font-bold text-white">
+                {user.name.slice(0, 1).toUpperCase()}
+              </span>
+            </a>
+          ) : (
+            <a
+              className="flex h-8 items-center rounded-full border border-slate-200 px-3 text-xs font-bold text-[#07156f]"
+              href="/mypage"
+            >
+              ログイン
+            </a>
+          )}
           <a
             className="flex h-[30px] items-center rounded-full bg-[#ff6b00] px-4 text-xs font-bold text-white"
             href="/posts/new"
