@@ -35,7 +35,11 @@ describe('safeReducer', () => {
     expect(state.activeField).toBe('origin')
   })
 
-  it('経路終了時は出発地と条件を保ち、目的地だけ解除する', () => {
+  it('経路終了で検索状態をリセットする（出発地も消す）', () => {
+    // ⚠️ **以前は出発地を残していた。** そのせいで、A地点で検索したあと
+    // B地点から調べ直そうとしても出発地がAのまま残り、ホーム画面には
+    // 出発地が出ないので気づけず、ページ再読み込みが要った
+    // （チームからの指摘、2026-08-23）。「終了」は最初の状態に戻す
     let state = safeReducer(initialSafeState, {
       type: 'select_place',
       field: 'origin',
@@ -44,8 +48,30 @@ describe('safeReducer', () => {
     state = safeReducer(state, { type: 'select_place', field: 'destination', place: asakusa })
     state = safeReducer(state, { type: 'set_hazard', hazard: 'flood' })
     const ended = safeReducer(state, { type: 'end_route' })
-    expect(ended.origin.place).toBe(ueno)
+
+    expect(ended.origin.place).toBeNull()
+    expect(ended.origin.query).toBe('')
     expect(ended.destination.place).toBeNull()
+    expect(ended.destination.query).toBe('')
+    expect(ended.screen).toBe('home')
+    // 次に開いたとき最初に埋めるのは出発地
+    expect(ended.activeField).toBe('origin')
+    // ⚠️ 選んだ災害は残す。地点をやり直すたびに条件まで戻ると使いにくい
     expect(ended.hazard).toBe('flood')
+  })
+
+  it('地点を個別に消せる（出発地だけ選び直す）', () => {
+    let state = safeReducer(initialSafeState, {
+      type: 'select_place',
+      field: 'origin',
+      place: ueno,
+    })
+    state = safeReducer(state, { type: 'select_place', field: 'destination', place: asakusa })
+    const cleared = safeReducer(state, { type: 'clear_place', field: 'origin' })
+
+    expect(cleared.origin.place).toBeNull()
+    expect(cleared.origin.query).toBe('')
+    // 目的地は巻き込まない
+    expect(cleared.destination.place).toBe(asakusa)
   })
 })

@@ -666,6 +666,25 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   <h2>近くの避難先</h2>
                   <span>{sheltersLoading ? '読込中…' : `${nearbyShelters.length}件表示`}</span>
                 </div>
+                {/* ⚠️ **いまの出発地を画面に出す。** ここに出していなかった頃は、
+                    前の検索の出発地が残っていることに気づけず、別の地点から
+                    調べ直すのにページ再読み込みが要った（チーム指摘、2026-08-23） */}
+                <p className="mb-2 flex items-center gap-1.5 text-[9px] text-slate-500">
+                  <span className="shrink-0">出発地</span>
+                  <strong className="truncate font-bold text-slate-700">
+                    {state.origin.place?.title ?? '未設定'}
+                  </strong>
+                  <button
+                    type="button"
+                    className="ml-auto shrink-0 cursor-pointer rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] text-[#07156f]"
+                    onClick={() => {
+                      dispatch({ type: 'open_search', purpose: 'shelter' })
+                      setSheetOpen(true)
+                    }}
+                  >
+                    {state.origin.place ? '変更' : '設定'}
+                  </button>
+                </p>
                 {/* ⚠️ ここは出発地が既にあると**押した瞬間に検索が走る**ので、
                     先に災害を選べるようにしておく。検索画面へ入らないと
                     選べないままだと、既定（地震）で探したことに気づけない */}
@@ -748,6 +767,11 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                     active={state.activeField === field}
                     onActivate={() => dispatch({ type: 'activate_field', field })}
                     onQueryChange={(query) => dispatch({ type: 'edit_field', field, query })}
+                    onClear={() => {
+                      search.clear()
+                      dispatch({ type: 'clear_place', field })
+                      dispatch({ type: 'activate_field', field })
+                    }}
                   />
                 )
               })}
