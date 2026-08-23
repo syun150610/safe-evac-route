@@ -61,6 +61,8 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const [sheetOpen, setSheetOpen] = useState(false)
   const [layersOpen, setLayersOpen] = useState(false)
   const [shelterSearchLoading, setShelterSearchLoading] = useState(false)
+  // 現在地の取得中。⚠️ **何を待っているか出さないと、故障に見える**（指摘）
+  const [locating, setLocating] = useState(false)
   // 探す避難先の種類。⚠️ 既定は「まず逃げ込む先」＝指定緊急避難場所
   const [shelterKinds, setShelterKinds] = useState<ShelterKind[]>(['urgent'])
   const [toast, setToast] = useState<string | null>(null)
@@ -367,20 +369,34 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     [runRoute],
   )
 
-  const requestLocation = useCallback(async () => {
-    try {
-      const place = await currentPosition()
-      dispatch({ type: 'select_place', field: 'origin', place })
-      adapter.current?.flyTo([place.lon, place.lat], 15)
-    } catch (error) {
-      flash((error as Error).message)
-    }
-  }, [adapter, flash])
+  /** 現在地を出発地にする。
+   *
+   * ⚠️ **取得中であることを画面に出す。** 端末によっては10秒近くかかり、
+   * 出ていないと「壊れている」ように見える（2026-08-23の指摘）。
+   * ⚠️ **起動時の自動取得では失敗を通知しない。** 利用者が頼んでいない処理で
+   * 赤いメッセージを出すと、こちらの都合の失敗を利用者のせいのように見せる。
+   * 出発地が未設定のままになるだけで、画面には「設定」ボタンが出ている。
+   */
+  const requestLocation = useCallback(
+    async ({ notifyError = true }: { notifyError?: boolean } = {}) => {
+      setLocating(true)
+      try {
+        const place = await currentPosition()
+        dispatch({ type: 'select_place', field: 'origin', place })
+        adapter.current?.flyTo([place.lon, place.lat], 15)
+      } catch (error) {
+        if (notifyError) flash((error as Error).message)
+      } finally {
+        setLocating(false)
+      }
+    },
+    [adapter, flash],
+  )
 
   useEffect(() => {
     if (requestedLocation.current) return
     requestedLocation.current = true
-    void requestLocation()
+    void requestLocation({ notifyError: false })
   }, [requestLocation])
 
   /** 候補を選ぶ。
@@ -734,8 +750,14 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                     調べ直すのにページ再読み込みが要った（チーム指摘、2026-08-23） */}
                 <p className="mb-2 flex items-center gap-1.5 text-[9px] text-slate-500">
                   <span className="shrink-0">出発地</span>
-                  <strong className="truncate font-bold text-slate-700">
-                    {state.origin.place?.title ?? '未設定'}
+                  <strong className="flex min-w-0 items-center gap-1 truncate font-bold text-slate-700">
+                    {locating && !state.origin.place && (
+                      <span
+                        aria-hidden="true"
+                        className="size-2.5 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600 motion-reduce:animate-none"
+                      />
+                    )}
+                    {state.origin.place?.title ?? (locating ? '現在地を取得しています…' : '未設定')}
                   </strong>
                   <button
                     type="button"
@@ -835,9 +857,11 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               <button
                 type="button"
                 className="mb-2 ml-[66px] cursor-pointer border-0 bg-transparent text-[10px] text-[#07156f]"
+                aria-busy={locating}
+                disabled={locating}
                 onClick={() => void requestLocation()}
               >
-                ◎ 現在地を出発地にする
+                {locating ? '◎ 現在地を取得しています…' : '◎ 現在地を出発地にする'}
               </button>
               {shelterSearchMode ? (
                 <SafeShelterSearchButton
