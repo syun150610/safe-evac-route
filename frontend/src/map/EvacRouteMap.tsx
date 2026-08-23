@@ -922,8 +922,12 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             </p>
           )}
           {state.screen === 'home' && (
-            <>
-              <section className="px-3 pb-2">
+            /* ⚠️ **2つのまとまりを溝で分ける。** 続きの文章のように縦に並んでいて、
+                どこまでが「みんなの声」でどこからが「近くの避難先」なのか
+                分かりにくかった（ユーザー指摘、2026-08-24）。地を薄い灰にし、
+                まとまりごとに白いカードへ載せる */
+            <div className="grid gap-2.5 bg-slate-100 p-2.5">
+              <section className="rounded-xl bg-white p-3 shadow-[0_1px_3px_rgb(15_23_42/6%)]">
                 <div className="mb-1.5 flex items-center justify-between [&_a]:text-[9px] [&_a]:font-bold [&_a]:text-[#07156f] [&_a]:no-underline [&_h2]:m-0 [&_h2]:text-sm">
                   <h2>みんなの声</h2>
                   <a href="/timeline">もっと見る</a>
@@ -957,14 +961,14 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                 ) : (
                   <p className="text-[9px] text-slate-400">投稿はまだありません</p>
                 )}
+                <a
+                  href="/posts/new"
+                  className="mt-2.5 flex min-h-9 w-full cursor-pointer items-center justify-center rounded-md bg-[#07156f] text-[10px] font-bold text-white no-underline"
+                >
+                  ▣ 投稿する
+                </a>
               </section>
-              <a
-                href="/posts/new"
-                className="mx-3 mb-2.5 flex min-h-9 w-[calc(100%-24px)] cursor-pointer items-center justify-center rounded-md bg-[#07156f] text-[10px] font-bold text-white no-underline"
-              >
-                ▣ 投稿する
-              </a>
-              <section className="border-t border-slate-200 px-3 pt-2.5 pb-3">
+              <section className="rounded-xl bg-white p-3 shadow-[0_1px_3px_rgb(15_23_42/6%)]">
                 <div className="mb-1.5 flex items-center justify-between [&_h2]:m-0 [&_h2]:text-sm [&_span]:text-[9px] [&_span]:font-bold [&_span]:text-[#07156f]">
                   <h2>近くの避難先</h2>
                   <span>{sheltersLoading ? '読込中…' : `${nearbyShelters.length}件表示`}</span>
@@ -1047,7 +1051,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   ))}
                 </div>
               </section>
-            </>
+            </div>
           )}
 
           {state.screen === 'search' && (
@@ -1160,28 +1164,35 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   ×
                 </button>
                 <div className="min-w-0 flex-1">
-                  <small className="flex items-center gap-1.5">
-                    <span className="truncate">{state.origin.place?.title} →</span>
-                    {/* ⚠️ **検索後でも出発地を変えられるようにする。** ここに無いと
-                        経路を終了してやり直すしかなかった（2026-08-23の指摘） */}
-                    <button
-                      type="button"
-                      className="shrink-0 cursor-pointer rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] text-[#07156f]"
-                      onClick={() => {
-                        changingOrigin.current = bundle?.shelter ? 'shelter' : 'route'
-                        dispatch({
-                          type: 'open_search',
-                          purpose: bundle?.shelter ? 'shelter' : 'route',
-                        })
-                        dispatch({ type: 'activate_field', field: 'origin' })
-                        setSheetOpen(true)
-                      }}
-                    >
-                      出発地を変更
-                    </button>
-                  </small>
+                  <small>目的地</small>
                   <h2 className="truncate">{state.destination.place?.title}</h2>
                 </div>
+              </div>
+              {/* ⚠️ **検索後でも出発地を変えられるようにする。** ここに無いと
+                  経路を終了してやり直すしかなかった（2026-08-23の指摘）。
+                  ⚠️ **見出しの中の小さな文字にしない。** 地味すぎて気づけない
+                  （ユーザー指摘、2026-08-24）。下の「検索の条件」と同じ形
+                  （ラベル＋いまの値＋変更）にして、押せる大きさを取る */}
+              <div className="mb-2 flex min-h-11 items-center gap-2 rounded-[10px] border border-slate-200 px-3">
+                <span className="shrink-0 text-[10px] text-slate-500">出発地</span>
+                <strong className="min-w-0 flex-1 truncate text-[11px] text-slate-800">
+                  {state.origin.place?.title ?? '未設定'}
+                </strong>
+                <button
+                  type="button"
+                  className="shrink-0 cursor-pointer border-0 bg-transparent text-[10px] text-[#07156f]"
+                  onClick={() => {
+                    changingOrigin.current = bundle?.shelter ? 'shelter' : 'route'
+                    dispatch({
+                      type: 'open_search',
+                      purpose: bundle?.shelter ? 'shelter' : 'route',
+                    })
+                    dispatch({ type: 'activate_field', field: 'origin' })
+                    setSheetOpen(true)
+                  }}
+                >
+                  変更
+                </button>
               </div>
               {/* ⚠️ **結果の画面では畳んでおく。** 見たいのは結果で、条件は
                   確認と切り替えのため。畳んでも要約で何の条件かは分かる
