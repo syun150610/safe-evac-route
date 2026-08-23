@@ -484,6 +484,10 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     const a = adapter.current
     if (!a || !ready || !bundle) return
     for (const route of bundle.routes) a.setVisible(route.id, state.shownRoutes[route.id] !== false)
+    // ⚠️ もう一方の避難先への線は `routes[]` に入っていないので別に切り替える
+    if (bundle.alt_shelter) {
+      a.setVisible('shelter_alt', state.shownRoutes.shelter_alt !== false)
+    }
   }, [adapter, ready, bundle, state.shownRoutes])
 
   useEffect(() => {
@@ -1004,6 +1008,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               )}
               {bundle && (
                 <RouteTable
+                  alt={bundle.alt_shelter}
                   bundle={bundle}
                   shown={state.shownRoutes}
                   risk={hazardMeta?.risk}
