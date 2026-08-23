@@ -13,6 +13,7 @@ import { RouteRationale } from './components/RouteRationale'
 import { RouteTable } from './components/RouteTable'
 import { SafeShelterSearchButton } from './components/SafeShelterSearchButton'
 import { ShelterResult } from './components/ShelterResult'
+import { type ShelterKind, ShelterTypePicker, toParam } from './components/ShelterTypePicker'
 import { DRAW_ORDER, STYLE } from './constants'
 import { inArea, useArea } from './hooks/useArea'
 import { useGeocode } from './hooks/useGeocode'
@@ -60,6 +61,8 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const [sheetOpen, setSheetOpen] = useState(false)
   const [layersOpen, setLayersOpen] = useState(false)
   const [shelterSearchLoading, setShelterSearchLoading] = useState(false)
+  // 探す避難先の種類。⚠️ 既定は「まず逃げ込む先」＝指定緊急避難場所
+  const [shelterKinds, setShelterKinds] = useState<ShelterKind[]>(['urgent'])
   const [toast, setToast] = useState<string | null>(null)
   const requestedLocation = useRef(false)
   const shelterSearchRunning = useRef(false)
@@ -236,7 +239,11 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     async (
       selectedOrigin?: Place | null,
       cond: Condition = condition,
-      { collapseOnMobile = true }: { collapseOnMobile?: boolean } = {},
+      {
+        collapseOnMobile = true,
+        // ⚠️ 種類も引数で受ける。切り替え直後に state を読むと更新前の値になる
+        kinds = shelterKinds,
+      }: { collapseOnMobile?: boolean; kinds?: ShelterKind[] } = {},
     ) => {
       if (shelterSearchRunning.current) return
       const origin = selectedOrigin ?? state.origin.place
@@ -256,7 +263,12 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       shelterSearchRunning.current = true
       setShelterSearchLoading(true)
       try {
-        const request = buildShelterSearchRequest(origin, buildHazards(cond), FLOOD_SCENARIO)
+        const request = buildShelterSearchRequest(
+          origin,
+          buildHazards(cond),
+          FLOOD_SCENARIO,
+          toParam(kinds),
+        )
         const result = await search.runShelter(request)
         // 失敗（範囲外・該当避難先なし）のときは `search.error` に本文が入る。
         // ⚠️ ここで search.error を読むと**1つ前のレンダーの値**なので読まない。
@@ -284,7 +296,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         setShelterSearchLoading(false)
       }
     },
-    [area, condition, flash, mobile, search.runShelter, state.origin.place],
+    [area, condition, flash, mobile, search.runShelter, shelterKinds, state.origin.place],
   )
 
   /** 考慮する災害を切り替える。**検索後なら、同じ探索を新しい条件で引き直す。**
@@ -321,6 +333,24 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       state.origin.place,
       state.screen,
     ],
+  )
+
+  /** 探す避難先の種類を切り替える。**検索後なら、その種類で探し直す。**
+   *
+   * ⚠️ 目的地を指定した経路（候補タップ後）では引き直さない。あちらは
+   *    種類と関係なく「その地点まで」なので、切り替えても結果は変わらない。
+   */
+  const applyShelterKinds = useCallback(
+    (next: ShelterKind[]) => {
+      setShelterKinds(next)
+      if (state.screen === 'route' && bundle?.shelter) {
+        void runShelterSearch(state.origin.place, condition, {
+          collapseOnMobile: false,
+          kinds: next,
+        })
+      }
+    },
+    [bundle?.shelter, condition, runShelterSearch, state.origin.place, state.screen],
   )
 
   /** 候補をタップしたとき。その避難所を目的地にして普通の2点探索へ切り替える。
@@ -719,6 +749,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                     先に災害を選べるようにしておく。検索画面へ入らないと
                     選べないままだと、既定（地震）で探したことに気づけない */}
                 <HazardCondition hazard={state.hazard} onChange={applyCondition} />
+                <ShelterTypePicker onChange={applyShelterKinds} selected={shelterKinds} />
                 <SafeShelterSearchButton
                   loading={shelterSearchLoading}
                   onSearch={runShelterSearch}
@@ -775,6 +806,9 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                 </p>
               )}
               <HazardCondition hazard={state.hazard} onChange={applyCondition} />
+              {shelterSearchMode && (
+                <ShelterTypePicker onChange={applyShelterKinds} selected={shelterKinds} />
+              )}
               {searchFields.map((field) => {
                 const value = state[field]
                 return (
@@ -917,6 +951,16 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                 onChange={applyCondition}
                 title="経路条件"
               />
+              {/* ⚠️ 目的地を指定した経路では出さない。種類を変えても結果が
+                  変わらないので、押せると誤解を招く */}
+              {bundle?.shelter && (
+                <ShelterTypePicker
+                  busy={search.loading}
+                  note="切り替えるとその種類で探し直します"
+                  onChange={applyShelterKinds}
+                  selected={shelterKinds}
+                />
+              )}
               {search.loading && (
                 <p className="mb-3 text-[9px] text-slate-500" role="status">
                   新しい条件で引き直しています…

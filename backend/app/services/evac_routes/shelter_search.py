@@ -78,6 +78,13 @@ DANGER_RATIO_LIMIT = 0.3
 # 情報を一覧から消さないためだけのもの
 MATCHED_EXTRA = 2
 
+# 見つからないときの案内で使う呼び名
+_TYPE_LABEL = {
+    "urgent": "指定緊急避難場所",
+    "designated": "指定避難所",
+    "all": "避難先",
+}
+
 
 class NoShelter(Exception):
     """条件に合う避難先が近くに無い / どれにも到達できない"""
@@ -144,7 +151,7 @@ def search(
     include=None,
     scenario=None,
     limit=DEFAULT_LIMIT,
-    shelter_type="all",
+    shelter_type="urgent",
 ) -> dict:
     """出発地の近くで、一番安全に着ける避難先の経路を返す。
 
@@ -169,7 +176,8 @@ def search(
     pool = _pool(o_lat, o_lon, hs, shelter_type)
     if not pool:
         raise NoShelter(
-            f"出発地から{MAX_POOL_RADIUS_M / 1000:.0f}km以内に避難先が見つかりません。"
+            f"出発地から{MAX_POOL_RADIUS_M / 1000:.0f}km以内に"
+            f"{_TYPE_LABEL.get(shelter_type, '避難先')}が見つかりません。"
         )
 
     # ノード1つに複数の避難場所が乗ることがある（同じ交差点が最寄り）。
@@ -226,12 +234,17 @@ def search(
                 row["cost"] = round(cost, 1)
                 row["stats"] = st
 
-    # ⚠️ **災害種別が確認できている避難先を、一覧から消さない。**
-    #    指定避難所（種別の登録が無い）は数が多く近いので、放っておくと
-    #    上位k件を占めて、自治体がその災害向けに指定した避難場所が
-    #    1件も出なくなる（調布駅・地震で実際にそうなった）。
-    #    足りなければ、種別が一致する施設だけでもう一度引いて足す
-    if hs and not any(r["hazard_match"] for r in cands.values()):
+    # ⚠️ **両方を混ぜて探すときだけ**、災害種別が確認できている避難先を
+    #    一覧から消さないようにする。指定避難所（種別の登録が無い）は数が多く
+    #    近いので、放っておくと上位k件を占めて、自治体がその災害向けに指定した
+    #    避難場所が1件も出なくなる（調布駅・地震で実際にそうなった）。
+    #    ⚠️ 片方だけを選んでいるときは足さない。利用者が種類を指定しているのに
+    #       別種類を混ぜ返すことになる
+    if (
+        shelter_type == "all"
+        and hs
+        and not any(r["hazard_match"] for r in cands.values())
+    ):
         matched = {n: t for n, t in targets.items() if t["hazard_match"]}
         if matched:
             for node_id, cost, path in CS.nearest_targets(

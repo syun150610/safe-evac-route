@@ -313,7 +313,11 @@ export interface SearchRequest {
  * ⚠️ **バックの `ShelterSearchRequest` と対になっている**
  * （あちらは `SearchRequest` がこれを継承する）。片方だけ増やさないこと。
  */
-export type ShelterSearchRequest = Omit<SearchRequest, 'dest'>
+export type ShelterSearchRequest = Omit<SearchRequest, 'dest'> & {
+  /** 探す避難先の種類。urgent=指定緊急避難場所（既定）/ designated=指定避難所 / all=両方。
+   * ⚠️ **役割が違うので既定では混ぜない**（`components/ShelterTypePicker.tsx`） */
+  shelter_type?: 'urgent' | 'designated' | 'all'
+}
 
 export interface PresetIndex {
   default_scenario: string

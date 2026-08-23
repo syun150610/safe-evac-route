@@ -6,7 +6,7 @@
 ここでは**説明のための型**だけ置く。
 """
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -149,6 +149,13 @@ class ShelterSearchRequest(BaseModel):
     scenario: str | None = None
     # 返す避難先候補の数。推奨1件のほかに比較材料を出すためのもの
     limit: int = Field(5, ge=1, le=10)
+    # 探す避難先の種類。
+    #   urgent     … 指定緊急避難場所（**既定**。まず逃げ込む先）
+    #   designated … 指定避難所（そのあと生活する先）
+    #   all        … 両方
+    # ⚠️ **役割が違うので、既定では混ぜない。** 混ぜて探すと、まず逃げ込む先を
+    # 探しているのに滞在用の施設が推奨される（逆も同じ）。
+    shelter_type: Literal["urgent", "designated", "all"] = "urgent"
 
 
 class SearchRequest(ShelterSearchRequest):

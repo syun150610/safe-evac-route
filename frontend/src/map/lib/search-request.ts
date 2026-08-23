@@ -1,4 +1,5 @@
 import type { Condition } from '../components/HazardCondition'
+import type { ShelterTypeParam } from '../components/ShelterTypePicker'
 import type { SearchRequest, ShelterSearchRequest } from '../types'
 import type { Place } from './gsi'
 
@@ -29,12 +30,14 @@ export function buildShelterSearchRequest(
   origin: Place,
   hazards: Record<string, string>,
   scenario: string,
+  shelterType: ShelterTypeParam = 'urgent',
 ): ShelterSearchRequest {
   return {
     origin: { lat: origin.lat, lon: origin.lon, label: origin.title },
     hazards,
     include: ['baseline', 'selected'],
     scenario,
+    shelter_type: shelterType,
   }
 }
 

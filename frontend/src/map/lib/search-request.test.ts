@@ -15,6 +15,8 @@ describe('search request builders', () => {
     expect(request).toEqual({
       origin: { lat: 35.7138, lon: 139.7773, label: '上野駅' },
       hazards: { quake: 'total' },
+      // ⚠️ 既定は「まず逃げ込む先」＝指定緊急避難場所
+      shelter_type: 'urgent',
       include: ['baseline', 'selected'],
       scenario: 'envelope',
     })
@@ -42,5 +44,18 @@ describe('buildHazards', () => {
     // 無いのかを読み分けられない（江戸川区平井×神田川で実際にそうなった）
     expect(buildHazards({ hazard: 'flood' })).toEqual({ flood: FLOOD_SCENARIO })
     expect(FLOOD_SCENARIO).toBe('envelope')
+  })
+})
+
+describe('避難先の種類', () => {
+  it('既定は指定緊急避難場所（まず逃げ込む先）', () => {
+    expect(buildShelterSearchRequest(origin, {}, 'envelope').shelter_type).toBe('urgent')
+  })
+
+  it('選んだ種類をそのまま渡す', () => {
+    expect(buildShelterSearchRequest(origin, {}, 'envelope', 'designated').shelter_type).toBe(
+      'designated',
+    )
+    expect(buildShelterSearchRequest(origin, {}, 'envelope', 'all').shelter_type).toBe('all')
   })
 })

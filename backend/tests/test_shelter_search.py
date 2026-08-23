@@ -156,7 +156,7 @@ def test_recommends_a_calm_route_over_a_nearer_dangerous_one():
     北千住には308mの避難先があるが、そこへの経路は7割超が浸水30cm超になる。
     掛け合わせのコストが最小でも「そこへ向かえ」とは言えない。
     """
-    r = SS.search(KITASENJU, hazards=FLOOD)
+    r = SS.search(KITASENJU, hazards=FLOOD, shelter_type="designated")
     q = r["shelter_query"]
     chosen = r["shelter_candidates"][0]
 
@@ -179,12 +179,12 @@ def test_recommends_a_calm_route_over_a_nearer_dangerous_one():
 
 
 def test_recommends_a_near_designated_shelter():
-    """⚠️ **近くの指定避難所を素通りしない**（2026-08-23に変更）。
+    """指定避難所を選べば、近い学校が推奨される。
 
     調布市は指定緊急避難場所を河川敷・公園など10件しか登録しておらず、
-    学校32件は指定避難所。以前は1.4km先の多摩川河川敷まで案内していた。
+    学校32件は指定避難所。指定緊急避難場所だけだと1.4km先の多摩川河川敷になる。
     """
-    r = SS.search(CHOFU, hazards=QUAKE)
+    r = SS.search(CHOFU, hazards=QUAKE, shelter_type="designated")
     chosen = r["shelter_candidates"][0]
     assert chosen["id"] == r["shelter"]["id"]
     assert chosen["stats"]["distance_m"] < 1000
@@ -194,12 +194,12 @@ def test_recommends_a_near_designated_shelter():
 
 
 def test_keeps_hazard_matched_shelters_in_the_list():
-    """⚠️ **自治体がその災害向けに指定した避難場所を、一覧から消さない。**
+    """⚠️ **両方を混ぜたとき**、自治体がその災害向けに指定した避難場所を消さない。
 
     指定避難所は数が多く近いので、放っておくと上位を占めてしまう。
     推奨にはしなくても、「この災害向けの指定はここ」は見せ続ける。
     """
-    r = SS.search(CHOFU, hazards=QUAKE)
+    r = SS.search(CHOFU, hazards=QUAKE, shelter_type="all")
     matched = [c for c in r["shelter_candidates"] if c["hazard_match"]]
     assert matched, "種別が一致する避難先が一覧から消えている"
     assert all(c["type"] == "urgent" for c in matched)
@@ -212,7 +212,7 @@ def test_says_so_when_every_candidate_is_dangerous():
     そのときは候補を空にせず（＝行き先は示す）、「どれも危ない」ことを
     応答で伝える。
     """
-    r = SS.search(HIRAI, hazards=FLOOD)
+    r = SS.search(HIRAI, hazards=FLOOD, shelter_type="designated")
     q = r["shelter_query"]
 
     assert q["all_candidates_dangerous"] is True
@@ -245,7 +245,7 @@ def test_candidates_carry_unevaluated_ratio():
     平井を神田川シナリオで測ると、経路の全区間がその想定図の整備対象流域の
     外になる。**危険区間0%で「安全」と見せてはいけない**のがまさにこの形。
     """
-    r = SS.search(HIRAI, hazards={"flood": "kandagawa"})
+    r = SS.search(HIRAI, hazards={"flood": "kandagawa"}, shelter_type="designated")
     for c in r["shelter_candidates"]:
         assert "out_of_coverage_ratio" in c["stats"]
     assert max(c["stats"]["out_of_coverage_ratio"] for c in r["shelter_candidates"]) > 0
@@ -371,3 +371,51 @@ def test_recommended_stats_match_the_route_that_is_returned():
             c for c in r["shelter_candidates"] if c["id"] == r["shelter"]["id"]
         )
         assert chosen["stats"] == selected["stats"], origin["label"]
+
+
+def test_searches_one_type_at_a_time():
+    """⚠️ **役割が違うので、既定では混ぜない。**
+
+    まず逃げ込むのが指定緊急避難場所、そのあと生活するのが指定避難所。
+    混ぜて探すと、逃げ込む先を探しているのに滞在用の施設が推奨されうる。
+    """
+    urgent = SS.search(CHOFU, hazards=QUAKE, shelter_type="urgent")
+    assert {c["type"] for c in urgent["shelter_candidates"]} == {"urgent"}
+    assert urgent["shelter"]["type"] == "urgent"
+
+    designated = SS.search(CHOFU, hazards=QUAKE, shelter_type="designated")
+    assert {c["type"] for c in designated["shelter_candidates"]} == {"designated"}
+
+    # 既定は「まず逃げ込む先」
+    assert SS.search(CHOFU, hazards=QUAKE)["shelter"]["type"] == "urgent"
+
+
+def test_does_not_mix_in_other_type_when_one_is_chosen():
+    """⚠️ 片方を選んでいるのに、もう片方を混ぜ返さないこと。
+
+    「両方」のときだけ、種別が一致する避難先を一覧へ足す。
+    """
+    r = SS.search(CHOFU, hazards=QUAKE, shelter_type="designated")
+    assert all(c["type"] == "designated" for c in r["shelter_candidates"])
+    # 指定避難所は災害種別の登録が無いので、一致は必ず False
+    assert all(c["hazard_match"] is False for c in r["shelter_candidates"])
+
+
+def test_api_accepts_shelter_type():
+    for kind in ("urgent", "designated", "all"):
+        r = client.post(
+            "/api/evac-routes/search/shelter",
+            json={"origin": CHOFU, "hazards": QUAKE, "shelter_type": kind},
+        )
+        assert r.status_code == 200, kind
+        assert r.json()["shelter_query"]["type"] == kind
+
+
+def test_api_rejects_an_unknown_shelter_type():
+    r = client.post(
+        "/api/evac-routes/search/shelter",
+        json={"origin": CHOFU, "hazards": QUAKE, "shelter_type": "school"},
+    )
+    # FastAPI のバリデーションエラー。**detail は配列**
+    assert r.status_code == 422
+    assert isinstance(r.json()["detail"], list)
