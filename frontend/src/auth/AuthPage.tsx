@@ -111,9 +111,11 @@ export function AuthPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={mode === 'register' ? '8文字以上' : ''}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
+              {mode === 'register' && (
+                <p className="mt-1 text-xs text-gray-400">8文字以上</p>
+              )}
             </div>
 
             {mode === 'register' && (
