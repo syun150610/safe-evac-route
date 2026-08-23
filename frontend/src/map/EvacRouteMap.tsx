@@ -26,13 +26,14 @@ import { distanceKm } from './lib/distance'
 import { nearestSegment, routeBounds } from './lib/geo'
 import { currentPosition, type Place } from './lib/gsi'
 import type { PlaceSuggestion } from './lib/place-search'
-import { routeCallouts } from './lib/route-callouts'
+import { calloutPadding, mergePadding, routeCallouts } from './lib/route-callouts'
 import {
   buildHazards,
   buildRouteSearchRequest,
   buildShelterSearchRequest,
   FLOOD_SCENARIO,
 } from './lib/search-request'
+import { shelterPopupHtml } from './lib/shelter-popup'
 import { shelterIsVisible } from './lib/shelter-viewport'
 import { initialSafeState, type PlaceField, safeReducer } from './state/evac-route-state'
 import type { Rationale, ShelterCandidate, ShelterFeature } from './types'
@@ -476,6 +477,32 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     ])
   }, [adapter, ready, area])
 
+  // 地図に出す要約。⚠️ **消した経路の数字を残さない**ので `shownRoutes` も見る
+  const callouts = useMemo(
+    () =>
+      state.showCallouts
+        ? routeCallouts(bundle, {
+            risk: hazardMeta?.risk,
+            shown: state.shownRoutes,
+            hazardLabel: primaryHazard?.label,
+            // ⚠️ 消したら地図レイヤーのメニューから戻す。×だけ用意して戻す道が
+            //    無いと、消したあとに出し方が分からなくなる
+            onDismiss: () => dispatch({ type: 'show_callouts', shown: false }),
+          })
+        : [],
+    [bundle, hazardMeta, primaryHazard, state.shownRoutes, state.showCallouts],
+  )
+  /** 地図を収めるときに参照する。⚠️ **このエフェクトは下の fitBounds より先に
+   * 置くこと。** 後ろに置くと、収めるときに1つ前の吹き出しを見てしまう */
+  const calloutsRef = useRef(callouts)
+
+  useEffect(() => {
+    calloutsRef.current = callouts
+    const a = adapter.current
+    if (!a || !ready) return
+    a.setCallouts(callouts)
+  }, [adapter, ready, callouts])
+
   useEffect(() => {
     const a = adapter.current
     if (!a || !ready) return
@@ -494,11 +521,14 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     const allShown = Object.fromEntries(bundle.routes.map((route) => [route.id, true]))
     const bounds = routeBounds(bundle, allShown)
     if (bounds) {
+      const base =
+        window.innerWidth >= 900
+          ? { top: 64, right: 64, bottom: 64, left: 480 }
+          : { top: 32, right: 24, bottom: 120, left: 24 }
       a.fitBounds(bounds, {
-        padding:
-          window.innerWidth >= 900
-            ? { top: 64, right: 64, bottom: 64, left: 480 }
-            : { top: 32, right: 24, bottom: 120, left: 24 },
+        // ⚠️ **経路の端がそのまま吹き出しの位置**なので、経路だけを基準に収めると
+        //    吹き出しが画面の外に出る（ユーザー指摘、2026-08-23）
+        padding: mergePadding(base, calloutPadding(calloutsRef.current, a.size())),
         duration: 400,
       })
     }
@@ -538,22 +568,6 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     } else if (quakeAdded.current) a.setLayerVisible('quake', false)
   }, [adapter, ready, quakeData, state.opacity])
 
-  // 経路の要約を地図の上に出す。⚠️ **消した経路の数字を残さない**ので
-  // `shownRoutes` も見る（`routeCallouts` が絞る）
-  useEffect(() => {
-    const a = adapter.current
-    if (!a || !ready) return
-    a.setCallouts(
-      state.showCallouts
-        ? routeCallouts(bundle, {
-            risk: hazardMeta?.risk,
-            shown: state.shownRoutes,
-            hazardLabel: primaryHazard?.label,
-          })
-        : [],
-    )
-  }, [adapter, ready, bundle, hazardMeta, primaryHazard, state.shownRoutes, state.showCallouts])
-
   useEffect(() => {
     const a = adapter.current
     if (!a || !ready) return
@@ -562,10 +576,13 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         shelters
           .filter(({ feature }) => shelterIsVisible(feature, viewport, area))
           .map(({ feature }) => ({
+            id: feature.properties.id,
             lngLat: feature.geometry.coordinates,
             label: `【${feature.properties.type_label}】${feature.properties.name}`,
             shelterType: feature.properties.type,
-            onClick: () => prepareDestination(shelterPlace(feature)),
+            // ⚠️ **押しただけでは経路探索へ行かない。** まず何の施設かを見せる
+            detailHtml: shelterPopupHtml(feature.properties),
+            onGo: () => prepareDestination(shelterPlace(feature)),
           })),
       )
     })

@@ -80,6 +80,17 @@ function swatch({ color, dashed }: CalloutRow): string {
   return `<span style="display:inline-block;width:14px;height:3px;flex:none;border-radius:2px;background:${background}"></span>`
 }
 
+/** 消すための×。
+ *
+ * ⚠️ **ここだけ `pointer-events` を戻す。** 吹き出し全体でクリックを受けると、
+ * 下の経路とピンが押せなくなる。
+ * ⚠️ 消したものは地図レイヤーのメニューから戻せる（`showCallouts`）。 */
+const DISMISS =
+  '<button type="button" data-action="dismiss" aria-label="要約を消す" ' +
+  'style="pointer-events:auto;position:absolute;top:2px;right:2px;width:18px;height:18px;' +
+  'cursor:pointer;border:0;border-radius:999px;background:#f1f5f9;color:#475569;' +
+  'font-size:11px;line-height:1;padding:0">×</button>'
+
 function render(typeLabel: string | null, name: string, rows: CalloutRow[]): string {
   const head = [
     typeLabel
@@ -99,7 +110,8 @@ function render(typeLabel: string | null, name: string, rows: CalloutRow[]): str
         `</div>`,
     )
     .join('')
-  return `<div style="min-width:118px;max-width:186px">${head}${body}</div>`
+  // ×のぶんだけ右に余白を空ける（見出しに重ならないように）
+  return `<div style="position:relative;min-width:118px;max-width:186px;padding-right:16px">${DISMISS}${head}${body}</div>`
 }
 
 /** 吹き出しの向きを決めるとき、経路の終端から何点さかのぼって見るか。
@@ -110,14 +122,28 @@ const TAIL_POINTS = 8
 
 /** 置ける向きと、その向きの単位ベクトル（x=東, y=北）。
  *
+ * ⚠️ **8方位ある。** 4方位だと経路が斜めから入るときに逃げ場が無く、経路に
+ * かぶるか画面の外に出るかのどちらかになった（ユーザー指摘、2026-08-23）。
+ *
  * ⚠️ **並び順が優先順位。** 同点なら先にあるものを選ぶ。上が空いていれば上に
  * 出すのが読みやすく、ピンの逃がし方（`CALLOUT_LIFT`）も上向きで作ってある。 */
+const D = Math.SQRT1_2
 const DIRECTIONS: [CalloutAnchor, number, number][] = [
   ['top', 0, 1],
+  ['top-right', D, D],
+  ['top-left', -D, D],
   ['bottom', 0, -1],
+  ['bottom-right', D, -D],
+  ['bottom-left', -D, -D],
   ['right', 1, 0],
   ['left', -1, 0],
 ]
+
+/** 経路を避けることを、出発地の側へ寄せることより**どれだけ重く見るか**。
+ *
+ * ⚠️ 経路にかぶると数字も線も読めないので、こちらが先。出発地の向きは
+ * 同じくらい空いている向きが複数あるときの決め手にだけ使う。 */
+const ROUTE_WEIGHT = 4
 
 /** 地点の近くで経路が伸びている向き。**その向きは避けて吹き出しを出す。** */
 function tailVectors(
@@ -155,18 +181,101 @@ function tailVectors(
  * 入ってくることがある（避難先の種類を両方選んだとき）。向きごとに
  * 「経路がどれだけそちらに寄っているか」を足し合わせ、**いちばん小さい向き**を選ぶ。
  */
-export function pickAnchor(vectors: [number, number][]): CalloutAnchor {
+export function pickAnchor(
+  vectors: [number, number][],
+  /** 地点から見た出発地の向き（単位ベクトル）。**画面はここを含むように
+   * 収めるので、この側は必ず余地がある**（ユーザー指摘、2026-08-23）。 */
+  toOrigin?: [number, number] | null,
+): CalloutAnchor {
   let best: CalloutAnchor = 'top'
   let bestScore = Number.POSITIVE_INFINITY
   for (const [anchor, cx, cy] of DIRECTIONS) {
     // 反対向きの経路は 0 として数える（マイナスで打ち消し合わせない）
-    const score = vectors.reduce((sum, [x, y]) => sum + Math.max(0, x * cx + y * cy), 0)
+    const route = vectors.reduce((sum, [x, y]) => sum + Math.max(0, x * cx + y * cy), 0)
+    // 出発地の側なら差し引く（小さいほど良い）
+    const origin = toOrigin ? toOrigin[0] * cx + toOrigin[1] * cy : 0
+    const score = route * ROUTE_WEIGHT - origin
     if (score < bestScore - 1e-9) {
       bestScore = score
       best = anchor
     }
   }
   return best
+}
+
+/** 地点から見た出発地の向き。経路が無い・同じ地点なら null */
+function towardOrigin(bundle: Bundle, [lon, lat]: [number, number]): [number, number] | null {
+  const [oLat, oLon] = bundle.od.origin.latlon
+  const kx = Math.cos((lat * Math.PI) / 180) || 1e-6
+  const x = (oLon - lon) * kx
+  const y = oLat - lat
+  const len = Math.hypot(x, y)
+  return len > 0 ? [x / len, y / len] : null
+}
+
+/** 吹き出し1つの見込みの大きさ(px)。
+ *
+ * ⚠️ 実測値ではなく上限の見積り。`render` の `max-width` が186px、行数は最大3経路
+ * ぶん。中身によって上下するが、**余白は多めに取るほうが安全**（足りないと
+ * 画面の外に出て読めない）。 */
+const CALLOUT_SIZE = { w: 200, h: 130 }
+
+export interface Padding {
+  top: number
+  right: number
+  bottom: number
+  left: number
+}
+
+/** 吹き出しが画面からはみ出さないように、地図を収めるときの余白へ足す量。
+ *
+ * ⚠️ **経路の端＝吹き出しの位置**なので、経路だけを基準に収めると必ずはみ出す
+ * （ユーザー指摘、2026-08-23）。
+ *
+ * ⚠️ **出ている向きだけを見ない。** 上に出すときの箱は**左右中央**なので、
+ * 幅の半分ずつ左右にもはみ出す（実機で左端が切れた）。向きごとに、どの辺へ
+ * どれだけ広がるかを持つ。
+ *
+ * ⚠️ **画面の一定割合で頭打ちにする。** スマホの幅で200px足すと、収める余地が
+ * 無くなって地図が極端に引きの絵になる。
+ */
+export function calloutPadding(callouts: CalloutSpec[], size: { w: number; h: number }): Padding {
+  const { w, h } = CALLOUT_SIZE
+  const half = { w: w / 2, h: h / 2 }
+  // 向き -> [上, 右, 下, 左] へ広がる量
+  const extent: Record<CalloutAnchor, [number, number, number, number]> = {
+    top: [h, half.w, 0, half.w],
+    'top-right': [h, w, 0, 0],
+    'top-left': [h, 0, 0, w],
+    bottom: [0, half.w, h, half.w],
+    'bottom-right': [0, w, h, 0],
+    'bottom-left': [0, 0, h, w],
+    right: [half.h, w, half.h, 0],
+    left: [half.h, 0, half.h, w],
+  }
+  const need = [0, 0, 0, 0]
+  for (const callout of callouts) {
+    const e = extent[callout.anchor]
+    for (let i = 0; i < 4; i++) need[i] = Math.max(need[i], e[i])
+  }
+  const capW = Math.max(0, size.w * 0.3)
+  const capH = Math.max(0, size.h * 0.25)
+  return {
+    top: Math.min(need[0], capH),
+    right: Math.min(need[1], capW),
+    bottom: Math.min(need[2], capH),
+    left: Math.min(need[3], capW),
+  }
+}
+
+/** 2つの余白の大きいほうを取る（どちらの理由でも足りるようにする） */
+export function mergePadding(base: Padding, extra: Padding): Padding {
+  return {
+    top: Math.max(base.top, extra.top),
+    right: Math.max(base.right, extra.right),
+    bottom: Math.max(base.bottom, extra.bottom),
+    left: Math.max(base.left, extra.left),
+  }
 }
 
 interface Options {
@@ -176,11 +285,13 @@ interface Options {
   shown: Partial<Record<RouteId, boolean>>
   /** 掛け合わせた種別の呼び名。`alt_shelter` の行に使う（API由来） */
   hazardLabel?: string
+  /** 吹き出しの×を押したとき */
+  onDismiss?: () => void
 }
 
 export function routeCallouts(bundle: Bundle | null, options: Options): CalloutSpec[] {
   if (!bundle) return []
-  const { risk, shown, hazardLabel } = options
+  const { risk, shown, hazardLabel, onDismiss } = options
   const list: CalloutSpec[] = []
 
   // ⚠️ **選ばれた経路を先頭にする。** APIの並びは最短が先だが、吹き出しは
@@ -197,12 +308,14 @@ export function routeCallouts(bundle: Bundle | null, options: Options): CalloutS
     list.push({
       id: 'dest',
       lngLat: dest,
+      onDismiss,
       anchor: pickAnchor(
         tailVectors(
           bundle,
           routes.map((route) => route.id),
           dest,
         ),
+        towardOrigin(bundle, dest),
       ),
       html: render(
         shelter?.type_label ?? null,
@@ -220,7 +333,8 @@ export function routeCallouts(bundle: Bundle | null, options: Options): CalloutS
     list.push({
       id: 'alt',
       lngLat: at,
-      anchor: pickAnchor(tailVectors(bundle, ['shelter_alt'], at)),
+      onDismiss,
+      anchor: pickAnchor(tailVectors(bundle, ['shelter_alt'], at), towardOrigin(bundle, at)),
       html: render(alt.type_label, alt.name, [
         rowOf('shelter_alt', altRouteLabel(hazardLabel), alt.stats, risk),
       ]),

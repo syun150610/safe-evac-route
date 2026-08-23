@@ -40,11 +40,24 @@ export interface MarkerSpec {
 }
 
 export interface ShelterMarkerSpec {
+  /** 施設のID。**表示範囲が変わってピンを作り直しても、開いている詳細を
+   * 開いたままにするために使う**（地図を動かすたびに閉じると読めない） */
+  id: string
   lngLat: LngLatTuple
+  /** ピンのタイトル（読み上げ・ホバー用） */
   label: string
   /** urgent = 指定緊急避難場所（緑）/ designated = 指定避難所（黄） */
   shelterType: 'urgent' | 'designated'
-  onClick?: () => void
+  /** ピンを押したときに出す詳細のHTML。
+   *
+   * ⚠️ **押しただけで経路探索を始めない。** 何の施設か分からないまま画面が
+   * 切り替わる（ユーザー指摘、2026-08-23）。まず内容を見せ、`data-action="go"` の
+   * 要素を押したときだけ `onGo` を呼ぶ。
+   *
+   * ⚠️ **エスケープ済みのものを渡すこと。** 施設名は API 由来の文字列。 */
+  detailHtml?: string
+  /** 詳細の「ここに行く」を押したとき */
+  onGo?: () => void
 }
 
 /** 地図に出しっぱなしにする吹き出し（経路の要約）。
@@ -60,13 +73,29 @@ export interface CalloutSpec {
   id: string
   lngLat: LngLatTuple
   html: string
+  /** 吹き出しの×を押したとき。`data-action="dismiss"` の要素に繋ぐ。
+   *
+   * ⚠️ **繋ぐ要素だけ `pointer-events` を戻すこと。** 吹き出し全体で
+   * クリックを受けると、下の経路とピンが押せなくなる。 */
+  onDismiss?: () => void
   /** 地点から見て**どちら側へ吹き出しを出すか**。経路とピンを避ける向きを
    * 呼び出し側が決める（アダプタは向きの意味を知っているだけ） */
   anchor: CalloutAnchor
 }
 
-/** 吹き出しを置く向き。`top` = 地点の上 */
-export type CalloutAnchor = 'top' | 'bottom' | 'left' | 'right'
+/** 吹き出しを置く向き。`top` = 地点の上。
+ *
+ * ⚠️ **8方位ある。** 上下左右の4方位だと、経路が斜めから入ってくるときに
+ * 逃げ場が無く、経路か画面の外かのどちらかになる（ユーザー指摘、2026-08-23）。 */
+export type CalloutAnchor =
+  | 'top'
+  | 'top-right'
+  | 'right'
+  | 'bottom-right'
+  | 'bottom'
+  | 'bottom-left'
+  | 'left'
+  | 'top-left'
 
 export interface RouteClick {
   lngLat: LngLatTuple

@@ -60,16 +60,24 @@ const CALLOUT_GAP = 16
  *
  * ⚠️ **向きが逆になる。** 吹き出しを地点の上（`top`）に出したいときは、
  * Popup の**下端**（`bottom`）を地点へ合わせる。 */
-const POPUP_ANCHOR = {
+const POPUP_ANCHOR: Record<CalloutAnchor, string> = {
   top: 'bottom',
+  'top-right': 'bottom-left',
+  'top-left': 'bottom-right',
   bottom: 'top',
+  'bottom-right': 'top-left',
+  'bottom-left': 'top-right',
   left: 'right',
   right: 'left',
-} as const
+}
 
 const POPUP_OFFSET: Record<CalloutAnchor, [number, number]> = {
   top: [0, -CALLOUT_LIFT],
+  'top-right': [CALLOUT_GAP, -CALLOUT_GAP],
+  'top-left': [-CALLOUT_GAP, -CALLOUT_GAP],
   bottom: [0, CALLOUT_GAP],
+  'bottom-right': [CALLOUT_GAP, CALLOUT_GAP],
+  'bottom-left': [-CALLOUT_GAP, CALLOUT_GAP],
   left: [-CALLOUT_GAP, 0],
   right: [CALLOUT_GAP, 0],
 }
@@ -470,11 +478,23 @@ export function createMapLibreAdapter(): MapAdapter {
       shelterMarkers.length = 0
       for (const m of list) {
         const color = m.shelterType === 'urgent' ? '#16a34a' : '#ca8a04'
-        const marker = new Marker({ color })
-          .setLngLat(m.lngLat)
-          .setPopup(new Popup().setText(m.label))
-          .addTo(map)
-        if (m.onClick) marker.getElement().addEventListener('click', m.onClick)
+        // ⚠️ **押しても経路探索は始めない。** まず詳細を出し、その中の
+        //    「ここへ行く」を押したときだけ `onGo` を呼ぶ
+        const popup = new Popup()
+        if (m.detailHtml) {
+          const el = document.createElement('div')
+          el.innerHTML = m.detailHtml
+          const go = el.querySelector('[data-action="go"]')
+          // ⚠️ 押したら閉じる（経路の要約が別に出るので、同じ施設の箱が2つ並ぶ）
+          if (go && m.onGo) {
+            go.addEventListener('click', () => {
+              popup.remove()
+              m.onGo?.()
+            })
+          }
+          popup.setDOMContent(el)
+        } else popup.setText(m.label)
+        const marker = new Marker({ color }).setLngLat(m.lngLat).setPopup(popup).addTo(map)
         shelterMarkers.push(marker)
       }
     },
@@ -491,6 +511,13 @@ export function createMapLibreAdapter(): MapAdapter {
     // ⚠️ `focusAfterOpen` を切る。開くたびにフォーカスが吹き出しへ飛び、
     //    シートの操作位置を見失う。
     setCallouts(list: CalloutSpec[]) {
+      const calloutContent = (c: CalloutSpec) => {
+        const el = document.createElement('div')
+        el.innerHTML = c.html
+        const dismiss = el.querySelector('[data-action="dismiss"]')
+        if (dismiss && c.onDismiss) dismiss.addEventListener('click', c.onDismiss)
+        return el
+      }
       for (const p of callouts) p.remove()
       callouts.length = 0
       for (const c of list) {
@@ -501,11 +528,11 @@ export function createMapLibreAdapter(): MapAdapter {
             focusAfterOpen: false,
             maxWidth: '220px',
             // ⚠️ 上に置くときはピンの高さぶん持ち上げる（同じ地点に立つマーカーを覆う）
-            anchor: POPUP_ANCHOR[c.anchor],
+            anchor: POPUP_ANCHOR[c.anchor] as 'top' | 'bottom' | 'left' | 'right',
             offset: POPUP_OFFSET[c.anchor],
           })
             .setLngLat(c.lngLat)
-            .setHTML(c.html)
+            .setDOMContent(calloutContent(c))
             .addTo(map),
         )
       }
