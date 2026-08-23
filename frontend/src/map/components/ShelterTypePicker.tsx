@@ -137,6 +137,15 @@ export function ShelterTypePicker({
           <p className="text-[8px] leading-relaxed text-slate-500">
             同じ施設が両方に指定されていることもあります（都内で1,119件）。一方、調布市のように緊急避難場所を河川敷や公園だけに指定している市区町村もあります。
           </p>
+          {/* ⚠️ 制度の説明は**一次情報へ**送る。この画面の要約だけで判断させない */}
+          <a
+            className="text-[9px] text-[#07156f] underline"
+            href="https://www.bousai.go.jp/taisaku/hinanbasyo.html"
+            rel="noreferrer"
+            target="_blank"
+          >
+            内閣府「避難場所に関すること」で詳しく見る
+          </a>
         </div>
       )}
     </section>

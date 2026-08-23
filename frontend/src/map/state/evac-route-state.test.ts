@@ -35,11 +35,11 @@ describe('safeReducer', () => {
     expect(state.activeField).toBe('origin')
   })
 
-  it('経路終了で検索状態をリセットする（出発地も消す）', () => {
-    // ⚠️ **以前は出発地を残していた。** そのせいで、A地点で検索したあと
-    // B地点から調べ直そうとしても出発地がAのまま残り、ホーム画面には
-    // 出発地が出ないので気づけず、ページ再読み込みが要った
-    // （チームからの指摘、2026-08-23）。「終了」は最初の状態に戻す
+  it('経路終了で経路と目的地を解除し、出発地は残す', () => {
+    // ⚠️ **一度は出発地も消していたが、戻した**（2026-08-23）。終了のたびに
+    // 入力し直しになり、「もう一度探そうとすると発火しない」ように見えた。
+    // 「前の出発地が残っていることに気づけない」という元の問題は、
+    // ホーム画面に出発地を表示し、入力に×を付けたことで別途解決している
     let state = safeReducer(initialSafeState, {
       type: 'select_place',
       field: 'origin',
@@ -49,13 +49,10 @@ describe('safeReducer', () => {
     state = safeReducer(state, { type: 'set_hazard', hazard: 'flood' })
     const ended = safeReducer(state, { type: 'end_route' })
 
-    expect(ended.origin.place).toBeNull()
-    expect(ended.origin.query).toBe('')
+    expect(ended.origin.place).toBe(ueno)
     expect(ended.destination.place).toBeNull()
     expect(ended.destination.query).toBe('')
     expect(ended.screen).toBe('home')
-    // 次に開いたとき最初に埋めるのは出発地
-    expect(ended.activeField).toBe('origin')
     // ⚠️ 選んだ災害は残す。地点をやり直すたびに条件まで戻ると使いにくい
     expect(ended.hazard).toBe('flood')
   })

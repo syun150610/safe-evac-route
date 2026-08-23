@@ -85,6 +85,15 @@ describe('ShelterTypePicker', () => {
     expect(container.textContent).toContain('災害の種類の指定はありません')
   })
 
+  it('⚠️ 制度の説明は一次情報へ送る（この画面の要約だけで判断させない）', () => {
+    render(['urgent'])
+    act(() => button('?').click())
+    const link = container.querySelector('a') as HTMLAnchorElement
+    expect(link.href).toBe('https://www.bousai.go.jp/taisaku/hinanbasyo.html')
+    expect(link.target).toBe('_blank')
+    expect(link.rel).toContain('noreferrer')
+  })
+
   it('ヘルプは閉じられる', () => {
     render(['urgent'])
     act(() => button('?').click())

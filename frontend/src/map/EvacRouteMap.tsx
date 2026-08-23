@@ -634,9 +634,12 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             />
           </section>
         )}
+        {/* ⚠️ **ボトムシートより上に出すこと。** 地図の中（`absolute`）に置くと、
+            スマホでシートが開いている間は隠れて見えない。検索はシートの中の
+            ボタンから始まるので、いちばん見せたい瞬間に見えなくなる */}
         {search.loading && (
           <div
-            className="absolute inset-0 z-[5] flex items-start justify-center bg-slate-950/5 pt-[72px] min-[900px]:items-center min-[900px]:pt-0"
+            className="fixed inset-0 z-30 flex items-start justify-center bg-slate-950/5 pt-[72px] min-[900px]:items-center min-[900px]:pt-0"
             role="status"
             aria-live="polite"
           >

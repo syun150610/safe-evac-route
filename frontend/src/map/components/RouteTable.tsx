@@ -42,43 +42,47 @@ export function RouteTable({ bundle, shown, risk, hazard, distance, onToggle }: 
   return (
     <>
       <h3 className="mt-5 mb-2 text-[13px]">経路を比較</h3>
-      {bundle.routes.map((route) => {
-        const unevaluated = risk ? num(route.stats, risk.coverage_key) : 0
-        return (
-          <label
-            className={`mb-2 grid grid-cols-[auto_18px_1fr] items-center gap-2 rounded-lg border p-3 transition-opacity [&_span>em]:block [&_span>em]:text-[9px] [&_span>em]:font-bold [&_span>em]:text-[#07156f] [&_span>em]:not-italic [&_span>small]:my-1 [&_span>small]:block [&_span>small]:text-[9px] [&_span>small]:text-slate-500 [&_span>strong]:block [&_span>strong]:text-[11px] ${route.id === bundle.selected_route ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-200'} ${shown[route.id] === false ? 'opacity-45' : ''}`}
-            key={route.id}
-          >
-            <input
-              type="checkbox"
-              checked={shown[route.id] !== false}
-              onChange={(event) => onToggle(route.id, event.target.checked)}
-            />
-            <span
-              className={`h-1 rounded-full ${route.id === 'baseline' ? '[background:repeating-linear-gradient(90deg,#64748b_0_5px,transparent_5px_8px)]' : 'bg-[#07156f]'}`}
-            />
-            <span>
-              <strong>
-                {route.no} {route.label}
-              </strong>
-              <small>
-                徒歩約{Math.round(route.stats.duration_min_60)}分・{km(route.stats.distance_m)}
-              </small>
-              {risk && (
-                <em>
-                  {risk.label} {pct(num(route.stats, risk.ratio_key))}
-                </em>
-              )}
-              {/* 危険区間0%を「安全」と読ませないための但し書き。API が warn を出したときだけ */}
-              {warnUnevaluated && unevaluated > 0 && (
-                <span className="mt-0.5 block text-[9px] text-amber-700">
-                  ※{pct(unevaluated)}は評価範囲外
-                </span>
-              )}
-            </span>
-          </label>
-        )
-      })}
+      {/* ⚠️ **横並びにする（入らなければ折り返して縦）。** 経路は2〜3本しか
+          出ないので、縦に積むと画面を無駄に使う */}
+      <div className="mb-2 flex flex-wrap gap-2">
+        {bundle.routes.map((route) => {
+          const unevaluated = risk ? num(route.stats, risk.coverage_key) : 0
+          return (
+            <label
+              className={`grid min-w-[150px] flex-1 grid-cols-[auto_18px_1fr] items-center gap-2 rounded-lg border p-3 transition-opacity [&_span>em]:block [&_span>em]:text-[9px] [&_span>em]:font-bold [&_span>em]:text-[#07156f] [&_span>em]:not-italic [&_span>small]:my-1 [&_span>small]:block [&_span>small]:text-[9px] [&_span>small]:text-slate-500 [&_span>strong]:block [&_span>strong]:text-[11px] ${route.id === bundle.selected_route ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-200'} ${shown[route.id] === false ? 'opacity-45' : ''}`}
+              key={route.id}
+            >
+              <input
+                type="checkbox"
+                checked={shown[route.id] !== false}
+                onChange={(event) => onToggle(route.id, event.target.checked)}
+              />
+              <span
+                className={`h-1 rounded-full ${route.id === 'baseline' ? '[background:repeating-linear-gradient(90deg,#64748b_0_5px,transparent_5px_8px)]' : 'bg-[#07156f]'}`}
+              />
+              <span>
+                {/* ⚠️ **経路番号（①⑤）を出さない。** 色の見本が隣にあるので
+                  地図の線とは対応づけられる。番号は語彙が増えるだけ */}
+                <strong>{route.label}</strong>
+                <small>
+                  徒歩約{Math.round(route.stats.duration_min_60)}分・{km(route.stats.distance_m)}
+                </small>
+                {risk && (
+                  <em>
+                    {risk.label} {pct(num(route.stats, risk.ratio_key))}
+                  </em>
+                )}
+                {/* 危険区間0%を「安全」と読ませないための但し書き。API が warn を出したときだけ */}
+                {warnUnevaluated && unevaluated > 0 && (
+                  <span className="mt-0.5 block text-[9px] text-amber-700">
+                    ※{pct(unevaluated)}は評価範囲外
+                  </span>
+                )}
+              </span>
+            </label>
+          )
+        })}
+      </div>
       {hazard && distance && (
         <div className="mt-3 grid grid-cols-2 gap-1.5 [&>span]:rounded-lg [&>span]:bg-slate-100 [&>span]:px-1 [&>span]:py-2.5 [&>span]:text-center [&>span]:text-[8px] [&>span]:text-slate-500 [&_strong]:mt-1 [&_strong]:block [&_strong]:text-[11px] [&_strong]:text-slate-800">
           <span>
