@@ -114,18 +114,16 @@ export function safeReducer(state: SafeState, action: SafeAction): SafeState {
         shownRoutes: Object.fromEntries(action.routes.map((id) => [id, true])),
       }
     case 'end_route':
-      // ⚠️ **出発地も消す。** 経路と目的地だけ消していた頃は、A地点で検索したあと
-      // B地点から調べ直そうとしても出発地がAのまま残り、ホーム画面には
-      // 出発地が出ないので気づけず、**ページを再読み込みするしかなかった**
-      // （チームからの指摘、2026-08-23）。「終了」は最初の状態に戻すこと
+      // ⚠️ **出発地は残す。** 一度は消していたが、経路を終了するたびに入力し直しに
+      // なり、「もう一度探そうとすると発火しない」ように見えた（2026-08-23）。
+      // 「前の出発地が残っていることに気づけない」という元の問題は、
+      // ホーム画面に出発地を表示し、入力に×を付けたことで別途解決している。
       return {
         ...state,
         screen: 'home',
         searchPurpose: 'route',
-        origin: { query: '', place: null },
         destination: { query: '', place: null },
-        // 次に開いたとき最初に埋めるのは出発地
-        activeField: 'origin',
+        activeField: 'destination',
         shownRoutes: { baseline: true },
       }
   }

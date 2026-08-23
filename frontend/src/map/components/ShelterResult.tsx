@@ -19,11 +19,21 @@
  *
  * ⚠️ **足切りしたことを黙らない。** `fell_back_to_nearest` のとき、
  * 「近所に安全な避難先がある」と読ませない一文を必ず出す。
+ *
+ * ⚠️ **「その災害への登録が無い」を隠さない。** 指定避難所は元データに
+ * 災害種別の欄が無く、`hazard_match` は必ず false になる。近くて経路も
+ * 安全なので候補には入るが、**その災害に対応しているとは言えない**。
+ * false を「対応していない」と読ませず、「登録が無い」と書く。
+ *
+ * ⚠️ **どれも危ないときに黙って推さない。** `all_candidates_dangerous` は
+ * 「行き先は示すが、ここが安全だとは言っていない」状態。必ず断る。
  */
 import type { HazardRisk, RouteStats, ShelterCandidate, ShelterInfo, ShelterQuery } from '../types'
 
 interface Props {
   shelter: ShelterInfo
+  /** 種類を両方選んだときの「もう一方の種類の最善」。地図には別の線で出ている */
+  alt?: (ShelterInfo & { stats: RouteStats }) | null
   candidates: ShelterCandidate[]
   query: ShelterQuery
   /** 表示中の災害の危険区間定義。カタログ未取得のあいだは undefined */
@@ -72,6 +82,21 @@ function CandidateRow({
             </em>
           )}
         </span>
+        <span className="flex flex-wrap items-center gap-1">
+          <em
+            className={`rounded-full px-1.5 text-[8px] not-italic ${
+              candidate.type === 'urgent'
+                ? 'bg-green-50 text-green-800'
+                : 'bg-amber-50 text-amber-800'
+            }`}
+          >
+            {candidate.type_label}
+          </em>
+          {/* ⚠️ 「対応していない」ではなく「登録が無い」 */}
+          {!candidate.hazard_match && (
+            <em className="text-[8px] text-slate-500 not-italic">この災害の登録なし</em>
+          )}
+        </span>
         <small className="text-[9px] text-slate-500">
           {`${candidate.municipality}・徒歩約${Math.round(candidate.stats.duration_min_60)}分・${km(candidate.stats.distance_m)}`}
         </small>
@@ -89,7 +114,7 @@ function CandidateRow({
   )
 }
 
-export function ShelterResult({ shelter, candidates, query, risk, onSelect }: Props) {
+export function ShelterResult({ shelter, alt, candidates, query, risk, onSelect }: Props) {
   const recommended = candidates.find((c) => c.id === shelter.id)
   const others = candidates.filter((c) => c.id !== shelter.id)
   const groups = (['hazard', 'length'] as const)
@@ -123,7 +148,40 @@ export function ShelterResult({ shelter, candidates, query, risk, onSelect }: Pr
             {`※この経路の${pct(unevaluated)}は評価範囲外です（安全という意味ではありません）`}
           </span>
         )}
+        {/* ⚠️ 施設がその災害に対応しているかは、指定避難所のデータからは分からない */}
+        {!shelter.hazard_match && (
+          <span className="text-[9px] text-slate-600">
+            ※この施設にはこの災害への対応が登録されていません（対応していないという意味ではありません）
+          </span>
+        )}
       </article>
+
+      {/* ⚠️ どれも危ないときに黙って推さない */}
+      {query.all_candidates_dangerous && (
+        <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-[9px] leading-relaxed text-red-800">
+          {`近くの避難先はどこへ向かっても、経路の${pct(query.danger_ratio_limit)}以上が危険区間になります。いちばん危険の少ない先を出していますが、安全な経路がある状態ではありません。`}
+        </p>
+      )}
+
+      {/* ⚠️ **もう一方の種類も出す。** 役割が違う2種類を両方選んでいるのに、
+          片方の線しか出ないと比べようがない。地図では別の線（橙の破線）で
+          描かれているので、ここでもその対応が分かるようにする */}
+      {alt && (
+        <article className="mb-3 grid gap-1 rounded-[10px] border border-amber-300 bg-amber-50/60 p-3">
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden="true" className="h-0.5 w-5 shrink-0 bg-amber-700" />
+            <em className="rounded-full bg-white px-1.5 text-[8px] text-slate-600 not-italic">
+              {alt.type_label}
+            </em>
+          </span>
+          <strong className="text-[12px]">{alt.name}</strong>
+          <small className="text-[9px] text-slate-600">{alt.address}</small>
+          <span className="text-[10px] text-slate-700">
+            {`徒歩約${Math.round(alt.stats.duration_min_60)}分・${km(alt.stats.distance_m)}`}
+            {risk && ` ・ ${risk.label} ${pct(num(alt.stats, risk.ratio_key))}`}
+          </span>
+        </article>
+      )}
 
       {/* ⚠️ 足切りしたことを黙らない */}
       {query.fell_back_to_nearest && (

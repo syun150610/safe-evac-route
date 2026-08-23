@@ -8,7 +8,16 @@ import type { FeatureCollection, LineString } from 'geojson'
  */
 
 /** 経路の識別子。番号 ①②④⑤ は docs/findings/検証記録.md 10章と対応 */
-export type RouteId = 'baseline' | 'flood' | 'combined' | 'quake' | 'minimax'
+export type RouteId =
+  | 'baseline'
+  | 'flood'
+  | 'combined'
+  | 'quake'
+  | 'minimax'
+  /** ⚠️ **これだけ行き先が `od.dest` と違う。** 避難先の種類を両方選んだときに
+   * 描く「もう一方の種類の最善」への経路（`alt_shelter`）。
+   * `routes[]` には入らないので、比較表や根拠の対象にもならない */
+  | 'shelter_alt'
 
 export type RouteRole = 'recommended' | 'compare' | 'counterexample' | 'bound'
 
@@ -194,6 +203,10 @@ export interface Bundle {
   shelter_candidates?: ShelterCandidate[]
   /** 同。どう絞って何で足切りしたか */
   shelter_query?: ShelterQuery
+  /** 種類を両方選んだときだけ。**もう一方の種類でいちばん条件のよい避難先。**
+   * ⚠️ 経路は geojson に `route: 'shelter_alt'` で入っており、`routes[]` には
+   * 入らない（`od.dest` と行き先が違うため） */
+  alt_shelter?: Omit<ShelterCandidate, 'stats'> & { stats: RouteStats; route: 'shelter_alt' }
 }
 
 /** POST /search/shelter が推奨した避難先。 */
@@ -206,6 +219,10 @@ export interface ShelterInfo {
   municipality: string
   /** ⚠️ 空でも「対応していない」ではなく「元データに情報が無い」 */
   hazard_types: string[]
+  /** この災害への対応が**データ上言えるか**。
+   * ⚠️ false は「対応していない」ではなく「登録が無い」。指定避難所は
+   * 元データに災害種別の欄そのものが無く、必ず false になる */
+  hazard_match: boolean
   /** [lat, lon] */
   latlon: [number, number]
   /** 出発地からの直線距離(m)。歩く距離ではない */
@@ -239,6 +256,8 @@ export interface ShelterCandidate extends ShelterInfo {
   baseline_distance_m: number | null
   /** 迂回の上限（`shelter_query.detour_limit_m`）の内側か */
   within_limit: boolean
+  /** 経路のうち危険区間の割合（0〜1）。種別ごとの定義はAPIが決める */
+  danger_ratio: number
 }
 
 export interface ShelterQuery {
@@ -260,6 +279,13 @@ export interface ShelterQuery {
   fell_back_to_nearest: boolean
   /** 出発地と同じ地点に乗っていた避難場所（すでにその場にいる） */
   at_origin: string[]
+  /** ⚠️ true = 上限内の候補がどれも危険区間だらけだった。
+   * **推奨は出しているが「ここが安全だ」とは言っていない。** 画面で伝えること */
+  all_candidates_dangerous: boolean
+  /** 推奨から外す危険区間の割合（0〜1） */
+  danger_ratio_limit: number
+  /** その災害への登録が無い候補の数（指定避難所） */
+  without_hazard_match: number
 }
 
 /** GET /api/evac-routes/area
@@ -300,7 +326,11 @@ export interface SearchRequest {
  * ⚠️ **バックの `ShelterSearchRequest` と対になっている**
  * （あちらは `SearchRequest` がこれを継承する）。片方だけ増やさないこと。
  */
-export type ShelterSearchRequest = Omit<SearchRequest, 'dest'>
+export type ShelterSearchRequest = Omit<SearchRequest, 'dest'> & {
+  /** 探す避難先の種類。urgent=指定緊急避難場所（既定）/ designated=指定避難所 / all=両方。
+   * ⚠️ **役割が違うので既定では混ぜない**（`components/ShelterTypePicker.tsx`） */
+  shelter_type?: 'urgent' | 'designated' | 'all'
+}
 
 export interface PresetIndex {
   default_scenario: string

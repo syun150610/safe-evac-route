@@ -123,6 +123,7 @@ def search_shelter(req: ShelterSearchRequest):
             include=req.include,
             scenario=req.scenario,
             limit=req.limit,
+            shelter_type=req.shelter_type,
         )
     except shelter_svc.NoShelter as e:
         raise HTTPException(

@@ -13,6 +13,7 @@ import { RouteRationale } from './components/RouteRationale'
 import { RouteTable } from './components/RouteTable'
 import { SafeShelterSearchButton } from './components/SafeShelterSearchButton'
 import { ShelterResult } from './components/ShelterResult'
+import { type ShelterKind, ShelterTypePicker, toParam } from './components/ShelterTypePicker'
 import { DRAW_ORDER, STYLE } from './constants'
 import { inArea, useArea } from './hooks/useArea'
 import { useGeocode } from './hooks/useGeocode'
@@ -60,9 +61,16 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const [sheetOpen, setSheetOpen] = useState(false)
   const [layersOpen, setLayersOpen] = useState(false)
   const [shelterSearchLoading, setShelterSearchLoading] = useState(false)
+  // 現在地の取得中。⚠️ **何を待っているか出さないと、故障に見える**（指摘）
+  const [locating, setLocating] = useState(false)
+  // 探す避難先の種類。⚠️ 既定は「まず逃げ込む先」＝指定緊急避難場所
+  const [shelterKinds, setShelterKinds] = useState<ShelterKind[]>(['urgent'])
   const [toast, setToast] = useState<string | null>(null)
   const requestedLocation = useRef(false)
   const shelterSearchRunning = useRef(false)
+  /** 「出発地を変更」から検索画面へ来たか。**×で結果を消しても覚えておく。**
+   * 覚えていないと、消してから選び直したときだけ引き直されない */
+  const changingOrigin = useRef<'shelter' | 'route' | null>(null)
   const floodAdded = useRef(false)
   const quakeAdded = useRef(false)
   const layersButtonRef = useRef<HTMLButtonElement>(null)
@@ -236,7 +244,11 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     async (
       selectedOrigin?: Place | null,
       cond: Condition = condition,
-      { collapseOnMobile = true }: { collapseOnMobile?: boolean } = {},
+      {
+        collapseOnMobile = true,
+        // ⚠️ 種類も引数で受ける。切り替え直後に state を読むと更新前の値になる
+        kinds = shelterKinds,
+      }: { collapseOnMobile?: boolean; kinds?: ShelterKind[] } = {},
     ) => {
       if (shelterSearchRunning.current) return
       const origin = selectedOrigin ?? state.origin.place
@@ -256,7 +268,12 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       shelterSearchRunning.current = true
       setShelterSearchLoading(true)
       try {
-        const request = buildShelterSearchRequest(origin, buildHazards(cond), FLOOD_SCENARIO)
+        const request = buildShelterSearchRequest(
+          origin,
+          buildHazards(cond),
+          FLOOD_SCENARIO,
+          toParam(kinds),
+        )
         const result = await search.runShelter(request)
         // 失敗（範囲外・該当避難先なし）のときは `search.error` に本文が入る。
         // ⚠️ ここで search.error を読むと**1つ前のレンダーの値**なので読まない。
@@ -284,7 +301,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         setShelterSearchLoading(false)
       }
     },
-    [area, condition, flash, mobile, search.runShelter, state.origin.place],
+    [area, condition, flash, mobile, search.runShelter, shelterKinds, state.origin.place],
   )
 
   /** 考慮する災害を切り替える。**検索後なら、同じ探索を新しい条件で引き直す。**
@@ -323,6 +340,24 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     ],
   )
 
+  /** 探す避難先の種類を切り替える。**検索後なら、その種類で探し直す。**
+   *
+   * ⚠️ 目的地を指定した経路（候補タップ後）では引き直さない。あちらは
+   *    種類と関係なく「その地点まで」なので、切り替えても結果は変わらない。
+   */
+  const applyShelterKinds = useCallback(
+    (next: ShelterKind[]) => {
+      setShelterKinds(next)
+      if (state.screen === 'route' && bundle?.shelter) {
+        void runShelterSearch(state.origin.place, condition, {
+          collapseOnMobile: false,
+          kinds: next,
+        })
+      }
+    },
+    [bundle?.shelter, condition, runShelterSearch, state.origin.place, state.screen],
+  )
+
   /** 候補をタップしたとき。その避難所を目的地にして普通の2点探索へ切り替える。
    * ⚠️ 避難先探索をやり直すと推奨が選び直されて別の場所へ飛ぶので、
    *    ここは `runRoute`（目的地指定）を使う */
@@ -337,20 +372,34 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     [runRoute],
   )
 
-  const requestLocation = useCallback(async () => {
-    try {
-      const place = await currentPosition()
-      dispatch({ type: 'select_place', field: 'origin', place })
-      adapter.current?.flyTo([place.lon, place.lat], 15)
-    } catch (error) {
-      flash((error as Error).message)
-    }
-  }, [adapter, flash])
+  /** 現在地を出発地にする。
+   *
+   * ⚠️ **取得中であることを画面に出す。** 端末によっては10秒近くかかり、
+   * 出ていないと「壊れている」ように見える（2026-08-23の指摘）。
+   * ⚠️ **起動時の自動取得では失敗を通知しない。** 利用者が頼んでいない処理で
+   * 赤いメッセージを出すと、こちらの都合の失敗を利用者のせいのように見せる。
+   * 出発地が未設定のままになるだけで、画面には「設定」ボタンが出ている。
+   */
+  const requestLocation = useCallback(
+    async ({ notifyError = true }: { notifyError?: boolean } = {}) => {
+      setLocating(true)
+      try {
+        const place = await currentPosition()
+        dispatch({ type: 'select_place', field: 'origin', place })
+        adapter.current?.flyTo([place.lon, place.lat], 15)
+      } catch (error) {
+        if (notifyError) flash((error as Error).message)
+      } finally {
+        setLocating(false)
+      }
+    },
+    [adapter, flash],
+  )
 
   useEffect(() => {
     if (requestedLocation.current) return
     requestedLocation.current = true
-    void requestLocation()
+    void requestLocation({ notifyError: false })
   }, [requestLocation])
 
   /** 候補を選ぶ。
@@ -368,6 +417,18 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         return
       }
       dispatch({ type: 'select_place', field, place })
+      // ⚠️ **出発地を選び直したら、同じ探索をその場で引き直す。** 選んだあとに
+      //    もう一度ボタンを押させると、変えたのに前の結果が残って見える。
+      //    目的地の選び直しは従来どおり（別にボタンがある）
+      if (field === 'origin') {
+        const mode = bundle ? (bundle.shelter ? 'shelter' : 'route') : changingOrigin.current
+        changingOrigin.current = null
+        if (mode === 'shelter') {
+          void runShelterSearch(place)
+        } else if (mode === 'route' && state.destination.place) {
+          void runRoute(state.destination.place, { origin: place })
+        }
+      }
     } catch (e) {
       flash((e as Error).message)
     }
@@ -389,6 +450,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   )
 
   function endRoute() {
+    changingOrigin.current = null
     search.clear()
     dispatch({ type: 'end_route' })
     setSheetOpen(false)
@@ -438,6 +500,10 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     const a = adapter.current
     if (!a || !ready || !bundle) return
     for (const route of bundle.routes) a.setVisible(route.id, state.shownRoutes[route.id] !== false)
+    // ⚠️ もう一方の避難先への線は `routes[]` に入っていないので別に切り替える
+    if (bundle.alt_shelter) {
+      a.setVisible('shelter_alt', state.shownRoutes.shelter_alt !== false)
+    }
   }, [adapter, ready, bundle, state.shownRoutes])
 
   useEffect(() => {
@@ -604,9 +670,12 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             />
           </section>
         )}
+        {/* ⚠️ **ボトムシートより上に出すこと。** 地図の中（`absolute`）に置くと、
+            スマホでシートが開いている間は隠れて見えない。検索はシートの中の
+            ボタンから始まるので、いちばん見せたい瞬間に見えなくなる */}
         {search.loading && (
           <div
-            className="absolute inset-0 z-[5] flex items-start justify-center bg-slate-950/5 pt-[72px] min-[900px]:items-center min-[900px]:pt-0"
+            className="fixed inset-0 z-30 flex items-start justify-center bg-slate-950/5 pt-[72px] min-[900px]:items-center min-[900px]:pt-0"
             role="status"
             aria-live="polite"
           >
@@ -701,8 +770,14 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                     調べ直すのにページ再読み込みが要った（チーム指摘、2026-08-23） */}
                 <p className="mb-2 flex items-center gap-1.5 text-[9px] text-slate-500">
                   <span className="shrink-0">出発地</span>
-                  <strong className="truncate font-bold text-slate-700">
-                    {state.origin.place?.title ?? '未設定'}
+                  <strong className="flex min-w-0 items-center gap-1 truncate font-bold text-slate-700">
+                    {locating && !state.origin.place && (
+                      <span
+                        aria-hidden="true"
+                        className="size-2.5 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600 motion-reduce:animate-none"
+                      />
+                    )}
+                    {state.origin.place?.title ?? (locating ? '現在地を取得しています…' : '未設定')}
                   </strong>
                   <button
                     type="button"
@@ -719,6 +794,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                     先に災害を選べるようにしておく。検索画面へ入らないと
                     選べないままだと、既定（地震）で探したことに気づけない */}
                 <HazardCondition hazard={state.hazard} onChange={applyCondition} />
+                <ShelterTypePicker onChange={applyShelterKinds} selected={shelterKinds} />
                 <SafeShelterSearchButton
                   loading={shelterSearchLoading}
                   onSearch={runShelterSearch}
@@ -736,7 +812,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                       >
                         <div className="flex items-center justify-between">
                           <span
-                            className={`inline-flex min-h-4 items-center rounded-full px-1.5 text-[8px] font-bold ${feature.properties.type === 'urgent' ? 'bg-orange-50 text-orange-800' : 'bg-emerald-50 text-emerald-800'}`}
+                            className={`inline-flex min-h-4 items-center rounded-full px-1.5 text-[8px] font-bold ${feature.properties.type === 'urgent' ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-800'}`}
                           >
                             {feature.properties.type_label}
                           </span>
@@ -775,6 +851,9 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                 </p>
               )}
               <HazardCondition hazard={state.hazard} onChange={applyCondition} />
+              {shelterSearchMode && (
+                <ShelterTypePicker onChange={applyShelterKinds} selected={shelterKinds} />
+              )}
               {searchFields.map((field) => {
                 const value = state[field]
                 return (
@@ -798,9 +877,11 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               <button
                 type="button"
                 className="mb-2 ml-[66px] cursor-pointer border-0 bg-transparent text-[10px] text-[#07156f]"
+                aria-busy={locating}
+                disabled={locating}
                 onClick={() => void requestLocation()}
               >
-                ◎ 現在地を出発地にする
+                {locating ? '◎ 現在地を取得しています…' : '◎ 現在地を出発地にする'}
               </button>
               {shelterSearchMode ? (
                 <SafeShelterSearchButton
@@ -900,9 +981,28 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                 <button type="button" onClick={endRoute} aria-label="経路を終了">
                   ×
                 </button>
-                <div>
-                  <small>{state.origin.place?.title} →</small>
-                  <h2>{state.destination.place?.title}</h2>
+                <div className="min-w-0 flex-1">
+                  <small className="flex items-center gap-1.5">
+                    <span className="truncate">{state.origin.place?.title} →</span>
+                    {/* ⚠️ **検索後でも出発地を変えられるようにする。** ここに無いと
+                        経路を終了してやり直すしかなかった（2026-08-23の指摘） */}
+                    <button
+                      type="button"
+                      className="shrink-0 cursor-pointer rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] text-[#07156f]"
+                      onClick={() => {
+                        changingOrigin.current = bundle?.shelter ? 'shelter' : 'route'
+                        dispatch({
+                          type: 'open_search',
+                          purpose: bundle?.shelter ? 'shelter' : 'route',
+                        })
+                        dispatch({ type: 'activate_field', field: 'origin' })
+                        setSheetOpen(true)
+                      }}
+                    >
+                      出発地を変更
+                    </button>
+                  </small>
+                  <h2 className="truncate">{state.destination.place?.title}</h2>
                 </div>
               </div>
               {/* 表示だけでなく、ここで切り替えて引き直せる */}
@@ -917,6 +1017,16 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                 onChange={applyCondition}
                 title="経路条件"
               />
+              {/* ⚠️ 目的地を指定した経路では出さない。種類を変えても結果が
+                  変わらないので、押せると誤解を招く */}
+              {bundle?.shelter && (
+                <ShelterTypePicker
+                  busy={search.loading}
+                  note="切り替えるとその種類で探し直します"
+                  onChange={applyShelterKinds}
+                  selected={shelterKinds}
+                />
+              )}
               {search.loading && (
                 <p className="mb-3 text-[9px] text-slate-500" role="status">
                   新しい条件で引き直しています…
@@ -933,6 +1043,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               )}
               {bundle && (
                 <RouteTable
+                  alt={bundle.alt_shelter}
                   bundle={bundle}
                   shown={state.shownRoutes}
                   risk={hazardMeta?.risk}
@@ -956,6 +1067,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   ⚠️ 候補に通し番号の順位を振らないこと（ShelterResult 冒頭） */}
               {bundle?.shelter && bundle.shelter_candidates && bundle.shelter_query && (
                 <ShelterResult
+                  alt={bundle.alt_shelter}
                   candidates={bundle.shelter_candidates}
                   onSelect={chooseCandidate}
                   query={bundle.shelter_query}
