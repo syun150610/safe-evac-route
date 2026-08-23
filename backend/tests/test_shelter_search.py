@@ -442,6 +442,45 @@ def test_draws_the_other_kind_when_both_are_selected():
     assert SS.ALT_ROUTE_ID not in {x["id"] for x in r["routes"]}
 
 
+def test_alt_shelter_gets_baseline_and_rationale():
+    """⚠️ **もう一方の避難先にも最短経路と根拠を出す。**
+
+    片方だけ最短があると、もう一方については「遠回りなのか」「どれだけ危険を
+    避けられたのか」が言えない（2026-08-24の指摘）。
+    """
+    r = SS.search(CHOFU, hazards=QUAKE, shelter_type="all")
+
+    ids = [x["id"] for x in r["alt_routes"]]
+    assert ids == [SS.ALT_BASELINE_ID, SS.ALT_ROUTE_ID]
+
+    lines = {
+        f["properties"]["route"]
+        for f in r["geojson"]["features"]
+        if f["properties"]["kind"] == "route"
+    }
+    assert {SS.ALT_BASELINE_ID, SS.ALT_ROUTE_ID} <= lines
+
+    # ⚠️ 根拠は**そのもう一方の避難先について**のもの。おすすめのを使い回さない
+    assert r["alt_rationale"]["hazards"]
+    assert r["alt_rationale"] != r["rationale"]
+
+    # ⚠️ おすすめ側の `routes[]` には混ぜない（行き先が違う）
+    assert not ({SS.ALT_BASELINE_ID, SS.ALT_ROUTE_ID} & {x["id"] for x in r["routes"]})
+
+    # ⚠️ 区間は落とす（タップ用の情報は `od` の経路にしか要らない）
+    alt_segments = [
+        f
+        for f in r["geojson"]["features"]
+        if f["properties"]["kind"] == "segment"
+        and f["properties"]["route"] in (SS.ALT_BASELINE_ID, SS.ALT_ROUTE_ID)
+    ]
+    assert alt_segments == []
+
+    # もう一方の統計は、実際に返した経路のもの
+    selected = next(x for x in r["alt_routes"] if x["id"] == SS.ALT_ROUTE_ID)
+    assert r["alt_shelter"]["stats"] == selected["stats"]
+
+
 def test_no_other_kind_when_one_is_selected():
     for kind in ("urgent", "designated"):
         r = SS.search(CHOFU, hazards=QUAKE, shelter_type=kind)

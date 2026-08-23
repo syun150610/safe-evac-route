@@ -54,6 +54,23 @@ const ALT = {
   stats: stats({ distance_m: 1477, duration_min_60: 24 }),
 } as unknown as NonNullable<Bundle['alt_shelter']>
 
+/** ⚠️ もう一方の避難先にも**最短経路が出る**（2026-08-24）。片方だけ1本だと、
+ *  遠回りなのかどうかを言えない */
+const ALT_ROUTES = [
+  {
+    id: 'shelter_alt_baseline',
+    no: '',
+    label: '最短経路',
+    stats: stats({ distance_m: 1477, duration_min_60: 24 }),
+  },
+  {
+    id: 'shelter_alt',
+    no: '',
+    label: '地震を考慮',
+    stats: stats({ distance_m: 1490, duration_min_60: 25 }),
+  },
+] as unknown as NonNullable<Bundle['alt_routes']>
+
 const BUNDLE = {
   selected_route: 'quake',
   shelter: SHELTER,
@@ -130,7 +147,7 @@ describe('RouteTable', () => {
 
 describe('RouteTable（避難先が2つのとき）', () => {
   it('⚠️ どちらの避難先の数字かを列の見出しで示す', () => {
-    const html = render({ alt: ALT })
+    const html = render({ alt: ALT, altRoutes: ALT_ROUTES })
     expect(html).toContain('第一小学校')
     expect(html).toContain('指定避難所')
     expect(html).toContain('多摩川河川敷')
@@ -139,10 +156,11 @@ describe('RouteTable（避難先が2つのとき）', () => {
 
   // ⚠️ 「どちらの避難先の数字か」は要約へ移した（`CompareLead.test.tsx`）
 
-  it('もう一方の経路も表示を切り替えられる', () => {
-    const html = render({ alt: ALT })
-    // チェックボックスは 最短経路 / 地震を考慮 / もう一方 の3つ
-    expect(html.match(/type="checkbox"/g)?.length).toBe(3)
+  // ⚠️ もう一方にも最短経路が出るので、両側で同じ2本ずつになる
+  it('もう一方の避難先にも最短経路を並べる', () => {
+    const html = render({ alt: ALT, altRoutes: ALT_ROUTES })
+    expect(html.match(/type="checkbox"/g)?.length).toBe(4)
+    expect(html.match(/最短経路/g)?.length).toBe(2)
   })
 
   it('避難先が1つなら見出しを増やさない（従来どおり）', () => {

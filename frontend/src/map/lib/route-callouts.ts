@@ -328,16 +328,29 @@ export function routeCallouts(bundle: Bundle | null, options: Options): CalloutS
   // ⚠️ もう一方の種類の避難先。**行き先が違うので別の吹き出し**にする。
   //    経路は1本しかなく、最短を引いていないので比較の数字は出せない
   const alt = bundle.alt_shelter
-  if (alt && shown.shelter_alt !== false) {
+  // ⚠️ **もう一方の避難先にも最短経路が出るようになった**（2026-08-24）。
+  //    おすすめ側と同じように、出ている経路をぜんぶ並べる
+  const altRoutes = (bundle.alt_routes ?? []).filter((route) => shown[route.id] !== false)
+  const altRows = altRoutes.length
+    ? altRoutes.map((route) => rowOf(route.id, route.label, route.stats, risk))
+    : shown.shelter_alt !== false && alt
+      ? [rowOf('shelter_alt', altRouteLabel(hazardLabel), alt.stats, risk)]
+      : []
+  if (alt && altRows.length) {
     const at: [number, number] = [alt.latlon[1], alt.latlon[0]]
     list.push({
       id: 'alt',
       lngLat: at,
       onDismiss,
-      anchor: pickAnchor(tailVectors(bundle, ['shelter_alt'], at), towardOrigin(bundle, at)),
-      html: render(alt.type_label, alt.name, [
-        rowOf('shelter_alt', altRouteLabel(hazardLabel), alt.stats, risk),
-      ]),
+      anchor: pickAnchor(
+        tailVectors(
+          bundle,
+          altRoutes.length ? altRoutes.map((route) => route.id) : ['shelter_alt'],
+          at,
+        ),
+        towardOrigin(bundle, at),
+      ),
+      html: render(alt.type_label, alt.name, altRows),
     })
   }
 
