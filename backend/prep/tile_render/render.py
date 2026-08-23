@@ -38,7 +38,12 @@ OUT_ROOT = tiles_path("flood")
 #   frontend/src/map/EvacRouteMap.tsx  FLOOD_ZOOM
 # ⚠️ 補間を切るのも忘れない（MapLibre: raster-resampling=nearest /
 #    Google: getTile の image-rendering=pixelated）。切らないとブロックがぼやける。
-ZOOMS = range(12, 16)
+# ⚠️ **引きでも出す。** z12始まりだと、東京都全体が入る縮尺（z10前後）で
+# 浸水レイヤーが消えていた（ユーザー指摘、2026-08-24）。1pxが150m相当になるが、
+# 1px内の**最大**浸水深を取る（下の `maximum_filter`）ので、
+# 「この地点はこの値を超えない」という包絡の意味は保てる。
+# 枚数は z10=数枚 / z11=十数枚 で、増分はごくわずか。
+ZOOMS = range(10, 16)
 PALETTE = "standard"  # "standard"(国交省浸水深標準色) or "pedestrian"(徒歩基準)
 BBOX = None  # (lat_min, lat_max, lon_min, lon_max) or None=全域
 TILE = 256

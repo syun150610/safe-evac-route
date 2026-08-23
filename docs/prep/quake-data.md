@@ -8,7 +8,7 @@
 | | 浸水（flood） | 地震（quake） |
 |---|---|---|
 | 元データ | 点群CSV 17件 | 町丁目ポリゴンSHP 1件 |
-| 表示 | **PNGラスタタイル**を焼く（z12〜15、profile別） | **GeoJSONを1枚**書き出す。タイルは焼かない |
+| 表示 | **PNGラスタタイル**を焼く（z10〜15、profile別） | **GeoJSONを1枚**書き出す。タイルは焼かない |
 | 前処理 | 格子再構成 → タイル生成 | GPKG正規化 → GeoJSON書き出し |
 | シナリオ | `envelope` / `sumidagawa` / `kandagawa` | `total` / `building` / `fire`（ランクの列違い） |
 | 経路への焼き込み | グラフ構築時に同時に行う（[flood-data.md](flood-data.md)） | ← **同じ工程で一緒に焼かれる** |

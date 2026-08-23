@@ -380,9 +380,11 @@ describe('adapter_google（スタブ）', () => {
       a.addRasterLayer('flood', url, { minzoom: 12, maxzoom: 17, opacity: 0.7 })
       const t = created.overlays[0].getTile({ x: 14552, y: 6446 }, 14, document)
       expect(t.style.backgroundImage).toContain('/14/14552/6446.png')
-      // ⚠️ **同じ画像を重ねて塗っている**（PNGに焼かれた不透明度が薄いため）。
-      //    重ねる枚数を変えるとここも変わる
-      expect(t.style.backgroundSize).toBe('256px 256px, 256px 256px')
+      // ⚠️ **同じ画像を重ねて塗り、わずかに拡大している**（薄さと隙間の対策）。
+      //    枚数と拡大量を変えるとここも変わる
+      const sizes = t.style.backgroundSize.split(', ')
+      expect(new Set(sizes).size).toBe(1)
+      expect(sizes[0]).toBe('257px 257px')
       expect(t.style.opacity).toBe('0.7')
     })
 
@@ -392,9 +394,11 @@ describe('adapter_google（スタブ）', () => {
       // z19 → 親 z17。shift=2, scale=4。116417>>2=29104, 51571>>2=12892
       const t = created.overlays[0].getTile({ x: 116417, y: 51571 }, 19, document)
       expect(t.style.backgroundImage).toContain('/17/29104/12892.png')
-      expect(t.style.backgroundSize).toBe('1024px 1024px, 1024px 1024px')
-      // 116417%4=1, 51571%4=3
-      expect(t.style.backgroundPosition).toBe('-256px -768px, -256px -768px')
+      expect(t.style.backgroundSize.split(', ')[0]).toBe('1025px 1025px')
+      // 116417%4=1, 51571%4=3。拡大したぶん位置も同じ割合でずらす
+      const [px, py] = t.style.backgroundPosition.split(', ')[0].split(' ')
+      expect(Number.parseFloat(px)).toBeCloseTo(-256 * (1025 / 1024), 1)
+      expect(Number.parseFloat(py)).toBeCloseTo(-768 * (1025 / 1024), 1)
     })
 
     it('範囲外は空タイル / 経度をラップする', async () => {
@@ -420,6 +424,16 @@ describe('adapter_google（スタブ）', () => {
       expect(t.style.opacity).toBe('1')
     })
 
+    // ⚠️ 小数ズームだとタイルの境目が端数pxになり、下地の色が細く抜けて見える
+    it('隣り合うタイルの隙間を埋める（わずかに拡大して重ねる）', async () => {
+      const a = await makeAdapter()
+      a.addRasterLayer('flood', url, { minzoom: 10, maxzoom: 15, opacity: 1 })
+      const t = created.overlays[0].getTile({ x: 14552, y: 6446 }, 14, document)
+      const size = Number.parseFloat(t.style.backgroundSize)
+      expect(size).toBeGreaterThan(256)
+      expect(size).toBeLessThanOrEqual(258) // 埋める以上に伸ばさない
+    })
+
     // ⚠️ 焼かれた不透明度（浸水色 0.65）のままでは下地に負けて読めない
     it('浸水タイルを重ね塗りして濃くする', async () => {
       const a = await makeAdapter()
@@ -430,6 +444,8 @@ describe('adapter_google（スタブ）', () => {
       expect(new Set(layers).size).toBe(1) // 同じ画像を重ねる（別の絵を混ぜない）
       // 色相は動かさない（凡例の色見本と食い違う）
       expect(t.style.filter).toContain('saturate')
+      // ⚠️ 普通に重ねると下の道路と地名を塗りつぶす。乗算なら暗い線が残る
+      expect(t.style.mixBlendMode).toBe('multiply')
     })
 
     it('差し替えで overlay を作り直し、不透明度を引き継ぐ', async () => {

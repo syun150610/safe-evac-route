@@ -323,14 +323,17 @@ mkdir -p gesuido
 cp -a envelope kandagawa sumidagawa gesuido/
 ```
 
-両profile 2,491枚ずつと地震GeoJSON 3件、合計4,985件が揃った後にアップロードする。
+アップロードは**プレフィックスごとの期待枚数**を満たしてから行う
+（`worker/scripts/upload-tiles.mjs` の `EXPECTED_ASSETS` が単一の出所）。
+2026-08-24時点は `flood/kensetsu` 6,358枚（z10〜15。envelope 5,074 / 神田川 642 /
+隅田川 642）、`flood/gesuido` 2,491枚（旧世代の退避。z12〜15）、`quake` 3件。
+⚠️ **枚数やズームを変えたら、このスクリプトの定数とここの記載を一緒に直す。**
 このコマンドはR2を書き換えるため、PRのローカル検証では実行しない。
 
 ```bash
 cd "$(git rev-parse --show-toplevel)/worker"
-npm run tiles:upload -- "$(cd ../data/processed/tiles && pwd)" --check
-# `validated 4985 assets (no upload)` を確認した後、レビュー済みなら:
-npm run tiles:upload -- "$(cd ../data/processed/tiles && pwd)"
+npm run tiles:upload -- "$(cd ../data/processed/tiles_newscope && pwd)" --check
+# `validated ... assets (no upload)` を確認した後、レビュー済みなら --check を外す
 ```
 
 従来の `flood/{scenario}/...` は直ちに削除せずロールバック期間中は残すが、新しいAPIは
