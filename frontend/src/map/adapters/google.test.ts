@@ -425,6 +425,18 @@ describe('adapter_google（スタブ）', () => {
       expect(opts.headerDisabled).toBe(true)
     })
 
+    // ⚠️ 既定では吹き出しの先端が地点そのものに来るので、同じ地点に立つ
+    //    避難先のピンを覆ってしまう
+    it('ピンの高さぶん持ち上げる', async () => {
+      const a = await makeAdapter()
+      const before = created.infoWindows.length
+      a.setCallouts([callout('dest', 139.77, 35.71)])
+      const offset = created.infoWindows[before].opts.pixelOffset as { w: number; h: number }
+      expect(offset.w).toBe(0)
+      // マーカーは 24x36 で地点に立つ。それより上へ逃がす
+      expect(offset.h).toBeLessThanOrEqual(-36)
+    })
+
     it('渡し直すと前のものを閉じる', async () => {
       const a = await makeAdapter()
       const before = created.infoWindows.length

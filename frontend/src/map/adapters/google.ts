@@ -28,6 +28,11 @@ export function createGoogleAdapter(): MapAdapter {
   // 論理ズーム（MapLibre基準）→ Google のズーム。**この +1 を共通側に漏らさない**
   const Z_SHIFT = 1
 
+  // 要約の吹き出しをピンの上へ逃がす量(px)。
+  // **マーカーの高さ（36px。地点に立つので上へ36px伸びる）＋余白**。
+  // マーカーの大きさを変えたらここも変える（重なりが戻る）
+  const CALLOUT_LIFT = 42
+
   // Google には画面px基準の line-offset が無い。世界座標(m)でずらすしかないので、
   // 「現在のズームで何メートルが1pxか」を毎回計算して線を引き直す。
   // 固定のmでずらすと、ズームアウト時に5本が重なって見分けられなくなる
@@ -633,6 +638,9 @@ export function createGoogleAdapter(): MapAdapter {
     //    複数出すと最後の1件へ勝手に寄っていく（fitBounds の結果が台無しになる）。
     // ⚠️ `headerDisabled` で×ボタンを消す。要約は利用者が閉じるものではない
     //    （Maps JS が知らない場合は無視されるだけで、害はない）。
+    // ⚠️ `pixelOffset` でピンの高さぶん持ち上げる。既定では吹き出しの先端が
+    //    地点そのものに来るので、**同じ地点に立っているピンを覆う**
+    //    （ユーザー指摘、2026-08-23）。値は CALLOUT_LIFT の説明を参照。
     setCallouts(list: CalloutSpec[]) {
       if (!map) return
       while (callouts.length) callouts.pop().close()
@@ -642,6 +650,7 @@ export function createGoogleAdapter(): MapAdapter {
           position: { lat: c.lngLat[1], lng: c.lngLat[0] },
           disableAutoPan: true,
           headerDisabled: true,
+          pixelOffset: new google.maps.Size(0, -CALLOUT_LIFT),
         })
         iw.open(map)
         callouts.push(iw)

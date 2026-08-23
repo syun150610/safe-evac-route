@@ -544,13 +544,15 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     const a = adapter.current
     if (!a || !ready) return
     a.setCallouts(
-      routeCallouts(bundle, {
-        risk: hazardMeta?.risk,
-        shown: state.shownRoutes,
-        hazardLabel: primaryHazard?.label,
-      }),
+      state.showCallouts
+        ? routeCallouts(bundle, {
+            risk: hazardMeta?.risk,
+            shown: state.shownRoutes,
+            hazardLabel: primaryHazard?.label,
+          })
+        : [],
     )
-  }, [adapter, ready, bundle, hazardMeta, primaryHazard, state.shownRoutes])
+  }, [adapter, ready, bundle, hazardMeta, primaryHazard, state.shownRoutes, state.showCallouts])
 
   useEffect(() => {
     const a = adapter.current
@@ -689,6 +691,8 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               loading={quakeLoading}
               error={quakeError}
               onChange={(layer) => dispatch({ type: 'set_layer', layer })}
+              callouts={state.showCallouts}
+              onCalloutsChange={(shown) => dispatch({ type: 'show_callouts', shown })}
             />
           </section>
         )}
