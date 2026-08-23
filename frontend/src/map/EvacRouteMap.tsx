@@ -220,6 +220,9 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       const result = await search.run(buildRouteSearchRequest(base, destination))
       if (result) {
         dispatch({ type: 'route_ready', routes: result.routes.map((route) => route.id) })
+        // ⚠️ **考慮した災害のタイルを自動で出す。** 経路だけ見せても、なぜその
+        //    迂回になったのかが地図から読み取れない
+        dispatch({ type: 'set_layer', layer: cond.hazard })
         // ⚠️ スマホでは畳む。判定と理由は `bottomSheetLogic.sheetOpenAfterSearch`
         setSheetOpen(sheetOpenAfterSearch(mobile, collapseOnMobile))
       }
@@ -268,6 +271,8 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
           },
         })
         dispatch({ type: 'route_ready', routes: result.routes.map((route) => route.id) })
+        // 考慮した災害のタイルを自動で出す（runRoute と同じ理由）
+        dispatch({ type: 'set_layer', layer: cond.hazard })
         // スマホでは畳む（runRoute と同じ）
         setSheetOpen(sheetOpenAfterSearch(mobile, collapseOnMobile))
       } catch (error) {
