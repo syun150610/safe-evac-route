@@ -42,9 +42,8 @@ import math
 from app.services.evac_routes import search as S
 from app.services.shelters import loader
 from prep.hazard_sources import registry
-from prep.route_search import bundles as B
 from prep.route_search import csr_search as CS
-from prep.route_search.search import resolve_path_edges, route_stats, stitch
+from prep.route_search.search import resolve_path_edges, route_stats
 from prep.route_search.snap import graph_bbox
 from prep.route_search.weights import edge_cost
 
@@ -82,6 +81,10 @@ MATCHED_EXTRA = 2
 # 両方の種類を選んでいるときに描く「もう一方」の経路ID。
 # ⚠️ **`od.dest` とは行き先が違う。** 既存の経路IDと混ぜないこと
 ALT_ROUTE_ID = "shelter_alt"
+# もう一方の避難先への「最短経路」。
+# ⚠️ **こちらにも最短を出す。** 片方だけ最短があると、遠回りしているのかどうかを
+#    もう一方については判断できない（ユーザー指摘、2026-08-24）。
+ALT_BASELINE_ID = "shelter_alt_baseline"
 
 # 見つからないときの案内で使う呼び名
 _TYPE_LABEL = {
@@ -361,28 +364,49 @@ def search(
             if r["within_limit"] and r["danger_ratio"] <= DANGER_RATIO_LIMIT
         ]
         alt = min(calm_others or others, key=lambda r: r["cost"], default=None)
-    if alt is not None and alt.get("_edges"):
-        result["geojson"]["features"].append(
-            B.feature(
-                stitch(G, alt["_edges"]),
-                {
-                    "kind": "route",
-                    # ⚠️ **行き先が `od.dest` と違う線。** IDを分けて、
-                    #    既存の経路と取り違えられないようにする
-                    "route": ALT_ROUTE_ID,
-                    "no": "",
-                    "label": f"もう一方の{alt['type_label']}",
-                    "role": "compare",
-                    "desc": "選んでいるもう一方の種類で、"
-                    "いちばん条件のよい避難先への経路",
-                    "weight": "shelter_alt",
-                    **alt["stats"],
-                },
-            )
+    if alt is not None:
+        # ⚠️ **もう一方の避難先も、おすすめと同じ形で引き直す。** 候補選びで使った
+        #    経路をそのまま出すと、最短経路も根拠も無い1本だけになり、
+        #    「遠回りなのか」「どれだけ危険を避けられたのか」が言えない
+        #    （ユーザー指摘、2026-08-24）。区間（segment）は要らないので落とす。
+        alt_result = S.search(
+            {"lat": o_lat, "lon": o_lon, "label": _o_label},
+            {
+                "lat": alt["latlon"][0],
+                "lon": alt["latlon"][1],
+                "label": alt["name"],
+            },
+            hazards=hazards,
+            include=include,
+            scenario=scenario,
+            with_segments=False,
+        )
+        # ⚠️ **IDを付け替える。** `od.dest` と行き先が違う線なので、既存の経路と
+        #    同じIDのままだと地図でも表でも取り違える
+        alt_selected = alt_result["selected_route"]
+        remap = {"baseline": ALT_BASELINE_ID, alt_selected: ALT_ROUTE_ID}
+        if alt_selected == "baseline":
+            # 種別を1つも選んでいないときは最短しか無い。線は1本
+            remap = {"baseline": ALT_ROUTE_ID}
+        alt_routes = [
+            r | {"id": remap[r["id"]]} for r in alt_result["routes"] if r["id"] in remap
+        ]
+        for f in alt_result["geojson"]["features"]:
+            props = f["properties"]
+            if props.get("kind") != "route" or props.get("route") not in remap:
+                continue
+            props["route"] = remap[props["route"]]
+            result["geojson"]["features"].append(f)
+
+        alt_stats = next(
+            (r["stats"] for r in alt_routes if r["id"] == ALT_ROUTE_ID), alt["stats"]
         )
         result["alt_shelter"] = {
             k: v for k, v in alt.items() if k not in ("stats", "_edges")
-        } | {"stats": alt["stats"], "route": ALT_ROUTE_ID}
+        } | {"stats": alt_stats, "route": ALT_ROUTE_ID}
+        result["alt_routes"] = alt_routes
+        # ⚠️ **根拠ももう一方のぶんを返す。** 片方の根拠を両方に当てはめない
+        result["alt_rationale"] = alt_result["rationale"]
 
     for r in rows:
         r.pop("_edges", None)

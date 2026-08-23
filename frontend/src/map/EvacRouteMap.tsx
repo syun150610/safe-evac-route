@@ -221,10 +221,33 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         beforeM={primaryHazard.before_m}
         compare={summary ? compareText(summary) : ''}
         riskLabel={primaryHazard.risk_label}
-        shelterName={bundle?.alt_shelter ? bundle.shelter?.name : undefined}
       />
     )
   }, [primaryHazard, bundle])
+
+  /** もう一方の避難先の根拠。⚠️ **経路の重みに掛けた種別だけ**（おすすめ側と同じ規則） */
+  const altRationaleHazards = bundle?.alt_rationale?.hazards.filter((h) => h.considered) ?? []
+
+  /** もう一方の避難先の要約。⚠️ 数値はその避難先の根拠から取る（使い回さない） */
+  const altCompareLead = useMemo(() => {
+    const hazard = altRationaleHazards[0]
+    const distance = bundle?.alt_rationale?.distance
+    if (!hazard || !distance) return null
+    return (
+      <CompareLead
+        afterM={hazard.after_m}
+        beforeM={hazard.before_m}
+        compare={compareText({
+          label: '',
+          distance: '',
+          minutes: Math.round(distance.selected_min_60),
+          baselineDelta: Math.round(distance.selected_min_60 - distance.baseline_min_60),
+          baselineDistanceDelta: Math.round(distance.delta_m),
+        })}
+        riskLabel={hazard.risk_label}
+      />
+    )
+  }, [altRationaleHazards[0], bundle?.alt_rationale?.distance])
 
   /** 畳んだ「検索の条件」に出す一行。⚠️ **災害の呼び名はAPI由来**を使う */
   const conditionSummary = `${hazardMeta?.label ?? ''}を考慮 ・ ${kindsSummary(shelterKinds)}`
@@ -629,8 +652,8 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     if (!a || !ready || !bundle) return
     for (const route of bundle.routes) a.setVisible(route.id, state.shownRoutes[route.id] !== false)
     // ⚠️ もう一方の避難先への線は `routes[]` に入っていないので別に切り替える
-    if (bundle.alt_shelter) {
-      a.setVisible('shelter_alt', state.shownRoutes.shelter_alt !== false)
+    for (const route of bundle.alt_routes ?? []) {
+      a.setVisible(route.id, state.shownRoutes[route.id] !== false)
     }
   }, [adapter, ready, bundle, state.shownRoutes])
 
@@ -1237,6 +1260,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               {bundle && (
                 <RouteTable
                   alt={bundle.alt_shelter}
+                  altRoutes={bundle.alt_routes}
                   bundle={bundle}
                   shown={state.shownRoutes}
                   risk={hazardMeta?.risk}
@@ -1247,15 +1271,35 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               {/* なぜこの経路なのか。短文と詳細4行はAPIが完成した文字列で返す
                   （`backend/app/services/evac_routes/rationale.py` が文言の単一の出所）。
                   この部品は分解せず、置き場所を変えるだけで使う */}
-              {consideredHazards.length > 0 && (
-                <RouteRationale
-                  lead={compareLead}
-                  rationale={{
-                    ...(bundle?.rationale as Rationale),
-                    hazards: consideredHazards,
-                  }}
-                />
-              )}
+              {/* ⚠️ **避難先ごとに要約と根拠を並べる。** もう一方にも最短経路が
+                  出るようになったので、同じ形で比べられる（2026-08-24の指摘）。
+                  ⚠️ 根拠は**それぞれの避難先についてのもの**。片方の根拠を
+                  もう一方に当てはめない */}
+              <div className="flex flex-wrap items-start gap-3">
+                {consideredHazards.length > 0 && (
+                  <div className="min-w-[240px] flex-1">
+                    {altRationaleHazards.length > 0 && bundle?.shelter && (
+                      <p className="mt-2 text-[10px] text-slate-500">{bundle.shelter.name}</p>
+                    )}
+                    <RouteRationale
+                      lead={compareLead}
+                      rationale={{
+                        ...(bundle?.rationale as Rationale),
+                        hazards: consideredHazards,
+                      }}
+                    />
+                  </div>
+                )}
+                {altRationaleHazards.length > 0 && bundle?.alt_rationale && (
+                  <div className="min-w-[240px] flex-1">
+                    <p className="mt-2 text-[10px] text-slate-500">{bundle.alt_shelter?.name}</p>
+                    <RouteRationale
+                      lead={altCompareLead}
+                      rationale={{ ...bundle.alt_rationale, hazards: altRationaleHazards }}
+                    />
+                  </div>
+                )}
+              </div>
               {/* 避難先探索のときだけ。推奨1件と比較材料。
                   ⚠️ 候補に通し番号の順位を振らないこと（ShelterResult 冒頭） */}
               {bundle?.shelter && bundle.shelter_candidates && bundle.shelter_query && (

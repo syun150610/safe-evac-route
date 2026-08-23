@@ -16,8 +16,11 @@ export type RouteId =
   | 'minimax'
   /** ⚠️ **これだけ行き先が `od.dest` と違う。** 避難先の種類を両方選んだときに
    * 描く「もう一方の種類の最善」への経路（`alt_shelter`）。
-   * `routes[]` には入らないので、比較表や根拠の対象にもならない */
+   * `routes[]` には入らない（`alt_routes` に入る） */
   | 'shelter_alt'
+  /** 同じくもう一方の避難先への、**最短経路**。
+   * ⚠️ 片方だけ最短があると、もう一方が遠回りなのか判断できない（2026-08-24） */
+  | 'shelter_alt_baseline'
 
 export type RouteRole = 'recommended' | 'compare' | 'counterexample' | 'bound'
 
@@ -207,6 +210,12 @@ export interface Bundle {
    * ⚠️ 経路は geojson に `route: 'shelter_alt'` で入っており、`routes[]` には
    * 入らない（`od.dest` と行き先が違うため） */
   alt_shelter?: Omit<ShelterCandidate, 'stats'> & { stats: RouteStats; route: 'shelter_alt' }
+  /** もう一方の避難先への経路（最短＋掛け合わせ）。
+   * ⚠️ **`routes[]` とは別**。行き先が違うので混ぜない */
+  alt_routes?: RouteInfo[]
+  /** もう一方の避難先についての根拠。
+   * ⚠️ **おすすめの根拠を使い回さない**（別の経路の話） */
+  alt_rationale?: Rationale | null
 }
 
 /** POST /search/shelter が推奨した避難先。 */

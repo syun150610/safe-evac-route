@@ -9,14 +9,15 @@
  * 閾値の判定はAPI（`rationale.hazards[].unevaluated_stage`）に任せ、
  * **ここで割合と閾値を比べ直さない。**
  */
-import { altRouteLabel } from '../lib/format'
-import type { Bundle, HazardRisk, Rationale, RouteId, RouteStats } from '../types'
+import type { Bundle, HazardRisk, Rationale, RouteId, RouteInfo, RouteStats } from '../types'
 
 interface Props {
   bundle: Bundle
   shown: Partial<Record<RouteId, boolean>>
   /** 種類を両方選んだときの「もう一方の避難先」。列を分けて並べる */
   alt?: Bundle['alt_shelter']
+  /** もう一方の避難先への経路（最短＋掛け合わせ）。⚠️ `bundle.routes` とは別物 */
+  altRoutes?: Bundle['alt_routes']
   /** 表示中の災害の危険区間定義。カタログ未取得のあいだは undefined */
   risk?: HazardRisk
   /** 選ばれた種別の根拠。数値の出所はここ（フロントで引き算しない） */
@@ -58,7 +59,69 @@ function ColumnHead({ typeLabel, name, dot }: { typeLabel: string; name: string;
   )
 }
 
-export function RouteTable({ bundle, shown, alt, risk, hazard, onToggle }: Props) {
+/** 経路1本ぶんの行。**おすすめ側ともう一方の避難先で同じ形にする。**
+ *
+ * ⚠️ もう一方にも最短経路が出るようになった（2026-08-24）。片方だけ形が違うと、
+ * 同じものを比べているように見えない。 */
+function RouteRow({
+  route,
+  shown,
+  risk,
+  selected,
+  warnUnevaluated,
+  onToggle,
+}: {
+  route: RouteInfo
+  shown: Partial<Record<RouteId, boolean>>
+  risk?: HazardRisk
+  selected: boolean
+  warnUnevaluated: boolean
+  onToggle: (id: RouteId, shown: boolean) => void
+}) {
+  const unevaluated = risk ? num(route.stats, risk.coverage_key) : 0
+  const dashed = route.id === 'baseline' || route.id === 'shelter_alt_baseline'
+  return (
+    <label
+      className={`grid min-w-[150px] flex-1 grid-cols-[auto_18px_1fr] items-center gap-2 rounded-lg border p-3 transition-opacity [&_span>em]:block [&_span>em]:text-[9px] [&_span>em]:font-bold [&_span>em]:text-[#07156f] [&_span>em]:not-italic [&_span>small]:my-1 [&_span>small]:block [&_span>small]:text-[9px] [&_span>small]:text-slate-500 [&_span>strong]:block [&_span>strong]:text-[11px] ${selected ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-200'} ${shown[route.id] === false ? 'opacity-45' : ''}`}
+    >
+      <input
+        type="checkbox"
+        checked={shown[route.id] !== false}
+        onChange={(event) => onToggle(route.id, event.target.checked)}
+      />
+      <span
+        className={`h-1 rounded-full ${
+          dashed
+            ? '[background:repeating-linear-gradient(90deg,#64748b_0_5px,transparent_5px_8px)]'
+            : route.id === 'shelter_alt'
+              ? 'bg-[#b45309]'
+              : 'bg-[#07156f]'
+        }`}
+      />
+      <span>
+        {/* ⚠️ **経路番号（①⑤）を出さない。** 色の見本が隣にあるので
+          地図の線とは対応づけられる。番号は語彙が増えるだけ */}
+        <strong>{route.label}</strong>
+        <small>
+          徒歩約{Math.round(route.stats.duration_min_60)}分・{km(route.stats.distance_m)}
+        </small>
+        {risk && (
+          <em>
+            {risk.label} {pct(num(route.stats, risk.ratio_key))}
+          </em>
+        )}
+        {/* 危険区間0%を「安全」と読ませないための但し書き。API が warn を出したときだけ */}
+        {warnUnevaluated && unevaluated > 0 && (
+          <span className="mt-0.5 block text-[9px] text-amber-700">
+            ※{pct(unevaluated)}は評価範囲外
+          </span>
+        )}
+      </span>
+    </label>
+  )
+}
+
+export function RouteTable({ bundle, shown, alt, altRoutes, risk, hazard, onToggle }: Props) {
   // ⚠️ 閾値はAPI側。ここで unevaluated_ratio を閾値と比べ直さない
   const warnUnevaluated = hazard?.unevaluated_stage === 'warn'
   const shelter = bundle.shelter
@@ -75,80 +138,46 @@ export function RouteTable({ bundle, shown, alt, risk, hazard, onToggle }: Props
         />
       )}
       <div className={alt ? 'grid gap-2' : 'flex flex-wrap gap-2'}>
-        {bundle.routes.map((route) => {
-          const unevaluated = risk ? num(route.stats, risk.coverage_key) : 0
-          return (
-            <label
-              className={`grid min-w-[150px] flex-1 grid-cols-[auto_18px_1fr] items-center gap-2 rounded-lg border p-3 transition-opacity [&_span>em]:block [&_span>em]:text-[9px] [&_span>em]:font-bold [&_span>em]:text-[#07156f] [&_span>em]:not-italic [&_span>small]:my-1 [&_span>small]:block [&_span>small]:text-[9px] [&_span>small]:text-slate-500 [&_span>strong]:block [&_span>strong]:text-[11px] ${route.id === bundle.selected_route ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-200'} ${shown[route.id] === false ? 'opacity-45' : ''}`}
-              key={route.id}
-            >
-              <input
-                type="checkbox"
-                checked={shown[route.id] !== false}
-                onChange={(event) => onToggle(route.id, event.target.checked)}
-              />
-              <span
-                className={`h-1 rounded-full ${route.id === 'baseline' ? '[background:repeating-linear-gradient(90deg,#64748b_0_5px,transparent_5px_8px)]' : 'bg-[#07156f]'}`}
-              />
-              <span>
-                {/* ⚠️ **経路番号（①⑤）を出さない。** 色の見本が隣にあるので
-                  地図の線とは対応づけられる。番号は語彙が増えるだけ */}
-                <strong>{route.label}</strong>
-                <small>
-                  徒歩約{Math.round(route.stats.duration_min_60)}分・{km(route.stats.distance_m)}
-                </small>
-                {risk && (
-                  <em>
-                    {risk.label} {pct(num(route.stats, risk.ratio_key))}
-                  </em>
-                )}
-                {/* 危険区間0%を「安全」と読ませないための但し書き。API が warn を出したときだけ */}
-                {warnUnevaluated && unevaluated > 0 && (
-                  <span className="mt-0.5 block text-[9px] text-amber-700">
-                    ※{pct(unevaluated)}は評価範囲外
-                  </span>
-                )}
-              </span>
-            </label>
-          )
-        })}
+        {bundle.routes.map((route) => (
+          <RouteRow
+            key={route.id}
+            onToggle={onToggle}
+            risk={risk}
+            route={route}
+            selected={route.id === bundle.selected_route}
+            shown={shown}
+            warnUnevaluated={warnUnevaluated}
+          />
+        ))}
       </div>
     </div>
   )
 
-  // ⚠️ もう一方は経路が1本だけ（掛け合わせを掛けた経路）。**無い数字は出さない。**
-  const altColumn = alt ? (
-    <div className="min-w-[150px] flex-1">
-      <ColumnHead
-        dot={alt.type === 'urgent' ? 'bg-green-600' : 'bg-amber-500'}
-        name={alt.name}
-        typeLabel={alt.type_label}
-      />
-      <label
-        className={`grid grid-cols-[auto_18px_1fr] items-center gap-2 rounded-lg border border-slate-200 p-3 transition-opacity [&_span>em]:block [&_span>em]:text-[9px] [&_span>em]:font-bold [&_span>em]:text-[#07156f] [&_span>em]:not-italic [&_span>small]:my-1 [&_span>small]:block [&_span>small]:text-[9px] [&_span>small]:text-slate-500 [&_span>strong]:block [&_span>strong]:text-[11px] ${
-          shown.shelter_alt === false ? 'opacity-45' : ''
-        }`}
-      >
-        <input
-          type="checkbox"
-          checked={shown.shelter_alt !== false}
-          onChange={(event) => onToggle('shelter_alt', event.target.checked)}
+  // ⚠️ **もう一方の避難先も、おすすめと同じ形で並べる。** 以前は掛け合わせた
+  //    経路1本だけで、遠回りなのかどうかを言えなかった（2026-08-24の指摘）
+  const altColumn =
+    alt && altRoutes?.length ? (
+      <div className="min-w-[150px] flex-1">
+        <ColumnHead
+          dot={alt.type === 'urgent' ? 'bg-green-600' : 'bg-amber-500'}
+          name={alt.name}
+          typeLabel={alt.type_label}
         />
-        <span className="h-1 rounded-full [background:repeating-linear-gradient(90deg,#b45309_0_5px,transparent_5px_8px)]" />
-        <span>
-          <strong>{altRouteLabel(hazard?.label)}</strong>
-          <small>
-            徒歩約{Math.round(alt.stats.duration_min_60)}分・{km(alt.stats.distance_m)}
-          </small>
-          {risk && (
-            <em>
-              {risk.label} {pct(num(alt.stats, risk.ratio_key))}
-            </em>
-          )}
-        </span>
-      </label>
-    </div>
-  ) : null
+        <div className="grid gap-2">
+          {altRoutes.map((route) => (
+            <RouteRow
+              key={route.id}
+              onToggle={onToggle}
+              risk={risk}
+              route={route}
+              selected={route.id === 'shelter_alt'}
+              shown={shown}
+              warnUnevaluated={warnUnevaluated}
+            />
+          ))}
+        </div>
+      </div>
+    ) : null
 
   return (
     <>
