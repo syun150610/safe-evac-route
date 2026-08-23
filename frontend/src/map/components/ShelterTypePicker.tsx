@@ -46,6 +46,16 @@ export function toParam(selected: ShelterKind[]): ShelterTypeParam {
   return selected.length === 2 ? 'all' : selected[0]
 }
 
+/** 畳んだ「検索の条件」に出す短い呼び名。
+ *
+ * ⚠️ **呼び名はこのファイルだけが持つ**（上の `KINDS`）。畳んだときに何を
+ * 探すのか読めないと、押した瞬間に既定で走ることに気づけない（#48 の指摘）。 */
+export function kindsSummary(selected: ShelterKind[]): string {
+  return ORDER.filter((kind) => selected.includes(kind))
+    .map((kind) => KINDS[kind].short)
+    .join('・')
+}
+
 interface Props {
   /** 選択中の種類。**空にはならない** */
   selected: ShelterKind[]

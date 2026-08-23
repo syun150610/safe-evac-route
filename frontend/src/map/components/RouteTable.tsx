@@ -20,8 +20,9 @@ interface Props {
   /** 表示中の災害の危険区間定義。カタログ未取得のあいだは undefined */
   risk?: HazardRisk
   /** 選ばれた種別の根拠。数値の出所はここ（フロントで引き算しない） */
+  /** 掛け合わせた種別。⚠️ **数値の要約はここでは出さない**（`RouteRationale` の
+   * `lead` に1つへまとめた。2026-08-24）。もう一方の経路名と未評価の強調に使う */
   hazard: Rationale['hazards'][number] | null
-  distance: Rationale['distance'] | null
   onToggle: (id: RouteId, shown: boolean) => void
 }
 
@@ -57,7 +58,7 @@ function ColumnHead({ typeLabel, name, dot }: { typeLabel: string; name: string;
   )
 }
 
-export function RouteTable({ bundle, shown, alt, risk, hazard, distance, onToggle }: Props) {
+export function RouteTable({ bundle, shown, alt, risk, hazard, onToggle }: Props) {
   // ⚠️ 閾値はAPI側。ここで unevaluated_ratio を閾値と比べ直さない
   const warnUnevaluated = hazard?.unevaluated_stage === 'warn'
   const shelter = bundle.shelter
@@ -158,25 +159,6 @@ export function RouteTable({ bundle, shown, alt, risk, hazard, distance, onToggl
         {primaryFirst ? primaryColumn : altColumn}
         {primaryFirst ? altColumn : primaryColumn}
       </div>
-      {hazard && distance && (
-        <>
-          {/* ⚠️ この2つは**おすすめの避難先についての数字**。もう一方には
-            最短経路を引いていないので、同じ比較はできない */}
-          {alt && shelter && (
-            <p className="mt-3 text-[9px] text-slate-500">{`${shelter.name}への経路について`}</p>
-          )}
-          <div className="mt-1 grid grid-cols-2 gap-1.5 [&>span]:rounded-lg [&>span]:bg-slate-100 [&>span]:px-1 [&>span]:py-2.5 [&>span]:text-center [&>span]:text-[8px] [&>span]:text-slate-500 [&_strong]:mt-1 [&_strong]:block [&_strong]:text-[11px] [&_strong]:text-slate-800">
-            <span>
-              {hazard.risk_label}
-              <strong>{Math.round(hazard.after_m).toLocaleString()} m</strong>
-            </span>
-            <span>
-              最短との差
-              <strong>{Math.round(distance.selected_min_60 - distance.baseline_min_60)}分</strong>
-            </span>
-          </div>
-        </>
-      )}
     </>
   )
 }

@@ -77,11 +77,6 @@ const HAZARD = {
   unevaluated_stage: 'none',
 } as unknown as Rationale['hazards'][number]
 
-const DISTANCE = {
-  baseline_min_60: 332,
-  selected_min_60: 372,
-} as unknown as Rationale['distance']
-
 const render = (props: Partial<Parameters<typeof RouteTable>[0]> = {}) =>
   renderToStaticMarkup(
     <RouteTable
@@ -89,7 +84,6 @@ const render = (props: Partial<Parameters<typeof RouteTable>[0]> = {}) =>
       shown={{}}
       risk={QUAKE_RISK}
       hazard={HAZARD}
-      distance={DISTANCE}
       onToggle={() => {}}
       {...props}
     />,
@@ -125,8 +119,10 @@ describe('RouteTable', () => {
     expect(warned).toContain('74.9%は評価範囲外')
   })
 
-  it('根拠が無いときは指標タイルを出さない', () => {
-    const html = render({ hazard: null, distance: null })
+  // ⚠️ 数値の要約は `RouteRationale` の lead へ移した（2026-08-24）。
+  //    ここは経路の一覧だけを描く
+  it('指標の要約はここでは描かない（根拠の箱に1つへまとめた）', () => {
+    const html = render({ hazard: null })
     expect(html).not.toContain('最短との差')
     expect(html).toContain('最短経路')
   })
@@ -141,10 +137,7 @@ describe('RouteTable（避難先が2つのとき）', () => {
     expect(html).toContain('指定緊急避難場所')
   })
 
-  it('⚠️ 指標タイルがどちらの避難先のものか書く', () => {
-    const html = render({ alt: ALT })
-    expect(html).toContain('第一小学校への経路について')
-  })
+  // ⚠️ 「どちらの避難先の数字か」は要約へ移した（`CompareLead.test.tsx`）
 
   it('もう一方の経路も表示を切り替えられる', () => {
     const html = render({ alt: ALT })
