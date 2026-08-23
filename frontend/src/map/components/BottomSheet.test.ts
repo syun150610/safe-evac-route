@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { MapAdapter } from '../adapters/types'
 import type { Bundle, RouteInfo, RouteStats } from '../types'
 import { BottomSheet } from './BottomSheet'
-import { decideSheet, sheetOpenAfterSearch, sheetSummary } from './bottomSheetLogic'
+import { compareText, decideSheet, sheetOpenAfterSearch, sheetSummary } from './bottomSheetLogic'
 
 let host: HTMLDivElement | null = null
 
@@ -60,6 +60,7 @@ describe('sheetSummary', () => {
       distance: '5.40km',
       minutes: 90,
       baselineDelta: 7,
+      baselineDistanceDelta: 400,
     })
   })
 })
@@ -175,7 +176,8 @@ function renderCollapsed(bundle: Bundle, conditionLabel?: string): string {
 }
 
 describe('畳んだシートの見出し', () => {
-  // 最短より7分遠回りする経路（差の言い回しを見るため）
+  // 最短より400m・7分遠回りする経路（差の言い回しを見るため）。
+  // ⚠️ 距離と所要は同じ速度から出るので、片方だけ動かした固定値は現実に無い
   const bundle = {
     selected_route: 'quake',
     routes: [
@@ -184,7 +186,7 @@ describe('畳んだシートの見出し', () => {
         id: 'quake',
         no: '⑤',
         label: '地震のみ',
-        stats: { ...stats, duration_min_60: 90.1 },
+        stats: { ...stats, distance_m: 5400, duration_min_60: 90.1 },
       }),
     ],
   } as Bundle
@@ -207,7 +209,12 @@ describe('畳んだシートの見出し', () => {
     expect(html).not.toContain('地震のみ')
   })
 
-  it('差が0分なら「同じ所要」と言う', () => {
+  it('⚠️ 距離差も出す（何分余計かだけでは遠回りの実感が湧かない）', () => {
+    const html = renderCollapsed(bundle)
+    expect(html).toContain('最短経路と比べて +0.40km, +7分')
+  })
+
+  it('差が無ければ「同じ」と言う', () => {
     const same = {
       selected_route: 'quake',
       routes: [
@@ -215,6 +222,39 @@ describe('畳んだシートの見出し', () => {
         route({ id: 'quake', label: '地震のみ', stats: { ...stats, duration_min_60: 83 } }),
       ],
     } as Bundle
-    expect(renderCollapsed(same)).toContain('最短経路と同じ所要')
+    expect(renderCollapsed(same)).toContain('最短経路と同じ')
+  })
+})
+
+describe('compareText', () => {
+  const base = { label: '', distance: '', minutes: 0 }
+
+  it('距離と所要を並べる', () => {
+    expect(compareText({ ...base, baselineDelta: 8, baselineDistanceDelta: 341 })).toBe(
+      '最短経路と比べて +0.34km, +8分',
+    )
+  })
+
+  it('どちらも差が無ければ「同じ」', () => {
+    expect(compareText({ ...base, baselineDelta: 0, baselineDistanceDelta: 0 })).toBe(
+      '最短経路と同じ',
+    )
+  })
+
+  it('丸めで0分になっても、距離に差があれば黙らない', () => {
+    // 30m の遠回りは 0.5分。分だけ見ると「同じ」に見えてしまう
+    expect(compareText({ ...base, baselineDelta: 0, baselineDistanceDelta: 30 })).toBe(
+      '最短経路と比べて +0.03km, +0分',
+    )
+  })
+
+  it('10m未満の差は距離を出さない（丸めのノイズ）', () => {
+    expect(compareText({ ...base, baselineDelta: 0, baselineDistanceDelta: 4 })).toBe(
+      '最短経路と同じ',
+    )
+  })
+
+  it('最短そのものを見ているときは何も言わない', () => {
+    expect(compareText({ ...base, baselineDelta: null, baselineDistanceDelta: null })).toBe('')
   })
 })
