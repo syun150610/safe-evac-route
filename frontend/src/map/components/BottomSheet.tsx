@@ -17,6 +17,10 @@ interface Props {
   desktopMode?: 'overlay' | 'sidebar'
   /** 経路結果がないときに、折りたたみ部分へ表示する文言 */
   collapsedLabel?: ReactNode
+  /** 折りたたみ部分の見出し（「地震を考慮」など）。
+   * ⚠️ **ここで組み立てない。** 災害の呼び名は `/api/hazards` が配るので、
+   * 持っている側（`EvacRouteMap`）が完成した文字列で渡す */
+  conditionLabel?: string
   children?: ReactNode
 }
 
@@ -52,6 +56,7 @@ export function BottomSheet({
   onOpenChange,
   desktopMode = 'overlay',
   collapsedLabel = '避難経路の設定',
+  conditionLabel,
   children,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -206,13 +211,15 @@ export function BottomSheet({
         <span className="h-1 w-10 rounded-full bg-slate-300" />
         {summary ? (
           <span className="flex flex-wrap items-baseline justify-center gap-x-2 text-[12px]">
-            <b>{summary.label}</b>
+            <b>{conditionLabel ?? summary.label}</b>
             <span>{summary.distance}</span>
             <span>徒歩 {summary.minutes}分</span>
+            {/* ⚠️ 「①比」のような記号で言わない。何と比べているかを言葉で書く */}
             {summary.baselineDelta !== null && (
               <span>
-                ①比 {summary.baselineDelta >= 0 ? '+' : ''}
-                {summary.baselineDelta}分
+                {summary.baselineDelta === 0
+                  ? '最短経路と同じ所要'
+                  : `最短経路と比べて ${summary.baselineDelta > 0 ? '+' : ''}${summary.baselineDelta}分`}
               </span>
             )}
           </span>

@@ -22,7 +22,10 @@ export function sheetSummary(bundle: Bundle | null): SheetSummary | null {
       ? route.stats.duration_min_60 - baseline.stats.duration_min_60
       : null
   return {
-    label: `${route.no} ${route.label}`,
+    // ⚠️ **経路の番号（①⑤）を入れない。** 畳んだバーには色の凡例も
+    // チェックボックスも並んでいないので、番号だけ見せられても何を指すのか
+    // 分からない（2026-08-23の指摘）。言葉だけで完結させる
+    label: route.label,
     distance: km(route.stats.distance_m),
     minutes: Math.round(route.stats.duration_min_60),
     baselineDelta: baselineDelta == null ? null : Math.round(baselineDelta),

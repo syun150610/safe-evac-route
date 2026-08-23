@@ -92,6 +92,15 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   // 「考慮する災害」の定義。危険区間の呼び名も統計キーもAPIが配る
   // （`registry.py` の risk ブロック由来。ここに種別ごとの分岐を書かない）
   const hazardMeta = catalog?.hazards.find((h) => h.id === state.hazard) ?? null
+  /** 畳んだシートの見出し。⚠️ 災害の呼び名は `/api/hazards` 由来を使い、
+   * ここで新しい言い方を作らない。掛け合わせていない（＝最短しか引いていない）
+   * ときは「最短経路」と言う */
+  const conditionLabel =
+    bundle == null
+      ? undefined
+      : bundle.selected_route === 'baseline' || !hazardMeta
+        ? '最短経路'
+        : `${hazardMeta.label}を考慮`
 
   // ⚠️ **経路の重みに掛けた種別だけを見せる**（2026-08-22にユーザーと確認）。
   //    APIは登録済み種別を全部返し、`considered` で区別する。絞り込みはここで行い、
@@ -611,6 +620,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       <BottomSheet
         adapter={adapter}
         bundle={bundle}
+        conditionLabel={conditionLabel}
         mobile={mobile}
         open={sheetOpen}
         onOpenChange={setSheetOpen}

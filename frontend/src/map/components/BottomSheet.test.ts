@@ -54,7 +54,9 @@ describe('sheetSummary', () => {
     } as Bundle
 
     expect(sheetSummary(bundle)).toEqual({
-      label: '⑤ 地震のみ',
+      // ⚠️ 経路番号（①⑤）は入れない。畳んだバーには色の凡例もチェックボックスも
+      //    並んでいないので、番号だけ見せられても何を指すのか分からない
+      label: '地震のみ',
       distance: '5.40km',
       minutes: 90,
       baselineDelta: 7,
@@ -143,5 +145,76 @@ describe('sheetOpenAfterSearch', () => {
   it('⚠️ 条件の切り替えによる引き直しでは、スマホでも畳まない', () => {
     // シートの中を操作している最中なので、押すたびに消えると条件を比べられない
     expect(sheetOpenAfterSearch(true, false)).toBe(true)
+  })
+})
+
+/** 畳んだ状態のシートを描いて、見出し部分のHTMLを返す */
+function renderCollapsed(bundle: Bundle, conditionLabel?: string): string {
+  const host = document.createElement('div')
+  document.body.append(host)
+  const adapter = {
+    current: { lockGestures: vi.fn(), reserveBottom: vi.fn() } as unknown as MapAdapter,
+  }
+  const root = createRoot(host)
+  act(() =>
+    root.render(
+      createElement(BottomSheet, {
+        adapter,
+        bundle,
+        conditionLabel,
+        mobile: true,
+        open: false,
+        onOpenChange: vi.fn(),
+      }),
+    ),
+  )
+  const html = host.innerHTML
+  act(() => root.unmount())
+  host.remove()
+  return html
+}
+
+describe('畳んだシートの見出し', () => {
+  // 最短より7分遠回りする経路（差の言い回しを見るため）
+  const bundle = {
+    selected_route: 'quake',
+    routes: [
+      route({}),
+      route({
+        id: 'quake',
+        no: '⑤',
+        label: '地震のみ',
+        stats: { ...stats, duration_min_60: 90.1 },
+      }),
+    ],
+  } as Bundle
+
+  it('⚠️ 経路番号（①⑤）を出さない', () => {
+    const html = renderCollapsed(bundle)
+    expect(html).not.toContain('⑤')
+    expect(html).not.toContain('①')
+  })
+
+  it('⚠️ 「①比」ではなく、何と比べたかを言葉で書く', () => {
+    const html = renderCollapsed(bundle)
+    expect(html).not.toContain('①比')
+    expect(html).toContain('最短経路と比べて')
+  })
+
+  it('渡された条件ラベルを見出しに使う（災害の呼び名はAPI由来）', () => {
+    const html = renderCollapsed(bundle, '地震を考慮')
+    expect(html).toContain('地震を考慮')
+    expect(html).not.toContain('地震のみ')
+  })
+
+  it('差が0分なら「同じ所要」と言う', () => {
+    const same = {
+      selected_route: 'quake',
+      routes: [
+        route({}),
+        route({ id: 'quake', label: '地震のみ', stats: { ...stats, duration_min_60: 83 } }),
+      ],
+    } as Bundle
+    expect(renderCollapsed(same)).toContain('最短経路と同じ所要')
   })
 })
