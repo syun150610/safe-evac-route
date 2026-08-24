@@ -304,15 +304,14 @@ export function createGoogleAdapter(): MapAdapter {
   }
   /** タイルを1枚あたり何px大きく描くか。
    *
-   * ⚠️ **縦に細い隙間が見えるのを埋める。** タイルの絵自体には隙間が無い
-   * （端の列も中と同じ不透明度。実測）。小数ズームを許しているため、
-   * 隣り合うタイルの境目が端数pxになり、その1本が下地の色で抜けて見える
-   * （ユーザー指摘、2026-08-24）。
-   *
-   * ⚠️ **背景だけ広げても直らない。** 隙間は**箱と箱の間**にできるので、
-   * 箱（div）自体を大きくして隣へ重ねる必要がある。背景の大きさと位置も
-   * 同じ割合で合わせること（ずらさないと絵が動く）。 */
-  const FLOOD_BLEED = 1
+   * ⚠️ **0にしてある。重ねても隙間は直らない。** 経緯（2026-08-24）:
+   *   1. 背景の絵だけ1px広げた → 箱の外へは出ないので効果なし
+   *   2. 箱ごと1px広げた → 隙間は埋まるが、**乗算で二重に色が乗って濃い線**が出た
+   *   3. 隙間の原因は**小数ズーム**（タイルが端数pxに置かれる）だったので、
+   *      そちらを切った（`isFractionalZoomEnabled: false`）。整数ズームなら
+   *      タイルはちょうど並ぶので、広げる必要が無い。
+   * ⚠️ ここを0以外に戻すと、乗算のせいで格子状の線が見える。 */
+  const FLOOD_BLEED = 0
   /** 箱・背景ともに掛ける拡大率 */
   const FLOOD_BLEED_SCALE = (256 + FLOOD_BLEED) / 256
 
@@ -562,9 +561,12 @@ export function createGoogleAdapter(): MapAdapter {
             // ズームボタンは地理院版（MapLibreのNavigationControl）と同じ右上に置く
             zoomControl: true,
             zoomControlOptions: { position: google.maps.ControlPosition.TOP_RIGHT },
-            // 既定のGoogleは整数ズームなので、fitBounds が地理院版より1段引きになる。
-            // 小数ズームを許すと両版の見え方が揃う
-            isFractionalZoomEnabled: true,
+            // ⚠️ **小数ズームは切る。** 許すとタイルが端数pxに置かれ、
+            //    隣り合う浸水タイルの境目に線（隙間または二重塗り）が出る
+            //    （ユーザー指摘、2026-08-24。実測で1px単位の隙間を確認）。
+            //    代償として fitBounds が地理院版より1段引きになることがあるが、
+            //    地図に格子状の線が出るほうが実害が大きい
+            isFractionalZoomEnabled: false,
           })
           infoWindow = new google.maps.InfoWindow()
           map.addListener('zoom_changed', queueReoffset)

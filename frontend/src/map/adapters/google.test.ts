@@ -374,9 +374,12 @@ describe('adapter_google（スタブ）', () => {
     expect(callback).toHaveBeenCalledWith([139.777, 35.714])
   })
 
-  it('小数ズームを有効にしている（fitBounds を地理院版に合わせる）', async () => {
+  // ⚠️ 小数ズームを許すと、浸水タイルが端数pxに置かれて境目に線が出る
+  //    （隙間 or 二重塗り。2026-08-24に実測）。fitBounds が1段引きになる代償より、
+  //    地図に格子が出るほうが実害が大きい
+  it('小数ズームは切ってある（タイルの継ぎ目に線が出るため）', async () => {
     await makeAdapter()
-    expect(created.mapOpts!.isFractionalZoomEnabled).toBe(true)
+    expect(created.mapOpts!.isFractionalZoomEnabled).toBe(false)
   })
 
   describe('タイル（overzoom / ラップ / 差し替え）', () => {
@@ -391,7 +394,8 @@ describe('adapter_google（スタブ）', () => {
       //    枚数と拡大量を変えるとここも変わる
       const sizes = t.style.backgroundSize.split(', ')
       expect(new Set(sizes).size).toBe(1)
-      expect(sizes[0]).toBe('257px 257px')
+      // ⚠️ 広げない（整数ズームならちょうど並ぶ。広げると乗算で線が出る）
+      expect(sizes[0]).toBe('256px 256px')
       // ⚠️ 値は「見え方の強さ」。PNGに焼かれた 0.65 を吸収して枚数とCSSに割り振る
       expect(effectiveAlpha(t)).toBeCloseTo(0.7, 2)
     })
@@ -402,13 +406,11 @@ describe('adapter_google（スタブ）', () => {
       // z19 → 親 z17。shift=2, scale=4。116417>>2=29104, 51571>>2=12892
       const t = created.overlays[0].getTile({ x: 116417, y: 51571 }, 19, document)
       expect(t.style.backgroundImage).toContain('/17/29104/12892.png')
-      // ⚠️ 箱も背景も同じ割合（257/256）で広げて隣へ重ねる
-      const bleed = 257 / 256
-      expect(t.style.backgroundSize.split(', ')[0]).toBe(`${1024 * bleed}px ${1024 * bleed}px`)
-      // 116417%4=1, 51571%4=3。拡大したぶん位置も同じ割合でずらす
+      expect(t.style.backgroundSize.split(', ')[0]).toBe('1024px 1024px')
+      // 116417%4=1, 51571%4=3
       const [px, py] = t.style.backgroundPosition.split(', ')[0].split(' ')
-      expect(Number.parseFloat(px)).toBeCloseTo(-256 * bleed, 1)
-      expect(Number.parseFloat(py)).toBeCloseTo(-768 * bleed, 1)
+      expect(Number.parseFloat(px)).toBeCloseTo(-256, 1)
+      expect(Number.parseFloat(py)).toBeCloseTo(-768, 1)
     })
 
     it('範囲外は空タイル / 経度をラップする', async () => {
@@ -434,17 +436,14 @@ describe('adapter_google（スタブ）', () => {
       expect(t.style.opacity).toBe('1')
     })
 
-    // ⚠️ 小数ズームだとタイルの境目が端数pxになり、下地の色が細く抜けて見える
-    it('隣り合うタイルの隙間を埋める（箱ごと重ねる）', async () => {
+    // ⚠️ **広げて重ねない。** 乗算で塗っているので、重なった帯だけ色が二重に
+    //    乗って濃い線になる（2026-08-24に実測）。隙間の対策は小数ズームを切ること
+    it('タイルを広げない（重ねると乗算で線が出る）', async () => {
       const a = await makeAdapter()
       a.addRasterLayer('flood', url, { minzoom: 10, maxzoom: 15, opacity: 1 })
       const t = created.overlays[0].getTile({ x: 14552, y: 6446 }, 14, document)
-      // ⚠️ **背景だけ広げても直らない。** 隙間は箱と箱の間にできる
-      const box = Number.parseFloat(t.style.width)
-      expect(box).toBeGreaterThan(256)
-      expect(box).toBeLessThanOrEqual(258) // 埋める以上に伸ばさない
-      // 背景も同じ割合で広げる（ずれると絵が動く）
-      expect(Number.parseFloat(t.style.backgroundSize) / box).toBeCloseTo(1, 3)
+      expect(t.style.width).toBe('256px')
+      expect(Number.parseFloat(t.style.backgroundSize)).toBe(256)
     })
 
     // ⚠️ 地震の面は指定した値がそのまま濃さになる。浸水はPNGに焼かれているぶんを
