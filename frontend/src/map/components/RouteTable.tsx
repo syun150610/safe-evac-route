@@ -9,6 +9,7 @@
  * 閾値の判定はAPI（`rationale.hazards[].unevaluated_stage`）に任せ、
  * **ここで割合と閾値を比べ直さない。**
  */
+import { STYLE } from '../constants'
 import type { Bundle, HazardRisk, Rationale, RouteId, RouteInfo, RouteStats } from '../types'
 
 interface Props {
@@ -95,7 +96,8 @@ function RouteRow({
   onToggle: (id: RouteId, shown: boolean) => void
 }) {
   const unevaluated = risk ? num(route.stats, risk.coverage_key) : 0
-  const dashed = route.id === 'baseline' || route.id === 'shelter_alt_baseline'
+  // 破線かどうかも `STYLE` に従う（地図の線と同じ見え方にする）
+  const dashed = STYLE[route.id].dash !== null
   return (
     <label
       className={`grid min-w-[150px] flex-1 grid-cols-[auto_18px_1fr] items-center gap-2 rounded-lg border p-3 transition-opacity [&_span>em]:block [&_span>em]:text-[9px] [&_span>em]:font-bold [&_span>em]:text-[#07156f] [&_span>em]:not-italic [&_span>small]:my-1 [&_span>small]:block [&_span>small]:text-[9px] [&_span>small]:text-slate-500 [&_span>strong]:block [&_span>strong]:text-[11px] ${selected ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-200'} ${shown[route.id] === false ? 'opacity-45' : ''}`}
@@ -105,14 +107,18 @@ function RouteRow({
         checked={shown[route.id] !== false}
         onChange={(event) => onToggle(route.id, event.target.checked)}
       />
+      {/* ⚠️ **色は `STYLE` から引く**（2026-08-24）。ここで色名を書くと、
+          地図の線・吹き出しと食い違う */}
       <span
-        className={`h-1 rounded-full ${
+        aria-hidden="true"
+        className="h-1 rounded-full"
+        style={
           dashed
-            ? '[background:repeating-linear-gradient(90deg,#64748b_0_5px,transparent_5px_8px)]'
-            : route.id === 'shelter_alt'
-              ? 'bg-[#b45309]'
-              : 'bg-[#07156f]'
-        }`}
+            ? {
+                backgroundImage: `repeating-linear-gradient(90deg,${STYLE[route.id].color} 0 5px,transparent 5px 8px)`,
+              }
+            : { background: STYLE[route.id].color }
+        }
       />
       <span>
         {/* ⚠️ **経路番号（①⑤）を出さない。** 色の見本が隣にあるので
