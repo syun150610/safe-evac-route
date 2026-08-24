@@ -370,9 +370,7 @@ export function createGoogleAdapter(): MapAdapter {
         const shiftY = -(256 * cy) * (size / (256 * scale))
         div.style.backgroundImage = Array(plan.paints).fill(src).join(', ')
         div.style.backgroundSize = Array(plan.paints).fill(`${size}px ${size}px`).join(', ')
-        div.style.backgroundPosition = Array(plan.paints)
-          .fill(`${shiftX}px ${shiftY}px`)
-          .join(', ')
+        div.style.backgroundPosition = Array(plan.paints).fill(`${shiftX}px ${shiftY}px`).join(', ')
         div.style.imageRendering = 'pixelated' // 拡大時に補間でぼかさない
         // 標準色（国交省）は淡い黄・桃色で、色の付いた下地の上だと沈む。
         // ⚠️ 色相は動かさない（凡例の色見本と食い違う）。彩度だけ少し上げる
