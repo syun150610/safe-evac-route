@@ -401,10 +401,10 @@ describe('routeCallouts', () => {
       expect(onDismiss).toHaveBeenCalledWith('alt')
     })
 
-    it('×は地図カード共通の押しやすいスタイルを使う', () => {
+    it('内容HTMLに操作ボタンを混ぜない（表示側が移動・閉じるを並べる）', () => {
       const [callout] = routeCallouts(withAlt(), { shown: {} })
-      expect(callout.html).toContain('class="map-card-dismiss"')
-      expect(callout.html).not.toContain('width:18px')
+      expect(callout.html).not.toContain('button')
+      expect(callout.html).not.toContain('map-card-dismiss')
     })
   })
 

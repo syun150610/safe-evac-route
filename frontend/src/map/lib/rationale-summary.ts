@@ -7,10 +7,8 @@ import type { RationaleHazard } from '../types'
  * 未評価区間を含む場合は「安全」と言い切らない。
  */
 export function rationaleSummary(hazard: RationaleHazard): string {
-  if (hazard.verdict === 'already_safe') {
-    return hazard.unevaluated_stage === 'none' ? '安全でした' : '評価範囲内では安全でした'
-  }
-  if (hazard.verdict === 'avoided') return '危険を回避できました'
-  if (hazard.verdict === 'partial') return '危険を減らしました'
-  return '危険を避けきれませんでした'
+  if (hazard.verdict === 'already_safe') return '評価対象の危険区間はありません'
+  if (hazard.verdict === 'avoided') return '評価対象の危険区間を回避しました'
+  if (hazard.verdict === 'partial') return '評価対象の危険区間を減らしました'
+  return '評価対象の危険区間が残ります'
 }

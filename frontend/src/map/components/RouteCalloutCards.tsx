@@ -109,7 +109,6 @@ export function RouteCalloutCards({
             ? { top: CARD_MARGIN, left: CARD_MARGIN }
             : { right: CARD_MARGIN, bottom: mobile ? MOBILE_BOTTOM_INSET : CARD_MARGIN }
         return (
-          // biome-ignore lint/a11y/useKeyWithClickEvents: 内側の閉じるbuttonはキーボード操作でき、articleは委譲先にすぎない
           <article
             key={callout.id}
             ref={(node) => {
@@ -119,24 +118,31 @@ export function RouteCalloutCards({
             className="pointer-events-auto absolute w-[min(220px,calc(100%-24px))] rounded-xl border border-slate-200 bg-white p-2 shadow-[0_6px_18px_rgb(15_23_42/22%)]"
             style={position ? { top: position.y, left: position.x } : initial}
             onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              const target = event.target as HTMLElement
-              if (target.closest('[data-action="dismiss"]')) callout.onDismiss?.()
-            }}
           >
-            <button
-              type="button"
-              className="mb-1 inline-flex min-h-9 touch-none cursor-move items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-3 text-[10px] text-slate-600"
-              aria-label="経路要約カードを移動"
-              onPointerDown={(event) => beginDrag(event, callout.id)}
-              onPointerMove={moveDrag}
-              onPointerUp={endDrag}
-              onPointerCancel={endDrag}
-            >
-              ↔ 移動
-            </button>
+            <div className="absolute top-1.5 right-1.5 z-10 flex gap-1">
+              <button
+                type="button"
+                className="grid size-8 touch-none cursor-move place-items-center rounded-full border-0 bg-slate-100 text-[15px] text-slate-600 hover:bg-slate-200"
+                aria-label="経路要約カードを移動"
+                title="カードを移動"
+                onPointerDown={(event) => beginDrag(event, callout.id)}
+                onPointerMove={moveDrag}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+              >
+                ↔
+              </button>
+              <button
+                type="button"
+                className="grid size-8 cursor-pointer place-items-center rounded-full border-0 bg-slate-100 text-[18px] text-slate-600 hover:bg-slate-200"
+                aria-label="この要約を閉じる（行先のピンで戻せます）"
+                onClick={callout.onDismiss}
+              >
+                ×
+              </button>
+            </div>
             {/* biome-ignore lint/security/noDangerouslySetInnerHtml: route-calloutsがAPI由来文字列をescapeHtmlした内部生成HTML */}
-            <div dangerouslySetInnerHTML={{ __html: callout.html }} />
+            <div className="pr-[72px]" dangerouslySetInnerHTML={{ __html: callout.html }} />
           </article>
         )
       })}

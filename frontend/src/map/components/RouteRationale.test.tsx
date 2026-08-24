@@ -57,7 +57,7 @@ function render(hazards: RationaleHazard[]) {
 describe('RouteRationale', () => {
   it('一覧では短い評価を出し、数値入りの説明は詳細へ送る', () => {
     const html = render([HAZARD])
-    expect(html).toContain('危険を減らしました')
+    expect(html).toContain('評価対象の危険区間を減らしました')
     expect(html).not.toContain(HAZARD.text)
   })
 
@@ -83,7 +83,7 @@ describe('RouteRationale', () => {
         unevaluated_note: note,
       },
     ])
-    expect(html).toContain('評価範囲内では安全でした')
+    expect(html).toContain('評価対象の危険区間はありません')
     expect(html).not.toContain('最短経路が最も安全でした（浸水30cm超なし）')
     expect(html).toContain(note)
   })
@@ -105,8 +105,8 @@ describe('RouteRationale', () => {
       { ...HAZARD, id: 'quake', risk_label: '危険度4以上', verdict: 'avoided' },
       { ...HAZARD, unevaluated_stage: 'warn', verdict: 'unavoidable' },
     ])
-    expect(html.indexOf('危険を回避できました')).toBeLessThan(
-      html.indexOf('危険を避けきれませんでした'),
+    expect(html.indexOf('評価対象の危険区間を回避しました')).toBeLessThan(
+      html.indexOf('評価対象の危険区間が残ります'),
     )
   })
 
@@ -126,8 +126,8 @@ describe('RouteRationale', () => {
         verdict: 'avoided',
       },
     ])
-    expect(html).toContain('危険を減らしました')
-    expect(html).toContain('危険を回避できました')
+    expect(html).toContain('評価対象の危険区間を減らしました')
+    expect(html).toContain('評価対象の危険区間を回避しました')
     expect(html).toContain('aria-controls="rationale-detail-landslide"')
   })
 

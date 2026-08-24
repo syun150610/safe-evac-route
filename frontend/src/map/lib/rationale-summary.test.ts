@@ -10,17 +10,17 @@ const hazard = {
 
 describe('rationaleSummary', () => {
   it.each([
-    ['avoided', '危険を回避できました'],
-    ['partial', '危険を減らしました'],
-    ['unavoidable', '危険を避けきれませんでした'],
+    ['avoided', '評価対象の危険区間を回避しました'],
+    ['partial', '評価対象の危険区間を減らしました'],
+    ['unavoidable', '評価対象の危険区間が残ります'],
   ] as const)('%sを短い評価へ言い換える', (verdict, expected) => {
     expect(rationaleSummary({ ...hazard, verdict })).toBe(expected)
   })
 
-  it('全区間を評価できた場合だけ安全と言い切る', () => {
-    expect(rationaleSummary(hazard)).toBe('安全でした')
+  it('危険区間が無くても安全とは言い切らない', () => {
+    expect(rationaleSummary(hazard)).toBe('評価対象の危険区間はありません')
     expect(rationaleSummary({ ...hazard, unevaluated_stage: 'warn' })).toBe(
-      '評価範囲内では安全でした',
+      '評価対象の危険区間はありません',
     )
   })
 })

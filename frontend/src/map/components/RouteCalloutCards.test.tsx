@@ -16,6 +16,8 @@ describe('RouteCalloutCards', () => {
     const html = renderToStaticMarkup(<RouteCalloutCards callouts={[callout]} mobile />)
     expect(html).toContain('data-callout-id="dest"')
     expect(html).toContain('経路要約カードを移動')
+    expect(html).toContain('この要約を閉じる')
+    expect(html.indexOf('経路要約カードを移動')).toBeLessThan(html.indexOf('この要約を閉じる'))
     expect(html).toContain('第一小学校')
   })
 

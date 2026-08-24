@@ -64,7 +64,7 @@ describe('sheetSummary', () => {
       label: '地震のみ',
       distance: '5.40km',
       minutes: 90,
-      evaluation: '危険を回避できました',
+      evaluation: '評価対象の危険区間を回避しました',
       baselineDelta: 7,
       baselineDistanceDelta: 400,
     })
@@ -276,7 +276,7 @@ describe('畳んだシートの見出し', () => {
 
   it('数値の比較ではなく短い評価を出す', () => {
     const html = renderCollapsed(bundle)
-    expect(html).toContain('危険を回避できました')
+    expect(html).toContain('評価対象の危険区間を回避しました')
     expect(html).not.toContain('最短経路と比べて')
   })
 
@@ -288,7 +288,7 @@ describe('畳んだシートの見出し', () => {
 
   it('評価が無い旧レスポンスでは余計な比較文を出さない', () => {
     const withoutRationale = { ...bundle, rationale: undefined } as Bundle
-    expect(renderCollapsed(withoutRationale)).not.toContain('危険を回避できました')
+    expect(renderCollapsed(withoutRationale)).not.toContain('評価対象の危険区間を回避しました')
     expect(renderCollapsed(withoutRationale)).not.toContain('最短経路と同じ')
   })
 })
