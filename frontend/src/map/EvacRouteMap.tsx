@@ -8,6 +8,7 @@ import { DataAttribution } from './components/DataAttribution'
 import { type Condition, HazardCondition } from './components/HazardCondition'
 import { HazardLegend } from './components/HazardLegend'
 import { LayerPicker } from './components/LayerPicker'
+import { MapSearchControl } from './components/MapSearchControl'
 import { LayersIcon, LegendIcon, LocateIcon } from './components/MapToolIcons'
 import { PlaceInput } from './components/PlaceInput'
 import { RouteCalloutCards } from './components/RouteCalloutCards'
@@ -846,16 +847,11 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       >
         <div id="safe-map" className="absolute inset-0" />
         <RouteCalloutCards callouts={callouts} mobile={mobile} />
-        {state.screen === 'home' && (
-          <button
-            type="button"
-            className="absolute top-3 right-16 left-3 z-[3] flex min-h-12 cursor-pointer items-center gap-2.5 rounded-[13px] border border-slate-100 bg-white px-4 text-left text-slate-500 shadow-[0_5px_16px_rgb(15_23_42/14%)] [&>span:last-child]:overflow-hidden [&>span:last-child]:text-ellipsis [&>span:last-child]:whitespace-nowrap"
-            onClick={() => openScreen('search')}
-          >
-            <span aria-hidden="true">⌕</span>
-            <span>{state.destination.place?.title ?? '目的地・避難所を検索する'}</span>
-          </button>
-        )}
+        <MapSearchControl
+          compact={state.screen !== 'home'}
+          label={state.destination.place?.title ?? '目的地・避難所を検索する'}
+          onOpen={() => openScreen('search')}
+        />
         {/* 右下の道具。⚠️ **意味のまとまりで並べる**（CSSの `.map-tool--*` と対）。
             上=現在地、下の2つ=地図に重ねる情報とその凡例。
             ⚠️ **記号1文字にしない。** 「◎」「▱」では何の機能か読み取れなかった
