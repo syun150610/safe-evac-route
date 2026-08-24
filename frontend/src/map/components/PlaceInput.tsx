@@ -92,6 +92,7 @@ export function PlaceInput({
   const inputRef = useRef<HTMLInputElement>(null)
   const open = active && suggestions !== undefined
   const currentSelected = currentLocation?.selected === true
+  const [editing, setEditing] = useState(false)
   const [listLayout, setListLayout] = useState<SuggestionLayout>({
     above: false,
     maxHeight: SUGGESTION_MAX_HEIGHT,
@@ -154,104 +155,128 @@ export function PlaceInput({
     else items[next]?.focus()
   }
 
+  function finishEditingAfterFocusMove(root: HTMLDivElement, next: EventTarget | null) {
+    if (next instanceof Node && root.contains(next)) return
+    window.setTimeout(() => {
+      if (!root.contains(document.activeElement)) setEditing(false)
+    }, 0)
+  }
+
   return (
-    <div ref={rootRef} className="relative mb-2">
+    <>
+      {editing && <div aria-hidden="true" className="mb-2 hidden h-12 max-[899px]:block" />}
       <div
-        className={`grid min-h-12 items-center gap-1 rounded-[10px] border px-3 ${
-          currentSelected
-            ? 'grid-cols-[56px_minmax(0,1fr)_32px]'
-            : currentLocation
-              ? clearable
-                ? 'grid-cols-[56px_minmax(0,1fr)_auto_32px]'
-                : 'grid-cols-[56px_minmax(0,1fr)_auto]'
-              : clearable
-                ? 'grid-cols-[56px_minmax(0,1fr)_32px]'
-                : 'grid-cols-[56px_minmax(0,1fr)]'
-        } ${active && !currentSelected ? 'border-blue-600 shadow-[0_0_0_2px_rgb(37_99_235/10%)]' : 'border-slate-200'}`}
+        ref={rootRef}
+        data-editing={editing ? 'true' : 'false'}
+        className={`relative mb-2 ${
+          editing
+            ? 'max-[899px]:fixed max-[899px]:top-2 max-[899px]:right-3 max-[899px]:left-3 max-[899px]:z-[60] max-[899px]:mb-0 max-[899px]:rounded-xl max-[899px]:bg-white max-[899px]:p-1 max-[899px]:shadow-[0_12px_32px_rgb(15_23_42/28%)]'
+            : ''
+        }`}
+        onBlurCapture={(event) =>
+          finishEditingAfterFocusMove(event.currentTarget, event.relatedTarget)
+        }
       >
-        <label htmlFor={currentSelected ? undefined : id} className="text-[10px] text-slate-500">
-          {label}
-        </label>
-        {currentSelected ? (
+        <div
+          className={`grid min-h-12 items-center gap-1 rounded-[10px] border px-3 ${
+            currentSelected
+              ? 'grid-cols-[56px_minmax(0,1fr)_32px]'
+              : currentLocation
+                ? clearable
+                  ? 'grid-cols-[56px_minmax(0,1fr)_auto_32px]'
+                  : 'grid-cols-[56px_minmax(0,1fr)_auto]'
+                : clearable
+                  ? 'grid-cols-[56px_minmax(0,1fr)_32px]'
+                  : 'grid-cols-[56px_minmax(0,1fr)]'
+          } ${active && !currentSelected ? 'border-blue-600 shadow-[0_0_0_2px_rgb(37_99_235/10%)]' : 'border-slate-200'}`}
+        >
+          <label htmlFor={currentSelected ? undefined : id} className="text-[10px] text-slate-500">
+            {label}
+          </label>
+          {currentSelected ? (
+            <div
+              className="my-1.5 flex min-h-9 min-w-0 items-center gap-2 rounded-lg bg-blue-50 px-2 text-[#07156f]"
+              role="status"
+              aria-label="端末の現在地を選択中"
+            >
+              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-white">
+                <LocateIcon className="size-4" />
+              </span>
+              <span className="min-w-0 leading-tight">
+                <strong className="block truncate text-[11px]">現在地</strong>
+                <small className="block truncate text-[8px] text-blue-700">
+                  端末の位置情報を使用中
+                </small>
+              </span>
+            </div>
+          ) : (
+            <input
+              id={id}
+              ref={inputRef}
+              className="h-11 min-w-0 border-0 bg-transparent text-[16px] outline-0 min-[900px]:text-xs"
+              value={query}
+              placeholder={placeholder}
+              autoComplete="off"
+              role="combobox"
+              aria-expanded={open}
+              aria-controls={listId}
+              aria-autocomplete="list"
+              onFocus={() => {
+                setEditing(true)
+                onActivate()
+              }}
+              onKeyDown={onInputKeyDown}
+              onChange={(event) => onQueryChange(event.target.value)}
+            />
+          )}
+          {currentLocation && !currentSelected && (
+            <button
+              type="button"
+              className="inline-flex min-h-8 cursor-pointer items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 text-[9px] font-bold whitespace-nowrap text-[#07156f] disabled:cursor-wait disabled:opacity-60"
+              aria-label={currentLocation.loading ? '現在地を取得中' : '現在地を出発地にする'}
+              aria-busy={currentLocation.loading}
+              disabled={currentLocation.loading}
+              onClick={currentLocation.onSelect}
+            >
+              {currentLocation.loading ? (
+                <span
+                  aria-hidden="true"
+                  className="size-3 animate-spin rounded-full border-2 border-blue-200 border-t-[#07156f] motion-reduce:animate-none"
+                />
+              ) : (
+                <LocateIcon className="size-4" />
+              )}
+              {currentLocation.loading ? '取得中' : '現在地を使う'}
+            </button>
+          )}
+          {clearable && (
+            <button
+              type="button"
+              aria-label={`${label}を消す`}
+              className="grid size-7 cursor-pointer place-items-center justify-self-end rounded-full border-0 bg-slate-100 text-[11px] text-slate-500"
+              onClick={onClear}
+            >
+              ×
+            </button>
+          )}
+        </div>
+        {open && (
           <div
-            className="my-1.5 flex min-h-9 min-w-0 items-center gap-2 rounded-lg bg-blue-50 px-2 text-[#07156f]"
-            role="status"
-            aria-label="端末の現在地を選択中"
+            id={listId}
+            ref={listRef}
+            role="listbox"
+            aria-label={`${label}の候補`}
+            data-placement={listLayout.above ? 'above' : 'below'}
+            onKeyDown={onListKeyDown}
+            style={{ maxHeight: listLayout.maxHeight }}
+            className={`absolute inset-x-0 z-20 overflow-auto rounded-xl border border-slate-200 bg-white shadow-[0_12px_32px_rgb(15_23_42/22%)] ${
+              listLayout.above ? 'bottom-[calc(100%+4px)]' : 'top-[calc(100%+4px)]'
+            }`}
           >
-            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-white">
-              <LocateIcon className="size-4" />
-            </span>
-            <span className="min-w-0 leading-tight">
-              <strong className="block truncate text-[11px]">現在地</strong>
-              <small className="block truncate text-[8px] text-blue-700">
-                端末の位置情報を使用中
-              </small>
-            </span>
+            {suggestions}
           </div>
-        ) : (
-          <input
-            id={id}
-            ref={inputRef}
-            className="h-11 min-w-0 border-0 bg-transparent text-xs outline-0"
-            value={query}
-            placeholder={placeholder}
-            autoComplete="off"
-            role="combobox"
-            aria-expanded={open}
-            aria-controls={listId}
-            aria-autocomplete="list"
-            onFocus={onActivate}
-            onKeyDown={onInputKeyDown}
-            onChange={(event) => onQueryChange(event.target.value)}
-          />
-        )}
-        {currentLocation && !currentSelected && (
-          <button
-            type="button"
-            className="inline-flex min-h-8 cursor-pointer items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 text-[9px] font-bold whitespace-nowrap text-[#07156f] disabled:cursor-wait disabled:opacity-60"
-            aria-label={currentLocation.loading ? '現在地を取得中' : '現在地を出発地にする'}
-            aria-busy={currentLocation.loading}
-            disabled={currentLocation.loading}
-            onClick={currentLocation.onSelect}
-          >
-            {currentLocation.loading ? (
-              <span
-                aria-hidden="true"
-                className="size-3 animate-spin rounded-full border-2 border-blue-200 border-t-[#07156f] motion-reduce:animate-none"
-              />
-            ) : (
-              <LocateIcon className="size-4" />
-            )}
-            {currentLocation.loading ? '取得中' : '現在地を使う'}
-          </button>
-        )}
-        {clearable && (
-          <button
-            type="button"
-            aria-label={`${label}を消す`}
-            className="grid size-7 cursor-pointer place-items-center justify-self-end rounded-full border-0 bg-slate-100 text-[11px] text-slate-500"
-            onClick={onClear}
-          >
-            ×
-          </button>
         )}
       </div>
-      {open && (
-        <div
-          id={listId}
-          ref={listRef}
-          role="listbox"
-          aria-label={`${label}の候補`}
-          data-placement={listLayout.above ? 'above' : 'below'}
-          onKeyDown={onListKeyDown}
-          style={{ maxHeight: listLayout.maxHeight }}
-          className={`absolute inset-x-0 z-20 overflow-auto rounded-xl border border-slate-200 bg-white shadow-[0_12px_32px_rgb(15_23_42/22%)] ${
-            listLayout.above ? 'bottom-[calc(100%+4px)]' : 'top-[calc(100%+4px)]'
-          }`}
-        >
-          {suggestions}
-        </div>
-      )}
-    </div>
+    </>
   )
 }

@@ -51,6 +51,15 @@ const currentButton = () =>
   )
 
 describe('PlaceInput', () => {
+  it('スマホの入力中は上部固定にし、iOSの自動拡大を防ぐ文字サイズにする', () => {
+    render()
+    act(() => input()?.focus())
+    expect(container.querySelector('[data-editing="true"]')?.className).toContain(
+      'max-[899px]:fixed',
+    )
+    expect(input()?.className).toContain('text-[16px]')
+  })
+
   describe('候補の表示位置', () => {
     it('キーボードで下側が狭ければ入力欄の上へ出す', () => {
       expect(suggestionLayout(360, 420, 0, 560)).toEqual({ above: true, maxHeight: 248 })
