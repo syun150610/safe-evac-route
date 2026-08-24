@@ -64,6 +64,29 @@ describe('safeReducer', () => {
     expect(state.activeField).toBe('origin')
   })
 
+  it('ホームから開いた地点検索を閉じるとホームへ戻る', () => {
+    const search = safeReducer(initialSafeState, { type: 'open_search', purpose: 'route' })
+    expect(search.searchReturnScreen).toBe('home')
+    expect(safeReducer(search, { type: 'close_search' }).screen).toBe('home')
+  })
+
+  it('避難先の結果から出発地を変更し、戻ると直前の結果へ戻る', () => {
+    const route = safeReducer(initialSafeState, { type: 'route_ready', routes: ['baseline'] })
+    const search = safeReducer(route, { type: 'open_search', purpose: 'shelter' })
+
+    expect(search.screen).toBe('search')
+    expect(search.searchReturnScreen).toBe('route')
+    expect(safeReducer(search, { type: 'close_search' }).screen).toBe('route')
+  })
+
+  it('検索画面を開き直しても元の結果画面という戻り先を失わない', () => {
+    const route = safeReducer(initialSafeState, { type: 'route_ready', routes: ['baseline'] })
+    const firstSearch = safeReducer(route, { type: 'open_search', purpose: 'shelter' })
+    const reopened = safeReducer(firstSearch, { type: 'open_search', purpose: 'route' })
+
+    expect(reopened.searchReturnScreen).toBe('route')
+  })
+
   it('経路終了で経路と目的地を解除し、出発地は残す', () => {
     // ⚠️ **一度は出発地も消していたが、戻した**（2026-08-23）。終了のたびに
     // 入力し直しになり、「もう一度探そうとすると発火しない」ように見えた。
