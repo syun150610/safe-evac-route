@@ -1,19 +1,23 @@
-/** 地図基盤の選択。**既定は Google。**
+/** 地図基盤の選択。**既定は Google、利用不能ならMapLibreへ自動退避。**
  *
  * 差はアダプタ（`map/adapters/`）に閉じているので、ここは1行で切り替わる。
  *
- *   /                    Google（既定）
+ *   /                    Google（既定。キーなし・読込/認証失敗時はMapLibre）
  *   /?platform=maplibre  地理院タイル + MapLibre（**キー不要**）
  *
  * ⚠️ Google はキーが要る（`frontend/.env.local` の `VITE_GOOGLE_MAPS_API_KEY`）。
- * 無いと地図が出ないので、その場合は `?platform=maplibre` で確認すること。
+ * 利用できない場合も地図機能全体を止めずMapLibreへ切り替える。技術的な理由は
+ * consoleへ記録するが、利用者の操作を妨げる画面メッセージは出さない。
  *
  * ログインを求める範囲は `routing.ts` が単独で決める（画面ごとの分岐をここへ書かない）。
  */
+import { useEffect, useState } from 'react'
+
 import { AuthPage } from './auth/AuthPage'
 import { AuthProvider, useAuth } from './auth/AuthProvider'
 import { EvacRouteMap } from './map'
 import type { Platform } from './map/hooks/useMapAdapter'
+import { GOOGLE_MAPS_UNAVAILABLE_EVENT, mapsApiKey } from './map/lib/google-maps'
 import { MyPage } from './mypage/MyPage'
 import { NewPostPage } from './posts/NewPostPage'
 import { TimelinePage } from './posts/TimelinePage'
@@ -22,6 +26,22 @@ import { screenFor } from './routing'
 function platformFromUrl(): Platform {
   const p = new URLSearchParams(location.search).get('platform')
   return p === 'maplibre' ? 'maplibre' : 'google'
+}
+
+/** Googleの設定・通信・認証のどれかが欠けても、地図機能全体は止めない。 */
+function MapPage() {
+  const requested = platformFromUrl()
+  const missingKey = requested === 'google' && !mapsApiKey()
+  const [platform, setPlatform] = useState<Platform>(missingKey ? 'maplibre' : requested)
+
+  useEffect(() => {
+    const fallback = () => setPlatform('maplibre')
+    window.addEventListener(GOOGLE_MAPS_UNAVAILABLE_EVENT, fallback)
+    return () => window.removeEventListener(GOOGLE_MAPS_UNAVAILABLE_EVENT, fallback)
+  }, [])
+
+  // keyで地図画面を作り直し、利用不能になったGoogle MapのDOM・状態を引き継がない。
+  return <EvacRouteMap key={platform} platform={platform} />
 }
 
 /** ログインが要る画面へ来た未ログインの人に出す。
@@ -65,7 +85,7 @@ function AppInner() {
     case 'mypage':
       return <MyPage />
     default:
-      return <EvacRouteMap platform={platformFromUrl()} />
+      return <MapPage />
   }
 }
 

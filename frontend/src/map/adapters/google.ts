@@ -1,13 +1,14 @@
 /** Google Maps 用アダプタ。
  *
- * `frontend/adapter_google.js`（素のHTML版）からの移植。**ロジックは変えていない。**
+ * `frontend/adapter_google.js`（素のHTML版）からの移植を起点にした実装。
  * 契約は ./types.ts。MapLibre版と対になっているので、片方だけ直さないこと。
  *
  * google.maps の型は入れていない（@types/google.maps を足すと Map ID など
  * 使っていない機能まで型が要求される）。境界だけ any にしてある。
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { loadMapsScript, mapsApiKey } from '../lib/google-maps'
+import { loadMapsScript, mapsApiKey, reportGoogleMapsUnavailable } from '../lib/google-maps'
+import { metersPerPixel, offsetPath } from './route-offset'
 import type {
   AreaClick,
   CalloutAnchor,
@@ -163,12 +164,6 @@ export function createGoogleAdapter(): MapAdapter {
     return overlay
   }
 
-  // Google には画面px基準の line-offset が無い。世界座標(m)でずらすしかないので、
-  // 「現在のズームで何メートルが1pxか」を毎回計算して線を引き直す。
-  // 固定のmでずらすと、ズームアウト時に5本が重なって見分けられなくなる
-  const metersPerPixel = (zoom: number, lat: number) =>
-    (156543.03392 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom
-
   let map: any = null
   let container: HTMLElement | null = null
   const quakePolys: any[] = [] // 地域危険度の町丁目（google.maps.Polygon）
@@ -226,52 +221,9 @@ export function createGoogleAdapter(): MapAdapter {
       emitViewport()
     }, 100)
   }
-
-  // ---- APIキー未設定・拒否時の案内 ----------------------------------------
-  function setupBox(extra?: string | null) {
-    let el = document.getElementById('setup')
-    if (!el) {
-      el = document.createElement('div')
-      el.id = 'setup'
-      el.innerHTML = `<div class="box">
-        <h2>Google Maps API キーが未設定です</h2>
-        <p style="color:#555;margin-top:4px">
-          Google版はキーがないと地図を表示できません。以下の手順で設定してください。<br>
-          <span style="color:#888;font-size:13px">（キー不要で動く地理院版は
-          <a href="./viewer_demo.html">viewer_demo.html</a>）</span></p>
-        <ol>
-          <li>Google Cloud でプロジェクトを作成し、請求先アカウントを紐付ける</li>
-          <li><b>Maps JavaScript API</b> を有効化する</li>
-          <li>APIキーを発行し、HTTPリファラー制限をかける（推奨）</li>
-          <li>設定ファイルを作る: <pre>cd frontend &amp;&amp; cp .env.example .env.local</pre></li>
-          <li><code>frontend/.env.local</code> の <code>VITE_GOOGLE_MAPS_API_KEY</code> に貼り付ける</li>
-          <li>このページをリロードする</li>
-        </ol>
-        <p style="font-size:12.5px;color:#777;margin-bottom:0">
-          <code>.env.local</code> は <code>.gitignore</code> 済みです。
-          キーをリポジトリにコミットしないでください。</p>
-        <div id="setupExtra" style="display:none;margin-top:14px;padding-top:12px;
-             border-top:1px solid #e3e5e9;color:#b3261e;font-size:13px"></div>
-      </div>`
-      document.body.appendChild(el)
-    }
-    el.style.display = 'block'
-    if (extra) {
-      const e = document.getElementById('setupExtra')
-      if (e) {
-        e.style.display = 'block'
-        e.textContent = extra
-      }
-    }
-  }
   // Googleはキー不正時に例外ではなくこのグローバル関数を呼ぶ。
-  // 用意しておかないと「地図が灰色のまま・原因不明」になる
-  ;(window as any).gm_authFailure = () =>
-    setupBox(
-      'APIキーが拒否されました。次のいずれかを確認してください: ' +
-        'キーの綴り / Maps JavaScript API が有効か / 請求先アカウントの紐付け / ' +
-        'HTTPリファラー制限に現在のURLが含まれているか。',
-    )
+  // 灰色の地図を残さず、Appへ伝えてMapLibreへ切り替える。
+  ;(window as any).gm_authFailure = () => reportGoogleMapsUnavailable('auth')
 
   // ---- 浸水タイル ---------------------------------------------------------
   // MapLibre は source に minzoom/maxzoom を書くだけで、範囲外ズームの抑制・
@@ -393,38 +345,6 @@ export function createGoogleAdapter(): MapAdapter {
   }
 
   // ---- 経路の線 -----------------------------------------------------------
-  /** 折れ線を法線方向に meters だけずらす（line-offset の代用） */
-  // ⚠️ **オフセット量には上限が要る。** ここは「各頂点を法線方向へずらす」だけの
-  //    素朴な実装なので、ずらす距離が頂点の間隔より大きくなると角で線が裏返り、
-  //    引きの画で**経路が巨大なギザギザになる**（z11 あたりで実際にそうなった）。
-  //    px基準のオフセット（offset_px × m/px）は引くほど m が増えるので、上限で頭を打たせる。
-  //    引きの画では5本の描き分けが甘くなるが、経路の形が壊れるよりはよい。
-  //    経路の頂点間隔は概ね 10〜50m なので、その下限あたりに置く。
-  const MAX_OFFSET_M = 12
-
-  function offsetPath(coords: number[][], meters: number): number[][] {
-    if (!meters) return coords
-    meters = Math.max(-MAX_OFFSET_M, Math.min(MAX_OFFSET_M, meters))
-    const out = []
-    for (let i = 0; i < coords.length; i++) {
-      const a = coords[Math.max(0, i - 1)]
-      const b = coords[Math.min(coords.length - 1, i + 1)]
-      const kx = Math.cos((coords[i][1] * Math.PI) / 180) || 1e-6
-      let dx = (b[0] - a[0]) * kx,
-        dy = b[1] - a[1]
-      const len = Math.hypot(dx, dy)
-      if (len === 0) {
-        out.push(coords[i].slice())
-        continue
-      }
-      dx /= len
-      dy /= len
-      const dLat = meters / 111320 // 右手側の法線 (dy, -dx)
-      out.push([coords[i][0] + (dy * dLat) / kx, coords[i][1] - dx * dLat])
-    }
-    return out
-  }
-
   /** 破線。Google の Polyline/Data に dasharray は無く、シンボルの繰り返しで作る */
   function dashIcons(color: string, weight: number, dash: [number, number] | null) {
     const gap = dash?.[1] ? dash[1] : 1.5
@@ -523,12 +443,7 @@ export function createGoogleAdapter(): MapAdapter {
       // キーは Vite の環境変数から。config.local.js は使わない
       const key = mapsApiKey()
       if (!key) {
-        // キーが無ければ地図は出ないが、指標パネルは動く。
-        // ready を解決しないことで、app.js 側の地図操作だけが止まる
-        setupBox(
-          'frontend/.env.local に VITE_GOOGLE_MAPS_API_KEY を設定してください' +
-            '（.env.example をコピーする）',
-        )
+        reportGoogleMapsUnavailable('missing-key')
         return ready
       }
       // スクリプトの読み込みは1回だけ（`lib/google-maps.ts` が見張る）。
@@ -577,13 +492,13 @@ export function createGoogleAdapter(): MapAdapter {
           })
           resolveReady?.()
         })
-        // ⚠️ **引数2つの then にする。** チェーン全体に .catch を付けると、
-        // 上の地図生成で投げた例外まで飲み込んでしまい、ready が永久に未解決になる
-        // （5秒で諦めるだけで原因が一切出ない。実際にこれで詰まった）。
-        // ここが受けるのはスクリプトの読み込み失敗だけでよい
-        .then(undefined, () =>
-          setupBox(
-            'Maps JavaScript API のスクリプトを読み込めませんでした（ネットワーク不通の可能性）。',
+        // スクリプト取得・地図生成の失敗はアプリへ伝え、灰色のまま待たず
+        // MapLibreへ切り替える。ローダー自身の失敗は固定メッセージ `script` で
+        // 区別できる（その他は Maps SDK 初期化中の例外）。
+        .then(undefined, (error) =>
+          reportGoogleMapsUnavailable(
+            error instanceof Error && error.message === 'script' ? 'script' : 'initialization',
+            error,
           ),
         )
 

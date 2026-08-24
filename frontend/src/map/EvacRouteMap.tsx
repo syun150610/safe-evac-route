@@ -169,7 +169,14 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
    */
   const suggestionList = (
     <>
-      <p className="px-3 pt-2 pb-1 text-[9px] text-slate-500">候補</p>
+      <div className="px-3 pt-2 pb-1 text-[9px] text-slate-500">
+        <p>候補</p>
+        {geocode.source === 'gsi' && (
+          <p className="mt-1 rounded bg-amber-50 px-2 py-1.5 leading-normal text-amber-800">
+            Googleの地点検索を利用できないため、国土地理院の住所検索を使用しています
+          </p>
+        )}
+      </div>
       {geocode.loading && <p className="p-4 text-center text-[11px] text-slate-500">検索中…</p>}
       {geocode.error && (
         <p className="p-4 text-center text-[11px] text-slate-500">{geocode.error}</p>
