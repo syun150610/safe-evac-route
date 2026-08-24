@@ -15,4 +15,8 @@ describe('conditionSummary', () => {
     expect(conditionSummary('地震', ['urgent', 'designated'], false)).toBe('地震を考慮')
     expect(conditionSummary('地震', ['urgent', 'designated'], false)).not.toContain('避難所')
   })
+
+  it('災害名の取得中は「を考慮」だけを表示しない', () => {
+    expect(conditionSummary(null, ['urgent', 'designated'], true)).toBe('検索条件を読み込み中…')
+  })
 })

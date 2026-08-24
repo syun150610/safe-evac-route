@@ -27,9 +27,21 @@ afterEach(() => {
   container.remove()
 })
 
-function render(condition: Condition, onChange: (next: Condition) => void, busy = false) {
+function render(
+  condition: Condition,
+  onChange: (next: Condition) => void,
+  busy = false,
+  loading = false,
+) {
   act(() => {
-    root.render(<HazardCondition busy={busy} hazard={condition.hazard} onChange={onChange} />)
+    root.render(
+      <HazardCondition
+        busy={busy}
+        hazard={condition.hazard}
+        loading={loading}
+        onChange={onChange}
+      />,
+    )
   })
 }
 
@@ -76,5 +88,14 @@ describe('HazardCondition', () => {
     act(() => button('浸水').click())
 
     expect(onChange).toHaveBeenCalledWith({ hazard: 'flood' })
+  })
+
+  it('災害定義の取得中は半端な選択肢を出さず読み込み中と示す', () => {
+    render({ hazard: 'flood' }, vi.fn(), false, true)
+
+    expect(container.textContent).toContain('読み込み中')
+    expect(container.querySelector('[role="status"]')).not.toBeNull()
+    expect(container.querySelector('button')).toBeNull()
+    expect(container.querySelector('section')?.getAttribute('aria-busy')).toBe('true')
   })
 })

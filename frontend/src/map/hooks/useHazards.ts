@@ -13,12 +13,17 @@ import type { HazardCatalog } from '../types'
 export function useHazards() {
   const [catalog, setCatalog] = useState<HazardCatalog | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   useEffect(() => {
     getHazards()
-      .then(setCatalog)
+      .then((next) => {
+        setCatalog(next)
+        setError(null)
+      })
       .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false))
   }, [])
-  return { catalog, error }
+  return { catalog, error, loading }
 }
 
 /** 種別＋シナリオ → タイルURLテンプレ */

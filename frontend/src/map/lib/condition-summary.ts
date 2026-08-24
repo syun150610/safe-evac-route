@@ -10,10 +10,11 @@ import { kindsSummary, type ShelterKind } from '../components/ShelterTypePicker'
  * ⚠️ **災害の呼び名はAPI由来**（`/api/hazards` の `label`）を使う。ここで書かない。
  */
 export function conditionSummary(
-  hazardLabel: string,
+  hazardLabel: string | null,
   kinds: ShelterKind[],
   shelterSearch: boolean,
 ) {
+  if (hazardLabel === null) return '検索条件を読み込み中…'
   const hazard = `${hazardLabel}を考慮`
   return shelterSearch ? `${hazard} ・ ${kindsSummary(kinds)}` : hazard
 }

@@ -15,12 +15,17 @@ const PREFECTURE =
 export function useArea() {
   const [area, setArea] = useState<Area | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   useEffect(() => {
     getArea()
-      .then(setArea)
+      .then((next) => {
+        setArea(next)
+        setError(null)
+      })
       .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false))
   }, [])
-  return { area, error }
+  return { area, error, loading }
 }
 
 /** bbox の中か。area がまだ来ていないときは通す（APIが最終判定する） */
