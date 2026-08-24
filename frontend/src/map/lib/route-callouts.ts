@@ -94,18 +94,18 @@ const DISMISS =
 function render(typeLabel: string | null, name: string, rows: CalloutRow[]): string {
   const head = [
     typeLabel
-      ? `<div style="font-size:8px;color:#64748b;line-height:1.3">${escapeHtml(typeLabel)}</div>`
+      ? `<div class="map-text-8" style="color:#64748b;line-height:1.3">${escapeHtml(typeLabel)}</div>`
       : '',
-    `<div style="font-size:11px;font-weight:700;color:#0f172a;line-height:1.3">${escapeHtml(name)}</div>`,
+    `<div class="map-text-11" style="font-weight:700;color:#0f172a;line-height:1.3">${escapeHtml(name)}</div>`,
   ].join('')
   const body = rows
     .map(
       (row) =>
         `<div style="margin-top:4px">` +
-        `<div style="display:flex;align-items:center;gap:4px;font-size:9px;font-weight:700;color:#07156f;line-height:1.3">${swatch(row)}<span>${escapeHtml(row.label)}</span></div>` +
-        `<div style="font-size:9px;color:#475569;line-height:1.35">${escapeHtml(row.detail)}${row.risk ? `・${escapeHtml(row.risk)}` : ''}</div>` +
+        `<div class="map-text-9" style="display:flex;align-items:center;gap:4px;font-weight:700;color:#07156f;line-height:1.3">${swatch(row)}<span>${escapeHtml(row.label)}</span></div>` +
+        `<div class="map-text-9" style="color:#475569;line-height:1.35">${escapeHtml(row.detail)}${row.risk ? `・${escapeHtml(row.risk)}` : ''}</div>` +
         (row.unevaluated
-          ? `<div style="font-size:8px;color:#b45309;line-height:1.3">${escapeHtml(row.unevaluated)}</div>`
+          ? `<div class="map-text-8" style="color:#b45309;line-height:1.3">${escapeHtml(row.unevaluated)}</div>`
           : '') +
         `</div>`,
     )

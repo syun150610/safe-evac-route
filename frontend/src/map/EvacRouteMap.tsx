@@ -17,6 +17,7 @@ import { SafeShelterSearchButton } from './components/SafeShelterSearchButton'
 import { SearchOptions } from './components/SearchOptions'
 import { ShelterResult } from './components/ShelterResult'
 import { type ShelterKind, ShelterTypePicker, toParam } from './components/ShelterTypePicker'
+import { TextSizeSettings } from './components/TextSizeSettings'
 import { DRAW_ORDER, STYLE } from './constants'
 import { inArea, useArea } from './hooks/useArea'
 import { useGeocode } from './hooks/useGeocode'
@@ -40,6 +41,7 @@ import {
 } from './lib/search-request'
 import { shelterPopupHtml } from './lib/shelter-popup'
 import { shelterIsVisible } from './lib/shelter-viewport'
+import { readMapTextSize, saveMapTextSize } from './lib/text-size'
 import { initialSafeState, type PlaceField, safeReducer } from './state/evac-route-state'
 import type { ShelterCandidate, ShelterFeature } from './types'
 
@@ -85,6 +87,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     clampDesktopSidebarWidth(window.innerWidth * 0.34, window.innerWidth),
   )
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false)
+  const [mapTextSize, setMapTextSize] = useState(readMapTextSize)
   /** 右下の道具のうち、いま開いているパネル。
    * ⚠️ **同時に1つだけ**。凡例とレイヤーが同時に出ると地図が隠れる */
   const [openTool, setOpenTool] = useState<'layers' | 'legend' | null>(null)
@@ -841,12 +844,13 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
 
   return (
     <main
-      className="relative min-h-dvh w-full overflow-hidden bg-slate-50 text-[#182035] shadow-[0_0_36px_rgb(15_23_42/14%)] min-[900px]:grid min-[900px]:h-dvh min-[900px]:min-h-0 min-[900px]:grid-rows-[54px_minmax(0,1fr)]"
+      className="map-page relative min-h-dvh w-full overflow-hidden bg-slate-50 text-[#182035] shadow-[0_0_36px_rgb(15_23_42/14%)] min-[900px]:grid min-[900px]:h-dvh min-[900px]:min-h-0 min-[900px]:grid-rows-[54px_minmax(0,1fr)]"
       style={{
         gridTemplateColumns: `${desktopSidebarCollapsed ? 44 : desktopSidebarWidth}px minmax(0, 1fr)`,
       }}
+      data-text-size={mapTextSize}
     >
-      <header className="flex h-[54px] items-center justify-between border-b border-slate-200 bg-white/95 px-4 min-[900px]:col-span-2 min-[900px]:col-start-1 min-[900px]:row-start-1">
+      <header className="relative z-[5] flex h-[54px] items-center justify-between border-b border-slate-200 bg-white/95 px-4 min-[900px]:col-span-2 min-[900px]:col-start-1 min-[900px]:row-start-1">
         <div className="flex items-center gap-2 text-sm tracking-[0.08em] text-[#07156f]">
           <span className="grid size-6 place-items-center rounded-lg bg-[#07156f] text-white">
             ◇
@@ -857,20 +861,29 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             「?」のアバターだけだと、押せばログインできると分からない。
             ⚠️ 確認中は何も出さない（一瞬「ログイン」が出てからアバターに
             変わると、ログアウトしたように見える） */}
-        {authStatus === 'initializing' ? null : user ? (
-          <a href="/mypage" aria-label="マイページ">
-            <span className="grid size-[30px] place-items-center rounded-full bg-[#07145f] text-[11px] font-bold text-white">
-              {user.name.slice(0, 1).toUpperCase()}
-            </span>
-          </a>
-        ) : (
-          <a
-            className="flex h-[30px] items-center rounded-full border border-slate-200 px-3 text-[11px] font-bold text-[#07156f]"
-            href="/mypage"
-          >
-            ログイン
-          </a>
-        )}
+        <div className="flex items-center gap-2">
+          <TextSizeSettings
+            value={mapTextSize}
+            onChange={(value) => {
+              setMapTextSize(value)
+              saveMapTextSize(value)
+            }}
+          />
+          {authStatus === 'initializing' ? null : user ? (
+            <a href="/mypage" aria-label="マイページ">
+              <span className="grid size-[30px] place-items-center rounded-full bg-[#07145f] text-[11px] font-bold text-white">
+                {user.name.slice(0, 1).toUpperCase()}
+              </span>
+            </a>
+          ) : (
+            <a
+              className="flex h-[30px] items-center rounded-full border border-slate-200 px-3 text-[11px] font-bold text-[#07156f]"
+              href="/mypage"
+            >
+              ログイン
+            </a>
+          )}
+        </div>
       </header>
 
       <section

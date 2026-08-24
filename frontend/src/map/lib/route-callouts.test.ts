@@ -129,6 +129,12 @@ describe('routeCallouts', () => {
     expect(callout.html).toContain('第一小学校')
   })
 
+  it('地図画面の文字サイズ設定を経路要約にも反映できる', () => {
+    const [callout] = routeCallouts(bundle({ shelter }), { shown: {} })
+    expect(callout.html).toContain('class="map-text-11"')
+    expect(callout.html).toContain('class="map-text-9"')
+  })
+
   it('目的地を指定した探索では目的地名を見出しにする', () => {
     const [callout] = routeCallouts(bundle(), { shown: {} })
     expect(callout.html).toContain('上野駅')

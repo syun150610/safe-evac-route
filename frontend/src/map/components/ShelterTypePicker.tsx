@@ -95,36 +95,38 @@ export function ShelterTypePicker({
           <strong className="block text-[10px]">{title}</strong>
           {note && <small className="mt-0.5 block text-[8px] text-slate-500">{note}</small>}
         </div>
-        {ORDER.map((kind) => {
-          const on = selected.includes(kind)
-          return (
-            <button
-              type="button"
-              key={kind}
-              aria-pressed={on}
-              className={`inline-flex min-h-7 cursor-pointer items-center gap-1 rounded-md border px-2 text-[9px] ${
-                on ? KINDS[kind].on : 'border-slate-200 bg-white text-slate-500'
-              }`}
-              onClick={() => toggle(kind)}
-            >
-              <span
-                aria-hidden="true"
-                className={`size-1.5 rounded-full ${on ? KINDS[kind].dot : 'bg-slate-300'}`}
-              />
-              {KINDS[kind].short}
-            </button>
-          )
-        })}
-        <button
-          type="button"
-          aria-expanded={openHelp}
-          aria-controls={helpId}
-          aria-label="避難先の種類の違いを見る"
-          className="grid size-6 cursor-pointer place-items-center rounded-full border border-slate-300 bg-white text-[10px] text-slate-600"
-          onClick={() => setOpenHelp((v) => !v)}
-        >
-          ?
-        </button>
+        <fieldset aria-label="探す避難先の種類" className="flex shrink-0 items-center gap-1.5">
+          {ORDER.map((kind) => {
+            const on = selected.includes(kind)
+            return (
+              <button
+                type="button"
+                key={kind}
+                aria-pressed={on}
+                className={`inline-flex min-h-7 cursor-pointer items-center gap-1 rounded-md border px-2 text-[9px] ${
+                  on ? KINDS[kind].on : 'border-slate-200 bg-white text-slate-500'
+                }`}
+                onClick={() => toggle(kind)}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`size-1.5 rounded-full ${on ? KINDS[kind].dot : 'bg-slate-300'}`}
+                />
+                {KINDS[kind].short}
+              </button>
+            )
+          })}
+          <button
+            type="button"
+            aria-expanded={openHelp}
+            aria-controls={helpId}
+            aria-label="避難先の種類の違いを見る"
+            className="grid size-6 cursor-pointer place-items-center rounded-full border border-slate-300 bg-white text-[10px] text-slate-600"
+            onClick={() => setOpenHelp((v) => !v)}
+          >
+            ?
+          </button>
+        </fieldset>
       </div>
 
       {openHelp && (

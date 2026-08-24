@@ -71,6 +71,17 @@ describe('ShelterTypePicker', () => {
     expect(button('避難所').getAttribute('aria-pressed')).toBe('true')
   })
 
+  it('種類ボタンとヘルプをひとまとまりにして、片方だけ折り返さない', () => {
+    render(['urgent', 'designated'])
+    const group = container.querySelector('fieldset[aria-label="探す避難先の種類"]')
+
+    expect(group).not.toBeNull()
+    expect(group?.contains(button('緊急避難場所'))).toBe(true)
+    expect(group?.contains(button('避難所'))).toBe(true)
+    expect(group?.contains(button('?'))).toBe(true)
+    expect(group?.classList.contains('shrink-0')).toBe(true)
+  })
+
   it('ヘルプを開くと2種類の役割の違いが出る', () => {
     render(['urgent'])
     expect(container.textContent).not.toContain('まず逃げ込む先')
