@@ -281,11 +281,27 @@ export function createGoogleAdapter(): MapAdapter {
   // Google は返した画像をタイル枠いっぱいに描くため、z18 では親タイル全体が
   // 4つの子タイル枠それぞれに描かれ、模様が4回繰り返される。
   // getTile で DOM を返し、background-size / background-position で象限を切り出す。
-  /** 浸水タイルを何回重ねて塗るか。
+  /** 浸水タイルのPNGに焼き込まれた不透明度（浸水色）。
+   * 出所は `backend/prep/tile_render/render.py` の `ALPHA = 165`。 */
+  const FLOOD_BAKED_ALPHA = 0.65
+  /** 重ね塗りの上限。⚠️ 増やしすぎても下の道路が読めなくなるだけ */
+  const FLOOD_MAX_PAINTS = 3
+
+  /** 「見え方の強さ（0〜1）」から、重ねる枚数とCSSの不透明度を決める。
    *
-   * PNGに焼かれた不透明度は浸水色 0.65 / 範囲外ハッチ 0.27。2回重ねると
-   * それぞれ 0.88 / 0.47 になる。⚠️ 増やしすぎると下の道路が読めなくなる。 */
-  const FLOOD_PAINTS = 3
+   * ⚠️ **地震の面とスケールを揃えるための換算。** 地震は多角形の塗りなので
+   * 指定した値がそのまま濃さになるが、浸水はPNGに 0.65 が焼かれている。
+   * 同じ値を指定しても浸水のほうが薄くなるので、ここで吸収する
+   * （ユーザー指摘、2026-08-24）。
+   *   target <= 0.65 … 1枚 ＋ CSS不透明度で薄める
+   *   target >  0.65 … 重ねて濃くし、行き過ぎたぶんをCSS不透明度で戻す */
+  function paintPlan(target: number) {
+    const t = Math.min(1, Math.max(0, target))
+    let paints = 1
+    while (paints < FLOOD_MAX_PAINTS && 1 - (1 - FLOOD_BAKED_ALPHA) ** paints < t) paints += 1
+    const reachable = 1 - (1 - FLOOD_BAKED_ALPHA) ** paints
+    return { paints, opacity: Math.min(1, t / reachable) }
+  }
   /** タイルを1枚あたり何px大きく描くか。
    *
    * ⚠️ **縦に細い隙間が見えるのを埋める。** タイルの絵自体には隙間が無い
@@ -294,7 +310,8 @@ export function createGoogleAdapter(): MapAdapter {
    * （ユーザー指摘、2026-08-24）。**わずかに拡大して重ねる**ことで埋める。 */
   const FLOOD_BLEED = 1
 
-  function makeFloodType(url: string, minz: number, maxz: number, opacity: number) {
+  function makeFloodType(url: string, minz: number, maxz: number, target: number) {
+    const plan = paintPlan(target)
     const tpl = (z: number, x: number, y: number) =>
       url.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y))
     return new (class {
@@ -305,10 +322,13 @@ export function createGoogleAdapter(): MapAdapter {
       _opacity: number
       _minz?: number
       _maxz?: number
+      _url?: string
+      /** いま指定されている「見え方の強さ」。重ね枚数の決め直しに使う */
+      _target?: number
 
       constructor() {
         this.tileSize = new google.maps.Size(256, 256)
-        this._opacity = opacity
+        this._opacity = plan.opacity
       }
       getTile(coord: any, zoom: number, doc: Document) {
         const div = doc.createElement('div')
@@ -348,9 +368,9 @@ export function createGoogleAdapter(): MapAdapter {
         const size = 256 * scale + FLOOD_BLEED
         const shiftX = -(256 * cx) * (size / (256 * scale))
         const shiftY = -(256 * cy) * (size / (256 * scale))
-        div.style.backgroundImage = Array(FLOOD_PAINTS).fill(src).join(', ')
-        div.style.backgroundSize = Array(FLOOD_PAINTS).fill(`${size}px ${size}px`).join(', ')
-        div.style.backgroundPosition = Array(FLOOD_PAINTS)
+        div.style.backgroundImage = Array(plan.paints).fill(src).join(', ')
+        div.style.backgroundSize = Array(plan.paints).fill(`${size}px ${size}px`).join(', ')
+        div.style.backgroundPosition = Array(plan.paints)
           .fill(`${shiftX}px ${shiftY}px`)
           .join(', ')
         div.style.imageRendering = 'pixelated' // 拡大時に補間でぼかさない
@@ -578,27 +598,48 @@ export function createGoogleAdapter(): MapAdapter {
       map.overlayMapTypes.push(flood)
       flood._minz = minzoom
       flood._maxz = maxzoom
+      flood._url = url
+      flood._target = opacity
     },
 
     // タイルURLは差し替えられないので、オーバーレイを作り直す
     setRasterTiles(_id, url) {
       if (!map || floodIndex < 0) return
-      const opacity = flood._opacity,
+      const target = flood._target ?? floodOpacity,
         minz = flood._minz,
         maxz = flood._maxz
-      flood = makeFloodType(url, minz, maxz, opacity)
+      flood = makeFloodType(url, minz, maxz, target)
       flood._minz = minz
       flood._maxz = maxz
+      flood._url = url
+      flood._target = target
       map.overlayMapTypes.setAt(floodIndex, flood)
     },
 
+    // v は「見え方の強さ（0〜1）」。⚠️ 地震と浸水で**同じ意味**にする
     setLayerOpacity(id, v) {
       if (id === 'quake') {
         for (const p of quakePolys) p.setOptions(areaStyle(v))
         return
       }
       floodOpacity = v
-      if (flood) flood.setOpacity(v)
+      if (!flood || !map) return
+      // ⚠️ **重ねる枚数が変わるならタイルを作り直す。** 枚数は `getTile` が
+      //    描くときに決まるので、既存のタイルのCSSを触るだけでは変わらない
+      const before = paintPlan(flood._target ?? v)
+      const after = paintPlan(v)
+      flood._target = v
+      if (before.paints !== after.paints && floodIndex >= 0) {
+        const rebuilt = makeFloodType(flood._url, flood._minz, flood._maxz, v)
+        rebuilt._minz = flood._minz
+        rebuilt._maxz = flood._maxz
+        rebuilt._url = flood._url
+        rebuilt._target = v
+        flood = rebuilt
+        map.overlayMapTypes.setAt(floodIndex, flood)
+        return
+      }
+      flood.setOpacity(after.opacity)
     },
 
     // 面のベクタレイヤ（地震の町丁目）。**Polygon を1枚ずつ置く。**

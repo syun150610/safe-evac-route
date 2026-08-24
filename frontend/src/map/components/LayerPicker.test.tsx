@@ -14,12 +14,37 @@ function render(callouts: boolean) {
       callouts={callouts}
       onCalloutsChange={() => undefined}
       onChange={() => undefined}
+      onOpacityChange={() => undefined}
+      opacity={0.5}
       value="none"
     />,
   )
 }
 
+function renderWithLayer() {
+  return renderToStaticMarkup(
+    <LayerPicker
+      callouts
+      onCalloutsChange={() => undefined}
+      onChange={() => undefined}
+      onOpacityChange={() => undefined}
+      opacity={0.5}
+      value="flood"
+    />,
+  )
+}
+
 describe('LayerPicker', () => {
+  // ⚠️ 濃さは種別ごと。何も重ねていないときに出しても動かす先が無い
+  it('重ねているときだけ濃さのつまみを出す', () => {
+    expect(renderWithLayer()).toContain('濃さ')
+    expect(render(true)).not.toContain('濃さ')
+  })
+
+  it('いまの濃さを％で見せる', () => {
+    expect(renderWithLayer()).toContain('50%')
+  })
+
   it('経路の要約を消す導線を出す', () => {
     expect(render(true)).toContain('経路の要約を地図に出す')
   })

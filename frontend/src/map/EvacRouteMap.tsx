@@ -52,13 +52,7 @@ const EMPTY = { type: 'FeatureCollection' as const, features: [] }
 // ⚠️ **`prep/tile_render/render.py` の `ZOOMS` と `catalog.py` の
 // `FLOOD_MINZ/MAXZ` に揃える。** 3箇所ずれると404か、焼いたタイルが使われない
 const FLOOD_ZOOM = { minzoom: 10, maxzoom: 15 }
-/** 浸水タイルの不透明度。
- *
- * ⚠️ **地震の面（`state.opacity`）と分ける。** 浸水は「どこが何m浸かるか」を
- * 色の濃さで表すラスタで、薄めると浅い区間の色が下地に負けて読めない
- * （ユーザー指摘、2026-08-23）。地震の町丁目は面が広く、薄くしないと
- * 経路も地図も隠れるので**そのまま**にする。 */
-const FLOOD_OPACITY = 1
+
 const SHEET_SCREEN_CLASS = 'min-h-full bg-white px-4 py-4'
 /** 右下の道具から出るパネル。
  *
@@ -683,24 +677,24 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     if (!a || !ready) return
     if (floodUrl) {
       if (!floodAdded.current) {
-        a.addRasterLayer('flood', floodUrl, { ...FLOOD_ZOOM, opacity: FLOOD_OPACITY })
+        a.addRasterLayer('flood', floodUrl, { ...FLOOD_ZOOM, opacity: state.opacity.flood })
         floodAdded.current = true
       } else a.setRasterTiles('flood', floodUrl)
       a.setLayerVisible('flood', true)
-      a.setLayerOpacity('flood', FLOOD_OPACITY)
+      a.setLayerOpacity('flood', state.opacity.flood)
     } else if (floodAdded.current) a.setLayerVisible('flood', false)
-  }, [adapter, ready, floodUrl])
+  }, [adapter, ready, floodUrl, state.opacity.flood])
 
   useEffect(() => {
     const a = adapter.current
     if (!a || !ready) return
     if (quakeData) {
-      a.setVectorAreas('quake', quakeData, { opacity: state.opacity })
+      a.setVectorAreas('quake', quakeData, { opacity: state.opacity.quake })
       quakeAdded.current = true
       a.setLayerVisible('quake', true)
-      a.setLayerOpacity('quake', state.opacity)
+      a.setLayerOpacity('quake', state.opacity.quake)
     } else if (quakeAdded.current) a.setLayerVisible('quake', false)
-  }, [adapter, ready, quakeData, state.opacity])
+  }, [adapter, ready, quakeData, state.opacity.quake])
 
   useEffect(() => {
     const a = adapter.current
@@ -887,6 +881,12 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               onChange={(layer) => dispatch({ type: 'set_layer', layer })}
               callouts={state.showCallouts}
               onCalloutsChange={(shown) => dispatch({ type: 'show_callouts', shown })}
+              opacity={state.mapLayer === 'none' ? 1 : state.opacity[state.mapLayer]}
+              onOpacityChange={(opacity) => {
+                if (state.mapLayer !== 'none') {
+                  dispatch({ type: 'set_opacity', layer: state.mapLayer, opacity })
+                }
+              }}
             />
           </section>
         )}

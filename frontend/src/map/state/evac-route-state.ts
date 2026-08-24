@@ -22,7 +22,13 @@ export interface SafeState {
   hazard: HazardChoice
   scenario: string
   mapLayer: MapLayerChoice
-  opacity: number
+  /** 重ねた災害情報の濃さ。**種別ごとに覚える**（地震の面と浸水のラスタでは
+   * ちょうどよい濃さが違う）。
+   *
+   * ⚠️ **意味は「見え方の強さ 0〜1」で揃える。** 浸水タイルはPNGに不透明度が
+   * 焼かれているので、この値をそのままCSSの不透明度にしても地震と釣り合わない。
+   * 換算はアダプタ側が持つ（`google.ts` の `paintPlan`）。 */
+  opacity: Record<HazardChoice, number>
   shownRoutes: Partial<Record<RouteId, boolean>>
   /** 閉じた吹き出しのID（`dest` / `alt`）。
    *
@@ -49,7 +55,9 @@ export const initialSafeState: SafeState = {
   hazard: 'quake',
   scenario: 'envelope',
   mapLayer: 'none',
-  opacity: 0.65,
+  // ⚠️ 浸水は乗算で重ねるぶん強く出るので、地震より控えめから始める
+  //    （3回重ねた既定が「濃すぎる」という指摘。2026-08-24）
+  opacity: { flood: 0.5, quake: 0.65 },
   shownRoutes: { baseline: true },
   showCallouts: true,
   hiddenCallouts: [],
@@ -67,7 +75,7 @@ export type SafeAction =
   | { type: 'set_hazard'; hazard: HazardChoice }
   | { type: 'set_scenario'; scenario: string }
   | { type: 'set_layer'; layer: MapLayerChoice }
-  | { type: 'set_opacity'; opacity: number }
+  | { type: 'set_opacity'; layer: HazardChoice; opacity: number }
   | { type: 'show_callouts'; shown: boolean }
   | { type: 'hide_callout'; id: string }
   | { type: 'reveal_callout'; id: string }
@@ -121,7 +129,7 @@ export function safeReducer(state: SafeState, action: SafeAction): SafeState {
     case 'set_layer':
       return { ...state, mapLayer: action.layer }
     case 'set_opacity':
-      return { ...state, opacity: action.opacity }
+      return { ...state, opacity: { ...state.opacity, [action.layer]: action.opacity } }
     case 'show_callouts':
       // ⚠️ まとめて出し直すときは、1つずつ閉じたぶんも戻す
       return { ...state, showCallouts: action.shown, hiddenCallouts: [] }
