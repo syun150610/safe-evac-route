@@ -24,6 +24,10 @@ const stats: RouteStats = {
   out_of_coverage_ratio: 0,
 }
 
+const rationaleSummary = {
+  hazards: [{ considered: true, verdict: 'avoided', unevaluated_stage: 'none' }],
+} as unknown as Bundle['rationale']
+
 function route(overrides: Partial<RouteInfo>): RouteInfo {
   return {
     id: 'baseline',
@@ -42,6 +46,7 @@ describe('sheetSummary', () => {
   it('探索時は選択された経路とベースラインとの差を返す', () => {
     const bundle = {
       selected_route: 'quake',
+      rationale: rationaleSummary,
       routes: [
         route({}),
         route({
@@ -59,6 +64,7 @@ describe('sheetSummary', () => {
       label: '地震のみ',
       distance: '5.40km',
       minutes: 90,
+      evaluation: '評価対象の危険区間を回避しました',
       baselineDelta: 7,
       baselineDistanceDelta: 400,
     })
@@ -250,6 +256,7 @@ describe('畳んだシートの見出し', () => {
   // ⚠️ 距離と所要は同じ速度から出るので、片方だけ動かした固定値は現実に無い
   const bundle = {
     selected_route: 'quake',
+    rationale: rationaleSummary,
     routes: [
       route({}),
       route({
@@ -267,10 +274,10 @@ describe('畳んだシートの見出し', () => {
     expect(html).not.toContain('①')
   })
 
-  it('⚠️ 「①比」ではなく、何と比べたかを言葉で書く', () => {
+  it('数値の比較ではなく短い評価を出す', () => {
     const html = renderCollapsed(bundle)
-    expect(html).not.toContain('①比')
-    expect(html).toContain('最短経路と比べて')
+    expect(html).toContain('評価対象の危険区間を回避しました')
+    expect(html).not.toContain('最短経路と比べて')
   })
 
   it('渡された条件ラベルを見出しに使う（災害の呼び名はAPI由来）', () => {
@@ -279,25 +286,15 @@ describe('畳んだシートの見出し', () => {
     expect(html).not.toContain('地震のみ')
   })
 
-  it('⚠️ 距離差も出す（何分余計かだけでは遠回りの実感が湧かない）', () => {
-    const html = renderCollapsed(bundle)
-    expect(html).toContain('最短経路と比べて +0.40km, +7分')
-  })
-
-  it('差が無ければ「同じ」と言う', () => {
-    const same = {
-      selected_route: 'quake',
-      routes: [
-        route({}),
-        route({ id: 'quake', label: '地震のみ', stats: { ...stats, duration_min_60: 83 } }),
-      ],
-    } as Bundle
-    expect(renderCollapsed(same)).toContain('最短経路と同じ')
+  it('評価が無い旧レスポンスでは余計な比較文を出さない', () => {
+    const withoutRationale = { ...bundle, rationale: undefined } as Bundle
+    expect(renderCollapsed(withoutRationale)).not.toContain('評価対象の危険区間を回避しました')
+    expect(renderCollapsed(withoutRationale)).not.toContain('最短経路と同じ')
   })
 })
 
 describe('compareText', () => {
-  const base = { label: '', distance: '', minutes: 0 }
+  const base = { label: '', distance: '', minutes: 0, evaluation: null }
 
   it('距離と所要を並べる', () => {
     expect(compareText({ ...base, baselineDelta: 8, baselineDistanceDelta: 341 })).toBe(

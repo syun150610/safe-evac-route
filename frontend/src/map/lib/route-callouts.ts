@@ -80,17 +80,6 @@ function swatch({ color, dashed }: CalloutRow): string {
   return `<span style="display:inline-block;width:14px;height:3px;flex:none;border-radius:2px;background:${background}"></span>`
 }
 
-/** 消すための×。
- *
- * ⚠️ **ここだけ `pointer-events` を戻す。** 吹き出し全体でクリックを受けると、
- * 下の経路とピンが押せなくなる。
- * ⚠️ **押された1つだけ閉じる**（2026-08-24）。2つ出ているときにまとめて消えると、
- * 片方だけ見たい場合に困る。
- * ⚠️ 戻す道は**行先のピン**（押すと出し直す）と、地図レイヤーのメニュー。 */
-const DISMISS =
-  '<button type="button" class="map-card-dismiss" data-action="dismiss" ' +
-  'aria-label="この要約を閉じる（行先のピンで戻せます）">×</button>'
-
 function render(typeLabel: string | null, name: string, rows: CalloutRow[]): string {
   const head = [
     typeLabel
@@ -110,8 +99,8 @@ function render(typeLabel: string | null, name: string, rows: CalloutRow[]): str
         `</div>`,
     )
     .join('')
-  // 32pxの×と内側の余白ぶん、見出しの右を空ける
-  return `<div style="position:relative;min-width:118px;max-width:186px;padding-right:40px">${DISMISS}${head}${body}</div>`
+  // 移動・閉じる操作は表示側のReact部品が付ける。HTMLは内容だけを持つ。
+  return `<div style="min-width:118px;max-width:186px">${head}${body}</div>`
 }
 
 /** 吹き出しの向きを決めるとき、経路の終端から何点さかのぼって見るか。
@@ -333,7 +322,11 @@ export function routeCallouts(bundle: Bundle | null, options: Options): CalloutS
   const alt = bundle.alt_shelter
   // ⚠️ **もう一方の避難先にも最短経路が出るようになった**（2026-08-24）。
   //    おすすめ側と同じように、出ている経路をぜんぶ並べる
-  const altRoutes = (bundle.alt_routes ?? []).filter((route) => shown[route.id] !== false)
+  const altRoutes = (bundle.alt_routes ?? [])
+    .filter((route) => shown[route.id] !== false)
+    // おすすめ側と同じく、選ばれた回避経路を最短経路より先に見せる。
+    .sort((a, b) => Number(b.id === 'shelter_alt') - Number(a.id === 'shelter_alt'))
+    .slice(0, MAX_ROWS)
   const altRows = altRoutes.length
     ? altRoutes.map((route) => rowOf(route.id, route.label, route.stats, risk))
     : shown.shelter_alt !== false && alt

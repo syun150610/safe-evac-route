@@ -1,4 +1,5 @@
 import { km } from '../lib/format'
+import { rationaleSummary } from '../lib/rationale-summary'
 import type { Bundle } from '../types'
 
 const FLING_VELOCITY = 0.45
@@ -7,6 +8,8 @@ export interface SheetSummary {
   label: string
   distance: string
   minutes: number
+  /** APIの判定値から作る短い評価。数値・条件はシートを開いて確認する */
+  evaluation: string | null
   /** 最短経路との所要差（分）。最短そのものを見ているときは null */
   baselineDelta: number | null
   /** 最短経路との距離差(m)。**「何分余計か」だけでは遠回りの実感が湧かない**
@@ -35,6 +38,10 @@ export function sheetSummary(bundle: Bundle | null): SheetSummary | null {
     label: route.label,
     distance: km(route.stats.distance_m),
     minutes: Math.round(route.stats.duration_min_60),
+    evaluation: (() => {
+      const hazard = bundle.rationale?.hazards.find((item) => item.considered)
+      return hazard ? rationaleSummary(hazard) : null
+    })(),
     baselineDelta: baselineDelta == null ? null : Math.round(baselineDelta),
     baselineDistanceDelta: baselineDistanceDelta == null ? null : Math.round(baselineDistanceDelta),
   }

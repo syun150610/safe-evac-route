@@ -6,9 +6,9 @@
  * レイアウトを作り直すときは、置き場所を変えるだけでそのまま動く。
  * 分解して EvacRouteMap 側へ散らさないこと。
  *
- * ⚠️ **文言をここで組み立てない。** 短文も詳細4行もAPIが完成した文字列で返す
- * （`backend/app/services/evac_routes/rationale.py` が単一の出所）。
- * ここにテンプレートを置くと、UI改修と文言仕様が二重管理になる。
+ * ⚠️ **数値入りの説明と詳細4行をここで組み立てない。** APIが完成した文字列で返す
+ * （`backend/app/services/evac_routes/rationale.py` が単一の出所）。一覧用の短い評価だけは
+ * API契約を変えず、安定した判定値を `lib/rationale-summary.ts` で言い換える。
  * 数値を強調したくなったら `h.before_m` などを使う（文言は組み直さない）。
  *
  * ⚠️ **災害種別をここに書かない。** 「浸水30cm超」「危険度4以上」は
@@ -23,8 +23,9 @@
  * ⚠️ **並び順を変えない。** 「全区間評価済みの種別が先、未評価のある種別が後」に
  * API側で並べてある。確かなことから先に述べるため。
  */
-import { type ReactNode, useState } from 'react'
+import { useState } from 'react'
 
+import { rationaleSummary } from '../lib/rationale-summary'
 import type { Rationale, RationaleHazard } from '../types'
 
 /** 回避できたことが伝わる状態か。色分けにだけ使う */
@@ -58,7 +59,7 @@ function HazardRow({ h }: { h: RationaleHazard }) {
         </span>
         <span className="flex-1">
           <span className={GOOD.has(h.verdict) ? 'text-green-800' : 'text-slate-800'}>
-            {h.text}
+            {rationaleSummary(h)}
           </span>
           {!h.considered && (
             <span className="ml-1 text-[10.5px] text-slate-500">
@@ -96,15 +97,11 @@ function HazardRow({ h }: { h: RationaleHazard }) {
   )
 }
 
-/** ⚠️ **数字の箱を分けない。** 以前は「危険区間◯m」「最短との差◯分」の
- * タイルと、この根拠の箱が別々に並んでいて、同じことを3箇所で言っていた
- * （ユーザー指摘、2026-08-24）。要約は `lead` として同じ箱の中に入れる。 */
-export function RouteRationale({ rationale, lead }: { rationale: Rationale; lead?: ReactNode }) {
+export function RouteRationale({ rationale }: { rationale: Rationale }) {
   if (!rationale.hazards.length) return null
   return (
     <section className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1">
       <h2 className="sr-only">この経路を選んだ根拠</h2>
-      {lead && <div className="border-slate-200 border-b py-1.5 text-[12px]">{lead}</div>}
       <ul className="text-[12px] leading-snug">
         {rationale.hazards.map((h) => (
           <HazardRow key={h.id} h={h} />

@@ -3,14 +3,14 @@ import { getPosts } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 import type { Post } from '../posts/types'
 import { BottomSheet, clampDesktopSidebarWidth, useMobileLayout } from './components/BottomSheet'
-import { compareText, sheetOpenAfterSearch, sheetSummary } from './components/bottomSheetLogic'
-import { CompareLead } from './components/CompareLead'
+import { sheetOpenAfterSearch } from './components/bottomSheetLogic'
 import { DataAttribution } from './components/DataAttribution'
 import { type Condition, HazardCondition } from './components/HazardCondition'
 import { HazardLegend } from './components/HazardLegend'
 import { LayerPicker } from './components/LayerPicker'
 import { LayersIcon, LegendIcon, LocateIcon } from './components/MapToolIcons'
 import { PlaceInput } from './components/PlaceInput'
+import { RouteCalloutCards } from './components/RouteCalloutCards'
 import { RouteRationale } from './components/RouteRationale'
 import { RouteTable } from './components/RouteTable'
 import { SafeShelterSearchButton } from './components/SafeShelterSearchButton'
@@ -32,7 +32,7 @@ import { nearestSegment, routeBounds } from './lib/geo'
 import { currentPosition, type Place } from './lib/gsi'
 import { legendFor } from './lib/map-legend'
 import type { PlaceSuggestion } from './lib/place-search'
-import { calloutPadding, mergePadding, routeCallouts } from './lib/route-callouts'
+import { routeCallouts } from './lib/route-callouts'
 import {
   buildHazards,
   buildRouteSearchRequest,
@@ -220,49 +220,13 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       })}
     </>
   )
-  /** 「経路を比較」の要約。⚠️ **数値はAPIのものをそのまま使う**（ここで
-   * 引き算しない）。距離差の言い回しは畳んだシートと同じ `compareText`。 */
-  const compareLead = useMemo(() => {
-    if (!primaryHazard) return null
-    const summary = sheetSummary(bundle)
-    return (
-      <CompareLead
-        afterM={primaryHazard.after_m}
-        beforeM={primaryHazard.before_m}
-        compare={summary ? compareText(summary) : ''}
-        riskLabel={primaryHazard.risk_label}
-      />
-    )
-  }, [primaryHazard, bundle])
-
   /** もう一方の避難先の根拠。⚠️ **経路の重みに掛けた種別だけ**（おすすめ側と同じ規則） */
   const altRationaleHazards = bundle?.alt_rationale?.hazards.filter((h) => h.considered) ?? []
 
-  /** もう一方の避難先の要約。⚠️ 数値はその避難先の根拠から取る（使い回さない） */
-  const altCompareLead = useMemo(() => {
-    const hazard = altRationaleHazards[0]
-    const distance = bundle?.alt_rationale?.distance
-    if (!hazard || !distance) return null
-    return (
-      <CompareLead
-        afterM={hazard.after_m}
-        beforeM={hazard.before_m}
-        compare={compareText({
-          label: '',
-          distance: '',
-          minutes: Math.round(distance.selected_min_60),
-          baselineDelta: Math.round(distance.selected_min_60 - distance.baseline_min_60),
-          baselineDistanceDelta: Math.round(distance.delta_m),
-        })}
-        riskLabel={hazard.risk_label}
-      />
-    )
-  }, [altRationaleHazards[0], bundle?.alt_rationale?.distance])
-
   const primaryRationaleColumn =
-    bundle?.shelter && bundle.rationale && consideredHazards.length > 0 ? (
-      <div className="min-w-0" data-shelter-kind={bundle.shelter.type}>
-        {bundle.alt_shelter && (
+    bundle?.rationale && consideredHazards.length > 0 ? (
+      <div className="min-w-0" data-shelter-kind={bundle.shelter?.type}>
+        {bundle.shelter && bundle.alt_shelter && (
           <p className="mt-2 mb-1 grid gap-0.5 text-[9px] text-slate-500">
             <span>{bundle.shelter.type_label}</span>
             <strong className="truncate text-[10px] text-slate-700" title={bundle.shelter.name}>
@@ -270,10 +234,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             </strong>
           </p>
         )}
-        <RouteRationale
-          lead={compareLead}
-          rationale={{ ...bundle.rationale, hazards: consideredHazards }}
-        />
+        <RouteRationale rationale={{ ...bundle.rationale, hazards: consideredHazards }} />
       </div>
     ) : null
 
@@ -286,10 +247,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             {bundle.alt_shelter.name}
           </strong>
         </p>
-        <RouteRationale
-          lead={altCompareLead}
-          rationale={{ ...bundle.alt_rationale, hazards: altRationaleHazards }}
-        />
+        <RouteRationale rationale={{ ...bundle.alt_rationale, hazards: altRationaleHazards }} />
       </div>
     ) : null
 
@@ -668,9 +626,6 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       state.hiddenCallouts,
     ],
   )
-  /** 地図を収めるときに参照する。⚠️ **このエフェクトは下の fitBounds より先に
-   * 置くこと。** 後ろに置くと、収めるときに1つ前の吹き出しを見てしまう */
-  const calloutsRef = useRef(callouts)
   /** 避難先ピンのハンドラから読む最新の結果。
    * ⚠️ ピンは表示範囲が変わったときにしか作り直さないので、**その時点の結果を
    * 閉じ込めない**ようにrefで持つ */
@@ -678,11 +633,11 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   bundleRef.current = bundle
 
   useEffect(() => {
-    calloutsRef.current = callouts
     const a = adapter.current
     if (!a || !ready) return
-    a.setCallouts(callouts)
-  }, [adapter, ready, callouts])
+    // 経路要約はReactの画面オーバーレイとして描く。地図上の地点へ固定しない。
+    a.setCallouts([])
+  }, [adapter, ready])
 
   useEffect(() => {
     const a = adapter.current
@@ -707,9 +662,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
           ? { top: 64, right: 64, bottom: 64, left: 480 }
           : { top: 32, right: 24, bottom: 120, left: 24 }
       a.fitBounds(bounds, {
-        // ⚠️ **経路の端がそのまま吹き出しの位置**なので、経路だけを基準に収めると
-        //    吹き出しが画面の外に出る（ユーザー指摘、2026-08-23）
-        padding: mergePadding(base, calloutPadding(calloutsRef.current, a.size())),
+        padding: base,
         duration: 400,
       })
     }
@@ -892,6 +845,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         aria-busy={search.loading}
       >
         <div id="safe-map" className="absolute inset-0" />
+        <RouteCalloutCards callouts={callouts} mobile={mobile} />
         {state.screen === 'home' && (
           <button
             type="button"
@@ -1396,17 +1350,32 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   onToggle={(route, shown) => dispatch({ type: 'show_route', route, shown })}
                 />
               )}
-              {/* なぜこの経路なのか。短文と詳細4行はAPIが完成した文字列で返す
-                  （`backend/app/services/evac_routes/rationale.py` が文言の単一の出所）。
-                  この部品は分解せず、置き場所を変えるだけで使う */}
+              {/* なぜこの経路なのか。数値入りの説明と詳細4行はAPIが完成した文字列で返す。
+                  一覧用の短い評価だけは、API契約を変えず判定値から表示用に言い換える */}
               {/* ⚠️ **避難先ごとに要約と根拠を並べる。** もう一方にも最短経路が
                   出るようになったので、同じ形で比べられる（2026-08-24の指摘）。
                   ⚠️ 根拠は**それぞれの避難先についてのもの**。片方の根拠を
                   もう一方に当てはめない */}
-              <div className={`grid items-start gap-2 ${altRationaleColumn ? 'grid-cols-2' : ''}`}>
-                {bundle?.shelter?.type === 'urgent' ? primaryRationaleColumn : altRationaleColumn}
-                {bundle?.shelter?.type === 'urgent' ? altRationaleColumn : primaryRationaleColumn}
-              </div>
+              {(primaryRationaleColumn || altRationaleColumn) && (
+                <section aria-labelledby="route-evaluation-heading">
+                  <h3
+                    id="route-evaluation-heading"
+                    className="mt-4 mb-1 text-[13px] font-bold text-slate-900"
+                  >
+                    評価
+                  </h3>
+                  <div
+                    className={`grid items-start gap-2 ${altRationaleColumn ? 'grid-cols-2' : ''}`}
+                  >
+                    {bundle?.shelter?.type === 'urgent'
+                      ? primaryRationaleColumn
+                      : altRationaleColumn}
+                    {bundle?.shelter?.type === 'urgent'
+                      ? altRationaleColumn
+                      : primaryRationaleColumn}
+                  </div>
+                </section>
+              )}
               {/* 避難先探索のときだけ。推奨1件と比較材料。
                   ⚠️ 候補に通し番号の順位を振らないこと（ShelterResult 冒頭） */}
               {bundle?.shelter && bundle.shelter_candidates && bundle.shelter_query && (

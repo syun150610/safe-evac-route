@@ -189,6 +189,23 @@ describe('routeCallouts', () => {
     expect(list[1].html).toContain('地震を考慮')
   })
 
+  it('どちらの避難先も選ばれた回避経路を最短経路より先に並べる', () => {
+    const alt = { ...shelter, id: 'urgent-2', name: '多摩川河川敷', type: 'urgent' as const }
+    const list = routeCallouts(
+      bundle({
+        shelter,
+        alt_shelter: { ...alt, stats: stats(1490, 0), route: 'shelter_alt' },
+        alt_routes: [
+          route('shelter_alt_baseline', '最短経路', stats(1300, 0.2)),
+          route('shelter_alt', '地震を考慮', stats(1490, 0)),
+        ],
+      } as Partial<Bundle>),
+      { shown: {} },
+    )
+    expect(list[0].html.indexOf('浸水を考慮')).toBeLessThan(list[0].html.indexOf('最短経路'))
+    expect(list[1].html.indexOf('地震を考慮')).toBeLessThan(list[1].html.indexOf('最短経路'))
+  })
+
   it('もう一方の避難先を消したらその吹き出しも消す', () => {
     const alt = { ...shelter, id: 'urgent-2', name: '多摩川河川敷' }
     const list = routeCallouts(
@@ -384,10 +401,10 @@ describe('routeCallouts', () => {
       expect(onDismiss).toHaveBeenCalledWith('alt')
     })
 
-    it('×は地図カード共通の押しやすいスタイルを使う', () => {
+    it('内容HTMLに操作ボタンを混ぜない（表示側が移動・閉じるを並べる）', () => {
       const [callout] = routeCallouts(withAlt(), { shown: {} })
-      expect(callout.html).toContain('class="map-card-dismiss"')
-      expect(callout.html).not.toContain('width:18px')
+      expect(callout.html).not.toContain('button')
+      expect(callout.html).not.toContain('map-card-dismiss')
     })
   })
 

@@ -2,7 +2,7 @@ import type { ReactNode, RefObject } from 'react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { MapAdapter } from '../adapters/types'
 import type { Bundle } from '../types'
-import { compareText, decideSheet, sheetSummary } from './bottomSheetLogic'
+import { decideSheet, sheetSummary } from './bottomSheetLogic'
 
 const MOBILE_QUERY = '(max-width: 700px)'
 const DRAG_SLOP = 6
@@ -306,10 +306,7 @@ export function BottomSheet({
             <b>{conditionLabel ?? summary.label}</b>
             <span>{summary.distance}</span>
             <span>徒歩 {summary.minutes}分</span>
-            {/* ⚠️ 「①比」のような記号で言わない。何と比べているかを言葉で書く。
-                ⚠️ **距離差も出す。** 「+8分」だけでは、どれだけ遠回りしているのか
-                   実感が湧かない */}
-            {summary.baselineDelta !== null && <span>{compareText(summary)}</span>}
+            {summary.evaluation && <span>{summary.evaluation}</span>}
           </span>
         ) : (
           <span className="text-[12px] text-slate-600">{collapsedLabel}</span>
