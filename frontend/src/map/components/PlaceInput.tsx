@@ -1,5 +1,37 @@
-import { type KeyboardEvent, type ReactNode, useRef } from 'react'
+import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { LocateIcon } from './MapToolIcons'
+
+const SUGGESTION_MAX_HEIGHT = 248
+const SUGGESTION_MIN_BELOW = 160
+const SUGGESTION_MIN_HEIGHT = 72
+const SUGGESTION_GAP = 4
+
+export interface SuggestionLayout {
+  above: boolean
+  maxHeight: number
+}
+
+/** ソフトウェアキーボードを含む「実際に見えている領域」から候補の出し方を決める。
+ * 下側が狭いときだけ上へ出し、候補がキーボードの裏へ伸びない高さに抑える。 */
+export function suggestionLayout(
+  inputTop: number,
+  inputBottom: number,
+  viewportTop: number,
+  viewportHeight: number,
+): SuggestionLayout {
+  const viewportBottom = viewportTop + viewportHeight
+  const below = Math.max(0, viewportBottom - inputBottom - SUGGESTION_GAP)
+  const above = Math.max(0, inputTop - viewportTop - SUGGESTION_GAP)
+  const placeAbove = below < SUGGESTION_MIN_BELOW && above > below
+  const available = placeAbove ? above : below
+  return {
+    above: placeAbove,
+    maxHeight: Math.max(
+      SUGGESTION_MIN_HEIGHT,
+      Math.min(SUGGESTION_MAX_HEIGHT, Math.floor(available)),
+    ),
+  }
+}
 
 interface CurrentLocationOption {
   /** 位置情報の取得中 */
@@ -55,10 +87,45 @@ export function PlaceInput({
 }: Props) {
   const clearable = onClear !== undefined && query !== ''
   const listId = `${id}-suggestions`
+  const rootRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const open = active && suggestions !== undefined
   const currentSelected = currentLocation?.selected === true
+  const [listLayout, setListLayout] = useState<SuggestionLayout>({
+    above: false,
+    maxHeight: SUGGESTION_MAX_HEIGHT,
+  })
+
+  useEffect(() => {
+    if (!open) return
+
+    const update = () => {
+      const root = rootRef.current
+      if (!root) return
+      const rect = root.getBoundingClientRect()
+      const viewport = window.visualViewport
+      setListLayout(
+        suggestionLayout(
+          rect.top,
+          rect.bottom,
+          viewport?.offsetTop ?? 0,
+          viewport?.height ?? window.innerHeight,
+        ),
+      )
+    }
+
+    update()
+    const viewport = window.visualViewport
+    viewport?.addEventListener('resize', update)
+    viewport?.addEventListener('scroll', update)
+    window.addEventListener('resize', update)
+    return () => {
+      viewport?.removeEventListener('resize', update)
+      viewport?.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+    }
+  }, [open])
 
   const options = () =>
     Array.from(listRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])
@@ -88,7 +155,7 @@ export function PlaceInput({
   }
 
   return (
-    <div className="relative mb-2">
+    <div ref={rootRef} className="relative mb-2">
       <div
         className={`grid min-h-12 items-center gap-1 rounded-[10px] border px-3 ${
           currentSelected
@@ -175,8 +242,12 @@ export function PlaceInput({
           ref={listRef}
           role="listbox"
           aria-label={`${label}の候補`}
+          data-placement={listLayout.above ? 'above' : 'below'}
           onKeyDown={onListKeyDown}
-          className="absolute inset-x-0 top-[calc(100%+4px)] z-20 max-h-[248px] overflow-auto rounded-xl border border-slate-200 bg-white shadow-[0_12px_32px_rgb(15_23_42/22%)]"
+          style={{ maxHeight: listLayout.maxHeight }}
+          className={`absolute inset-x-0 z-20 overflow-auto rounded-xl border border-slate-200 bg-white shadow-[0_12px_32px_rgb(15_23_42/22%)] ${
+            listLayout.above ? 'bottom-[calc(100%+4px)]' : 'top-[calc(100%+4px)]'
+          }`}
         >
           {suggestions}
         </div>

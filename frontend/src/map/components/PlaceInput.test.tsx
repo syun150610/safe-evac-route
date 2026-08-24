@@ -9,7 +9,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { PlaceInput } from './PlaceInput'
+import { PlaceInput, suggestionLayout } from './PlaceInput'
 
 let container: HTMLDivElement
 let root: Root
@@ -51,6 +51,20 @@ const currentButton = () =>
   )
 
 describe('PlaceInput', () => {
+  describe('候補の表示位置', () => {
+    it('キーボードで下側が狭ければ入力欄の上へ出す', () => {
+      expect(suggestionLayout(360, 420, 0, 560)).toEqual({ above: true, maxHeight: 248 })
+    })
+
+    it('下側に十分な空きがあれば従来どおり下へ出す', () => {
+      expect(suggestionLayout(120, 180, 0, 700)).toEqual({ above: false, maxHeight: 248 })
+    })
+
+    it('候補の高さを見えている領域に収める', () => {
+      expect(suggestionLayout(80, 140, 0, 260)).toEqual({ above: false, maxHeight: 116 })
+    })
+  })
+
   it('入力があってクリアできるときだけ×を出す', () => {
     render({ query: '上野駅', onClear: () => {} })
     expect(clearButton()).not.toBeNull()
