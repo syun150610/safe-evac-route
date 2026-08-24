@@ -9,7 +9,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { PlaceInput, suggestionLayout } from './PlaceInput'
+import { editingSuggestionLayout, PlaceInput, suggestionLayout } from './PlaceInput'
 
 let container: HTMLDivElement
 let root: Root
@@ -61,6 +61,10 @@ describe('PlaceInput', () => {
   })
 
   describe('候補の表示位置', () => {
+    it('上部固定中はキーボード直前までを候補領域にする', () => {
+      expect(editingSuggestionLayout(68, 0, 560)).toEqual({ above: false, maxHeight: 480 })
+    })
+
     it('キーボードで下側が狭ければ入力欄の上へ出す', () => {
       expect(suggestionLayout(360, 420, 0, 560)).toEqual({ above: true, maxHeight: 248 })
     })

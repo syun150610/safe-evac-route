@@ -5,6 +5,8 @@ const SUGGESTION_MAX_HEIGHT = 248
 const SUGGESTION_MIN_BELOW = 160
 const SUGGESTION_MIN_HEIGHT = 72
 const SUGGESTION_GAP = 4
+const MOBILE_INPUT_QUERY = '(max-width: 899px)'
+const MOBILE_KEYBOARD_GAP = 12
 
 export interface SuggestionLayout {
   above: boolean
@@ -29,6 +31,21 @@ export function suggestionLayout(
     maxHeight: Math.max(
       SUGGESTION_MIN_HEIGHT,
       Math.min(SUGGESTION_MAX_HEIGHT, Math.floor(available)),
+    ),
+  }
+}
+
+/** 入力欄を画面上端へ固定したときは、候補を反転せずキーボード直前まで使う。 */
+export function editingSuggestionLayout(
+  inputBottom: number,
+  viewportTop: number,
+  viewportHeight: number,
+): SuggestionLayout {
+  return {
+    above: false,
+    maxHeight: Math.max(
+      0,
+      Math.floor(viewportTop + viewportHeight - inputBottom - MOBILE_KEYBOARD_GAP),
     ),
   }
 }
@@ -106,13 +123,13 @@ export function PlaceInput({
       if (!root) return
       const rect = root.getBoundingClientRect()
       const viewport = window.visualViewport
+      const viewportTop = viewport?.offsetTop ?? 0
+      const viewportHeight = viewport?.height ?? window.innerHeight
+      const mobile = window.matchMedia?.(MOBILE_INPUT_QUERY).matches ?? window.innerWidth < 900
       setListLayout(
-        suggestionLayout(
-          rect.top,
-          rect.bottom,
-          viewport?.offsetTop ?? 0,
-          viewport?.height ?? window.innerHeight,
-        ),
+        editing && mobile
+          ? editingSuggestionLayout(rect.bottom, viewportTop, viewportHeight)
+          : suggestionLayout(rect.top, rect.bottom, viewportTop, viewportHeight),
       )
     }
 
@@ -126,7 +143,7 @@ export function PlaceInput({
       viewport?.removeEventListener('scroll', update)
       window.removeEventListener('resize', update)
     }
-  }, [open])
+  }, [open, editing])
 
   const options = () =>
     Array.from(listRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])
