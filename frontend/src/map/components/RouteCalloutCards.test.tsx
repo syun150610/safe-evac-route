@@ -29,6 +29,7 @@ describe('RouteCalloutCards', () => {
     expect(html).toContain('<svg')
     expect(html).not.toContain('↔')
     expect(html).toContain('第一小学校')
+    expect(html).toContain('top:72px')
   })
 
   it('後から移動操作を始めたカードを最前面にする', async () => {
@@ -76,5 +77,16 @@ describe('RouteCalloutCards', () => {
         104,
       ),
     ).toEqual({ x: 12, y: 456 })
+  })
+
+  it('左上の検索ボタンへカードを重ねない', () => {
+    expect(
+      clampCalloutPosition(
+        { x: 12, y: 12 },
+        { width: 390, height: 700 },
+        { width: 220, height: 140 },
+        104,
+      ),
+    ).toEqual({ x: 12, y: 72 })
   })
 })

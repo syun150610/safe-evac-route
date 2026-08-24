@@ -4,6 +4,8 @@ import type { CalloutSpec } from '../adapters/types'
 
 const CARD_MARGIN = 12
 const MOBILE_BOTTOM_INSET = 104
+/** 左上の検索ボタン（12px + 48px）とカードの間にも12px空ける。 */
+const TOP_LEFT_CONTROL_CLEARANCE = 72
 
 interface Point {
   x: number
@@ -43,10 +45,16 @@ export function clampCalloutPosition(
 ): Point {
   const maxX = Math.max(CARD_MARGIN, container.width - card.width - CARD_MARGIN)
   const maxY = Math.max(CARD_MARGIN, container.height - card.height - bottomInset)
-  return {
+  const clamped = {
     x: Math.min(Math.max(point.x, CARD_MARGIN), maxX),
     y: Math.min(Math.max(point.y, CARD_MARGIN), maxY),
   }
+  // 検索ボタンの周囲へカードを置かない。上辺へ動かしたい場合は右側へ、
+  // 左辺へ動かしたい場合は検索ボタンの下へ置ける。
+  if (clamped.x < TOP_LEFT_CONTROL_CLEARANCE && clamped.y < TOP_LEFT_CONTROL_CLEARANCE) {
+    clamped.y = Math.min(TOP_LEFT_CONTROL_CLEARANCE, maxY)
+  }
+  return clamped
 }
 
 /** 地図上の経路要約。地点へ固定せず、利用者が画面内の好きな場所へ動かせる。 */
@@ -128,7 +136,7 @@ export function RouteCalloutCards({
         const position = positions[callout.id]
         const initial =
           index === 0
-            ? { top: CARD_MARGIN, left: CARD_MARGIN }
+            ? { top: TOP_LEFT_CONTROL_CLEARANCE, left: CARD_MARGIN }
             : { right: CARD_MARGIN, bottom: mobile ? MOBILE_BOTTOM_INSET : CARD_MARGIN }
         return (
           <article
