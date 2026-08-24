@@ -84,9 +84,11 @@ function swatch({ color, dashed }: CalloutRow): string {
  *
  * ⚠️ **ここだけ `pointer-events` を戻す。** 吹き出し全体でクリックを受けると、
  * 下の経路とピンが押せなくなる。
- * ⚠️ 消したものは地図レイヤーのメニューから戻せる（`showCallouts`）。 */
+ * ⚠️ **押された1つだけ閉じる**（2026-08-24）。2つ出ているときにまとめて消えると、
+ * 片方だけ見たい場合に困る。
+ * ⚠️ 戻す道は**行先のピン**（押すと出し直す）と、地図レイヤーのメニュー。 */
 const DISMISS =
-  '<button type="button" data-action="dismiss" aria-label="要約を消す" ' +
+  '<button type="button" data-action="dismiss" aria-label="この要約を閉じる（行先のピンで戻せます）" ' +
   'style="pointer-events:auto;position:absolute;top:2px;right:2px;width:18px;height:18px;' +
   'cursor:pointer;border:0;border-radius:999px;background:#f1f5f9;color:#475569;' +
   'font-size:11px;line-height:1;padding:0">×</button>'
@@ -285,13 +287,16 @@ interface Options {
   shown: Partial<Record<RouteId, boolean>>
   /** 掛け合わせた種別の呼び名。`alt_shelter` の行に使う（API由来） */
   hazardLabel?: string
-  /** 吹き出しの×を押したとき */
-  onDismiss?: () => void
+  /** 吹き出しの×を押したとき。**押された吹き出しのIDを受ける**
+   * （2つ出ているときに片方だけ閉じるため） */
+  onDismiss?: (id: string) => void
+  /** 閉じられている吹き出しのID。ここにあるものは出さない */
+  hidden?: string[]
 }
 
 export function routeCallouts(bundle: Bundle | null, options: Options): CalloutSpec[] {
   if (!bundle) return []
-  const { risk, shown, hazardLabel, onDismiss } = options
+  const { risk, shown, hazardLabel, onDismiss, hidden = [] } = options
   const list: CalloutSpec[] = []
 
   // ⚠️ **選ばれた経路を先頭にする。** APIの並びは最短が先だが、吹き出しは
@@ -301,14 +306,14 @@ export function routeCallouts(bundle: Bundle | null, options: Options): CalloutS
     .sort((a, b) => Number(b.id === bundle.selected_route) - Number(a.id === bundle.selected_route))
     .slice(0, MAX_ROWS)
 
-  if (routes.length > 0) {
+  if (routes.length > 0 && !hidden.includes('dest')) {
     const shelter = bundle.shelter
     // ⚠️ API の latlon は [lat, lon]。地図側は [lon, lat]
     const dest: [number, number] = [bundle.od.dest.latlon[1], bundle.od.dest.latlon[0]]
     list.push({
       id: 'dest',
       lngLat: dest,
-      onDismiss,
+      onDismiss: onDismiss && (() => onDismiss('dest')),
       anchor: pickAnchor(
         tailVectors(
           bundle,
@@ -336,12 +341,12 @@ export function routeCallouts(bundle: Bundle | null, options: Options): CalloutS
     : shown.shelter_alt !== false && alt
       ? [rowOf('shelter_alt', altRouteLabel(hazardLabel), alt.stats, risk)]
       : []
-  if (alt && altRows.length) {
+  if (alt && altRows.length && !hidden.includes('alt')) {
     const at: [number, number] = [alt.latlon[1], alt.latlon[0]]
     list.push({
       id: 'alt',
       lngLat: at,
-      onDismiss,
+      onDismiss: onDismiss && (() => onDismiss('alt')),
       anchor: pickAnchor(
         tailVectors(
           bundle,

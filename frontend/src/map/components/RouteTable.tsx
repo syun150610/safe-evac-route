@@ -49,7 +49,23 @@ function ColumnHead({ typeLabel, name, dot }: { typeLabel: string; name: string;
   return (
     <div className="mb-1.5 grid gap-0.5">
       <span className="flex items-center gap-1.5">
-        <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${dot}`} />
+        {/* ⚠️ **丸ではなくピンの形にする。** 丸だと下の行に並ぶ「線の色見本」と
+            同じ種類の印に見えるが、こちらが表すのは**地図のピンの色**（避難先の
+            種類）で、線の色（経路の色）とは別物。同時に2種類出したときに
+            「凡例と色が違う」と読まれた（ユーザー指摘、2026-08-24） */}
+        <svg
+          aria-hidden="true"
+          className={`shrink-0 ${dot}`}
+          viewBox="0 0 24 36"
+          width="8"
+          height="12"
+        >
+          <path
+            d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z"
+            fill="currentColor"
+          />
+          <circle cx="12" cy="12" r="5" fill="#fff" />
+        </svg>
         <em className="text-[8px] text-slate-500 not-italic">{typeLabel}</em>
       </span>
       <strong className="truncate text-[11px]" title={name}>
@@ -132,7 +148,7 @@ export function RouteTable({ bundle, shown, alt, altRoutes, risk, hazard, onTogg
     <div className="min-w-[150px] flex-1">
       {alt && shelter && (
         <ColumnHead
-          dot={shelter.type === 'urgent' ? 'bg-green-600' : 'bg-amber-500'}
+          dot={shelter.type === 'urgent' ? 'text-green-600' : 'text-amber-500'}
           name={shelter.name}
           typeLabel={shelter.type_label}
         />
@@ -159,7 +175,7 @@ export function RouteTable({ bundle, shown, alt, altRoutes, risk, hazard, onTogg
     alt && altRoutes?.length ? (
       <div className="min-w-[150px] flex-1">
         <ColumnHead
-          dot={alt.type === 'urgent' ? 'bg-green-600' : 'bg-amber-500'}
+          dot={alt.type === 'urgent' ? 'text-green-600' : 'text-amber-500'}
           name={alt.name}
           typeLabel={alt.type_label}
         />

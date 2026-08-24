@@ -97,8 +97,12 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const [shelterSearchLoading, setShelterSearchLoading] = useState(false)
   // 現在地の取得中。⚠️ **何を待っているか出さないと、故障に見える**（指摘）
   const [locating, setLocating] = useState(false)
-  // 探す避難先の種類。⚠️ 既定は「まず逃げ込む先」＝指定緊急避難場所
-  const [shelterKinds, setShelterKinds] = useState<ShelterKind[]>(['urgent'])
+  /** 探す避難先の種類。
+   *
+   * ⚠️ **既定は両方**（2026-08-24にユーザーが判断。以前は指定緊急避難場所のみ）。
+   * 片方だけだと、もう一方の種類が存在すること自体に気づけない。役割の違いは
+   * 結果の見出しと `ShelterTypePicker` のヘルプで示す。 */
+  const [shelterKinds, setShelterKinds] = useState<ShelterKind[]>(['urgent', 'designated'])
   const [toast, setToast] = useState<string | null>(null)
   const requestedLocation = useRef(false)
   const shelterSearchRunning = useRef(false)
@@ -600,16 +604,31 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             risk: hazardMeta?.risk,
             shown: state.shownRoutes,
             hazardLabel: primaryHazard?.label,
-            // ⚠️ 消したら地図レイヤーのメニューから戻す。×だけ用意して戻す道が
-            //    無いと、消したあとに出し方が分からなくなる
-            onDismiss: () => dispatch({ type: 'show_callouts', shown: false }),
+            // ⚠️ **押された1つだけ閉じる**（2026-08-24の指摘）。2つ出ているとき、
+            //    まとめて消えると片方だけ見たい場合に困る。
+            //    戻す道は行先のピン（下の `setMarkers` / `setShelterMarkers`）と
+            //    地図レイヤーのメニュー
+            onDismiss: (id: string) => dispatch({ type: 'hide_callout', id }),
+            hidden: state.hiddenCallouts,
           })
         : [],
-    [bundle, hazardMeta, primaryHazard, state.shownRoutes, state.showCallouts],
+    [
+      bundle,
+      hazardMeta,
+      primaryHazard,
+      state.shownRoutes,
+      state.showCallouts,
+      state.hiddenCallouts,
+    ],
   )
   /** 地図を収めるときに参照する。⚠️ **このエフェクトは下の fitBounds より先に
    * 置くこと。** 後ろに置くと、収めるときに1つ前の吹き出しを見てしまう */
   const calloutsRef = useRef(callouts)
+  /** 避難先ピンのハンドラから読む最新の結果。
+   * ⚠️ ピンは表示範囲が変わったときにしか作り直さないので、**その時点の結果を
+   * 閉じ込めない**ようにrefで持つ */
+  const bundleRef = useRef(bundle)
+  bundleRef.current = bundle
 
   useEffect(() => {
     calloutsRef.current = callouts
@@ -698,6 +717,16 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             // ⚠️ **押しただけでは経路探索へ行かない。** まず何の施設かを見せる
             detailHtml: shelterPopupHtml(feature.properties),
             onGo: () => prepareDestination(shelterPlace(feature)),
+            // 閉じた要約を出し直す。⚠️ **いま出している避難先のピンのときだけ**
+            onShow: () => {
+              const id =
+                feature.properties.id === bundleRef.current?.alt_shelter?.id
+                  ? 'alt'
+                  : feature.properties.id === bundleRef.current?.shelter?.id
+                    ? 'dest'
+                    : null
+              if (id) dispatch({ type: 'reveal_callout', id })
+            },
           })),
       )
     })
@@ -719,6 +748,8 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         lngLat: [state.destination.place.lon, state.destination.place.lat] as [number, number],
         label: state.destination.place.title,
         role: 'destination' as const,
+        // ⚠️ 閉じた要約を出し直す道。×で消したあと、行先のピンで戻せる
+        onClick: () => dispatch({ type: 'reveal_callout', id: 'dest' }),
       })
     }
     a.setMarkers(markers)
@@ -1219,10 +1250,16 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   変更
                 </button>
               </div>
-              {/* ⚠️ **結果の画面では畳んでおく。** 見たいのは結果で、条件は
-                  確認と切り替えのため。畳んでも要約で何の条件かは分かる
-                  （ユーザー指摘、2026-08-24）。開けばその場で引き直せる */}
-              <SearchOptions summary={conditionSummary} title="検索の条件">
+              {/* ⚠️ **検索の直後は開いておく**（2026-08-24の指摘）。畳んだままだと、
+                  避難先に2種類あることに気づけない。`key` に目的地を入れてあるので、
+                  新しく検索するたびに開いた状態に戻る（条件を切り替えて引き直した
+                  ときは開いたまま）。閉じれば結果を広く見られる */}
+              <SearchOptions
+                defaultOpen
+                key={state.destination.place?.title ?? 'route'}
+                summary={conditionSummary}
+                title="検索の条件"
+              >
                 <HazardCondition
                   busy={search.loading}
                   hazard={state.hazard}

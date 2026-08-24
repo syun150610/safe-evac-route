@@ -766,7 +766,10 @@ export function createGoogleAdapter(): MapAdapter {
           icon: { url: `data:image/svg+xml,${svg}`, scaledSize: new google.maps.Size(24, 36) },
         })
         const iw = new google.maps.InfoWindow({ content: m.label })
-        mk.addListener('click', () => iw.open(map, mk))
+        mk.addListener('click', () => {
+          iw.open(map, mk)
+          m.onClick?.()
+        })
         markers.push(mk)
       }
     },
@@ -797,7 +800,10 @@ export function createGoogleAdapter(): MapAdapter {
           title: m.label,
           icon: { url: `data:image/svg+xml,${svg}`, scaledSize: new google.maps.Size(24, 36) },
         })
-        mk.addListener('click', () => openShelterInfo(m, mk))
+        mk.addListener('click', () => {
+          openShelterInfo(m, mk)
+          m.onShow?.()
+        })
         if (m.id === shelterInfoId) openShelterInfo(m, mk)
         shelterMarkers.push(mk)
       }
