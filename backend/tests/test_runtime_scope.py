@@ -50,7 +50,9 @@ def test_env_selects_directories_and_label(monkeypatch, scope_id):
     assert os.path.basename(settings.active_graph_dir) == scope.dir_name
     assert os.path.basename(settings.active_bundles_dir) == scope.dir_name
     # 利用者向けの呼び名も同じ出所から来る
-    assert route_search.area("envelope")["note"].count(scope.label) == 1
+    area = route_search.area("envelope")
+    assert area["label"] == scope.label
+    assert area["note"].count(scope.label) == 1
 
 
 def test_unknown_scope_fails_at_startup(monkeypatch):

@@ -10,6 +10,7 @@ import { HazardLegend } from './components/HazardLegend'
 import { LayerPicker } from './components/LayerPicker'
 import { LayersIcon, LegendIcon, LocateIcon } from './components/MapToolIcons'
 import { PlaceInput } from './components/PlaceInput'
+import { PlaceSuggestionItem } from './components/PlaceSuggestionItem'
 import { RouteCalloutCards } from './components/RouteCalloutCards'
 import { RouteRationale } from './components/RouteRationale'
 import { RouteTable } from './components/RouteTable'
@@ -19,7 +20,7 @@ import { ShelterResult } from './components/ShelterResult'
 import { type ShelterKind, ShelterTypePicker, toParam } from './components/ShelterTypePicker'
 import { TextSizeSettings } from './components/TextSizeSettings'
 import { DRAW_ORDER, STYLE } from './constants'
-import { inArea, useArea } from './hooks/useArea'
+import { inArea, outOfAreaMessage, useArea } from './hooks/useArea'
 import { useGeocode } from './hooks/useGeocode'
 import { tileUrlOf, useHazards, vectorUrlOf } from './hooks/useHazards'
 import { type Platform, useMapAdapter } from './hooks/useMapAdapter'
@@ -172,7 +173,8 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   /** 入力の真下に重ねる候補。
    *
    * ⚠️ **「対象外」と「まだ分からない」を混ぜない。** Places の候補は座標を
-   * 持たないので、押すまでエリア内か言えない。`inside === false` のときだけ断る。
+   * 持たないが、所在地から東京都外と分かるものは選択前に断る。所在地にも
+   * 都道府県が無い候補は、選択して座標を得たあとに最終判定する。
    */
   const suggestionList = (
     <>
@@ -192,30 +194,13 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         <p className="p-4 text-center text-[11px] text-slate-500">候補が見つかりません</p>
       )}
       {geocode.places.map((suggestion) => {
-        const known = suggestion.place
-        const inside = known ? inArea(area, known.lat, known.lon) : null
         return (
-          <button
-            type="button"
-            role="option"
-            aria-selected="false"
+          <PlaceSuggestionItem
             key={suggestion.id}
-            onClick={() => void choosePlace(suggestion)}
-            disabled={inside === false}
-            className="grid w-full cursor-pointer grid-cols-[26px_1fr_auto] items-center gap-1 border-0 border-slate-100 border-t bg-transparent px-3 py-2.5 text-left hover:bg-slate-50 focus-visible:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <span className="text-base text-[#07156f]">⌖</span>
-            <span className="min-w-0">
-              <strong className="block truncate text-xs">{suggestion.title}</strong>
-              <small className="mt-0.5 block truncate text-[9px] text-slate-500">
-                {suggestion.address ??
-                  (known ? `${known.lat.toFixed(5)}, ${known.lon.toFixed(5)}` : '')}
-              </small>
-            </span>
-            <em className="text-[8px] text-[#07156f] not-italic">
-              {inside === false ? '対象外' : '選択'}
-            </em>
-          </button>
+            area={area}
+            suggestion={suggestion}
+            onChoose={(item) => void choosePlace(item)}
+          />
         )
       })}
     </>
@@ -356,7 +341,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       ) {
         dispatch({ type: 'open_search', purpose: 'route' })
         setSheetOpen(true)
-        flash('対象エリア内の地点を指定してください')
+        flash(outOfAreaMessage(area))
         return
       }
       const base = buildShelterSearchRequest(origin, buildHazards(cond), FLOOD_SCENARIO)
@@ -394,7 +379,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       if (!inArea(area, origin.lat, origin.lon)) {
         dispatch({ type: 'open_search', purpose: 'shelter' })
         setSheetOpen(true)
-        flash('対象エリア内の出発地を指定してください')
+        flash(outOfAreaMessage(area, '出発地'))
         return
       }
 
@@ -546,7 +531,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     try {
       const place = suggestion.place ?? (await suggestion.resolve())
       if (!inArea(area, place.lat, place.lon)) {
-        flash('対象エリア内の地点を指定してください')
+        flash(outOfAreaMessage(area))
         return
       }
       dispatch({ type: 'select_place', field, place })

@@ -306,6 +306,8 @@ export interface ShelterQuery {
  */
 export interface Area {
   scenario: string
+  /** APIのスコープ定義由来の、利用者向け対応地域名 */
+  label: string
   /** [left, bottom, right, top] = [lon0, lat0, lon1, lat1] */
   bbox: [number, number, number, number]
   /** [lat, lon] */
