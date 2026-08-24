@@ -84,6 +84,7 @@ export function BottomSheet({
   const travelRef = useRef(0)
   const shiftRef = useRef(0)
   const [dragging, setDragging] = useState(false)
+  const [inputEditing, setInputEditing] = useState(false)
   const desktopResizePointer = useRef<number | null>(null)
   const drag = useRef<DragState>({
     pointerId: null,
@@ -234,12 +235,37 @@ export function BottomSheet({
     onDesktopResize?.(desktopWidth + (event.key === 'ArrowRight' ? 16 : -16))
   }
 
+  useEffect(() => {
+    if (!inputEditing) return
+    drag.current.active = false
+    setDragging(false)
+    adapter.current?.lockGestures(false)
+    shiftRef.current = 0
+    if (rootRef.current) rootRef.current.style.transform = 'translateY(0px)'
+  }, [adapter, inputEditing])
+
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const update = () =>
+      setInputEditing(mobile && root.querySelector('[data-editing="true"]') !== null)
+    update()
+    const observer = new MutationObserver(update)
+    observer.observe(root, {
+      attributes: true,
+      attributeFilter: ['data-editing'],
+      childList: true,
+      subtree: true,
+    })
+    return () => observer.disconnect()
+  }, [mobile])
+
   return (
     <div
       ref={rootRef}
       className={
         mobile
-          ? `fixed right-0 bottom-0 left-0 z-10 overflow-visible rounded-t-[14px] border-t border-slate-300 bg-white/95 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-3px_16px_rgba(0,0,0,0.2)] ${dragging ? '' : 'transition-transform duration-200 ease-out motion-reduce:transition-none'}`
+          ? `route-bottom-sheet fixed right-0 bottom-0 left-0 z-10 overflow-visible border-t border-slate-300 bg-white/95 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-3px_16px_rgba(0,0,0,0.2)] ${inputEditing ? 'top-0 rounded-none' : 'rounded-t-[14px]'} ${dragging ? '' : 'transition-transform duration-200 ease-out motion-reduce:transition-none'}`
           : desktopMode === 'sidebar'
             ? 'relative col-start-1 row-start-2 min-h-0 overflow-hidden border-r border-slate-200 bg-slate-50'
             : 'absolute top-3 left-3 z-10 max-h-[calc(100%-46px)] overflow-y-auto'
@@ -318,7 +344,7 @@ export function BottomSheet({
         id="route-sheet-body"
         className={
           mobile
-            ? `relative z-0 max-h-[calc(80dvh-74px)] overscroll-contain overflow-y-auto ${dragging ? 'overflow-hidden' : ''}`
+            ? `relative z-0 overscroll-contain overflow-y-auto ${inputEditing ? 'h-[calc(100%-74px)] max-h-none' : 'max-h-[calc(80dvh-74px)]'} ${dragging ? 'overflow-hidden' : ''}`
             : desktopMode === 'sidebar'
               ? 'h-[calc(100%-32px)] overflow-y-auto'
               : ''

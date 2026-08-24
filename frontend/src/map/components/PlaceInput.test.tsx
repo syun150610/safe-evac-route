@@ -9,7 +9,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { editingSuggestionLayout, PlaceInput, suggestionLayout } from './PlaceInput'
+import { PlaceInput, suggestionLayout } from './PlaceInput'
 
 let container: HTMLDivElement
 let root: Root
@@ -51,20 +51,15 @@ const currentButton = () =>
   )
 
 describe('PlaceInput', () => {
-  it('スマホの入力中は上部固定にし、iOSの自動拡大を防ぐ文字サイズにする', () => {
+  it('入力中であることを親へ示し、iOSの自動拡大を防ぐ文字サイズにする', () => {
     render()
     act(() => input()?.focus())
-    expect(container.querySelector('[data-editing="true"]')?.className).toContain(
-      'max-[899px]:fixed',
-    )
+    expect(container.querySelector('[data-editing="true"]')).not.toBeNull()
+    expect(container.querySelector('[data-editing="true"]')?.className).not.toContain('fixed')
     expect(input()?.className).toContain('text-[16px]')
   })
 
   describe('候補の表示位置', () => {
-    it('上部固定中はキーボード直前までを候補領域にする', () => {
-      expect(editingSuggestionLayout(68, 0, 560)).toEqual({ above: false, maxHeight: 480 })
-    })
-
     it('キーボードで下側が狭ければ入力欄の上へ出す', () => {
       expect(suggestionLayout(360, 420, 0, 560)).toEqual({ above: true, maxHeight: 248 })
     })
@@ -103,6 +98,20 @@ describe('PlaceInput', () => {
   // ⚠️ 候補が入力から離れていると「予測が遠い」（2026-08-23の指摘）。
   //    入力の直後（DOM順）に置くことで、Tabでもそのまま候補へ入れる
   describe('候補', () => {
+    it('候補を選んだら入力中状態を終了する', () => {
+      render({
+        active: true,
+        suggestions: <button type="button">上野駅</button>,
+      })
+      act(() => input()?.focus())
+      act(() =>
+        container
+          .querySelector('[role="listbox"] button')
+          ?.dispatchEvent(new MouseEvent('click', { bubbles: true })),
+      )
+      expect(container.querySelector('[data-editing="true"]')).toBeNull()
+    })
+
     const suggestions = (
       <>
         <button type="button" role="option" aria-selected="false">
