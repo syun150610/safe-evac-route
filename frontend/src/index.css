@@ -146,6 +146,14 @@ body,
   padding-right: 44px;
 }
 
+/* モバイルで地点入力を画面上部へ固定している間、候補一覧をボトムシートの
+   スクロール領域で切らない。候補自身がキーボード直前までスクロールを持つ。 */
+@media (max-width: 899px) {
+  #route-sheet-body:has([data-editing="true"]) {
+    overflow: visible;
+  }
+}
+
 /* 「想定図の範囲外」の凡例。**塗りではなく斜線**で示す。
    浸水しないのではなく判断材料がない、という区別を色で表せないため。
    repeating-linear-gradient は Tailwind のユーティリティで書けない */
