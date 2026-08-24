@@ -106,8 +106,9 @@ body,
 }
 
 .maplibregl-ctrl-bottom-right {
-  right: 8px;
-  bottom: calc(var(--sheet-peek, 74px) + 8px);
+  right: auto;
+  bottom: calc(var(--sheet-peek, 74px) + 4px);
+  left: 8px;
 }
 
 .maplibregl-ctrl-attrib {
@@ -151,7 +152,8 @@ body,
 
 @media (min-width: 900px) {
   .maplibregl-ctrl-bottom-right {
-    bottom: 12px;
+    /* 独自の出典チップ（bottom:28px）の下へ置き、右下の地図ツールも避ける */
+    bottom: 4px;
   }
 
   .map-tool--legend {
