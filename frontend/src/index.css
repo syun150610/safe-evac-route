@@ -20,6 +20,94 @@ body,
   inset: 0;
 }
 
+/* 地図画面の文字だけを3段階で拡大する。投稿・マイページには `.map-page` が無いので
+   影響しない。既存UIはpx指定が多いため、地図配下のサイズクラスを共通変数へ集約する。 */
+.map-page {
+  --map-text-8: 8px;
+  --map-text-9: 9px;
+  --map-text-10: 10px;
+  --map-text-10-5: 10.5px;
+  --map-text-11: 11px;
+  --map-text-12: 12px;
+  --map-text-13: 13px;
+  --map-text-sm: 14px;
+  --map-text-base: 16px;
+  --map-text-xl: 20px;
+  font-size: var(--map-text-12);
+}
+
+.map-page[data-text-size="medium"] {
+  --map-text-8: 10px;
+  --map-text-9: 11px;
+  --map-text-10: 12px;
+  --map-text-10-5: 12.5px;
+  --map-text-11: 13px;
+  --map-text-12: 14px;
+  --map-text-13: 15px;
+  --map-text-sm: 16px;
+  --map-text-base: 18px;
+  --map-text-xl: 22px;
+}
+
+.map-page[data-text-size="large"] {
+  --map-text-8: 12px;
+  --map-text-9: 13px;
+  --map-text-10: 14px;
+  --map-text-10-5: 14.5px;
+  --map-text-11: 15px;
+  --map-text-12: 16px;
+  --map-text-13: 17px;
+  --map-text-sm: 18px;
+  --map-text-base: 20px;
+  --map-text-xl: 24px;
+}
+
+.map-page .text-\[8px\],
+.map-page .map-text-8 {
+  font-size: var(--map-text-8);
+}
+
+.map-page .text-\[9px\],
+.map-page .map-text-9 {
+  font-size: var(--map-text-9);
+}
+
+.map-page .text-\[10px\],
+.map-page .map-text-10 {
+  font-size: var(--map-text-10);
+}
+
+.map-page .text-\[10\.5px\] {
+  font-size: var(--map-text-10-5);
+}
+
+.map-page .text-\[11px\],
+.map-page .map-text-11 {
+  font-size: var(--map-text-11);
+}
+
+.map-page .text-\[12px\],
+.map-page .text-xs {
+  font-size: var(--map-text-12);
+}
+
+.map-page .text-\[13px\],
+.map-page .map-text-13 {
+  font-size: var(--map-text-13);
+}
+
+.map-page .text-sm {
+  font-size: var(--map-text-sm);
+}
+
+.map-page .text-base {
+  font-size: var(--map-text-base);
+}
+
+.map-page .text-xl {
+  font-size: var(--map-text-xl);
+}
+
 /* 地図上のカードを閉じる×。
    経路要約は以前18px・端から2pxで、特にスマホでは押しにくかった。
    MapLibre標準の詳細Popupも右上端に小さく置くため、共通して32px・内側6pxにする。

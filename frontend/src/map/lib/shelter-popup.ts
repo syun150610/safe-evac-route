@@ -35,12 +35,12 @@ export function shelterPopupHtml(properties: ShelterProperties): string {
   const place = address.startsWith(municipality) ? address : `${municipality} ${address}`
   return [
     '<div style="min-width:150px;max-width:220px">',
-    `<div style="display:inline-block;border-radius:999px;padding:1px 7px;font-size:9px;font-weight:700;${BADGE[type]}">${escapeHtml(type_label)}</div>`,
-    `<div style="margin-top:4px;font-size:13px;font-weight:700;color:#0f172a;line-height:1.35">${escapeHtml(name)}</div>`,
-    `<div style="margin-top:2px;font-size:10px;color:#64748b;line-height:1.4">${escapeHtml(place)}</div>`,
+    `<div class="map-text-9" style="display:inline-block;border-radius:999px;padding:1px 7px;font-weight:700;${BADGE[type]}">${escapeHtml(type_label)}</div>`,
+    `<div class="map-text-13" style="margin-top:4px;font-weight:700;color:#0f172a;line-height:1.35">${escapeHtml(name)}</div>`,
+    `<div class="map-text-10" style="margin-top:2px;color:#64748b;line-height:1.4">${escapeHtml(place)}</div>`,
     // ⚠️ ボタンは `<button>` にする。押せるものだと見て分かるだけでなく、
     //    キーボードでも届く（吹き出しの中は地図の当たり判定の外）
-    `<button type="button" data-action="${GO_ACTION}" style="margin-top:8px;width:100%;cursor:pointer;border:0;border-radius:8px;background:#07156f;padding:7px 10px;font-size:11px;font-weight:700;color:#fff">◇ ここへ行く</button>`,
+    `<button type="button" class="map-text-11" data-action="${GO_ACTION}" style="margin-top:8px;width:100%;cursor:pointer;border:0;border-radius:8px;background:#07156f;padding:7px 10px;font-weight:700;color:#fff">◇ ここへ行く</button>`,
     '</div>',
   ].join('')
 }

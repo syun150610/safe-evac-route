@@ -28,6 +28,12 @@ describe('shelterPopupHtml', () => {
     expect(html).toContain('指定避難所')
   })
 
+  it('地図画面の文字サイズ設定を吹き出しにも反映できる', () => {
+    const html = shelterPopupHtml(shelter())
+    expect(html).toContain('class="map-text-13"')
+    expect(html).toContain('class="map-text-10"')
+  })
+
   // ⚠️ アダプタはこの目印でボタンを見つけて `onGo` を繋ぐ。変えると押しても動かない
   it('「ここへ行く」に目印を付ける', () => {
     expect(shelterPopupHtml(shelter())).toContain(`data-action="${GO_ACTION}"`)
