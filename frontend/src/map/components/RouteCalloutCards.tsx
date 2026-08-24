@@ -17,6 +17,24 @@ interface DragState extends Point {
   startY: number
 }
 
+function MoveIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 2v20M2 12h20M8 6l4-4 4 4M8 18l4 4 4-4M6 8l-4 4 4 4M18 8l4 4-4 4" />
+    </svg>
+  )
+}
+
 export function clampCalloutPosition(
   point: Point,
   container: { width: number; height: number },
@@ -43,12 +61,14 @@ export function RouteCalloutCards({
   const cardRefs = useRef<Record<string, HTMLElement | null>>({})
   const dragRef = useRef<DragState | null>(null)
   const [positions, setPositions] = useState<Record<string, Point>>({})
+  const [frontCalloutId, setFrontCalloutId] = useState<string | null>(null)
 
   useEffect(() => {
     const valid = new Set(callouts.map((callout) => callout.id))
     setPositions((current) =>
       Object.fromEntries(Object.entries(current).filter(([id]) => valid.has(id))),
     )
+    setFrontCalloutId((current) => (current && valid.has(current) ? current : null))
   }, [callouts])
 
   function beginDrag(event: React.PointerEvent<HTMLButtonElement>, id: string) {
@@ -58,6 +78,8 @@ export function RouteCalloutCards({
     if (!root || !card) return
     event.preventDefault()
     event.stopPropagation()
+    // 重なったカードを動かすとき、操作対象が別カードの下へ潜らないよう最前面へ出す。
+    setFrontCalloutId(id)
     const rootRect = root.getBoundingClientRect()
     const cardRect = card.getBoundingClientRect()
     dragRef.current = {
@@ -116,7 +138,10 @@ export function RouteCalloutCards({
             }}
             data-callout-id={callout.id}
             className="pointer-events-auto absolute w-[min(220px,calc(100%-24px))] rounded-xl border border-slate-200 bg-white p-2 shadow-[0_6px_18px_rgb(15_23_42/22%)]"
-            style={position ? { top: position.y, left: position.x } : initial}
+            style={{
+              ...(position ? { top: position.y, left: position.x } : initial),
+              zIndex: frontCalloutId === callout.id ? 1 : 0,
+            }}
             onPointerDown={(event) => event.stopPropagation()}
           >
             <div className="absolute top-1.5 right-1.5 z-10 flex gap-1">
@@ -130,7 +155,7 @@ export function RouteCalloutCards({
                 onPointerUp={endDrag}
                 onPointerCancel={endDrag}
               >
-                ↔
+                <MoveIcon />
               </button>
               <button
                 type="button"
