@@ -307,8 +307,14 @@ export function createGoogleAdapter(): MapAdapter {
    * ⚠️ **縦に細い隙間が見えるのを埋める。** タイルの絵自体には隙間が無い
    * （端の列も中と同じ不透明度。実測）。小数ズームを許しているため、
    * 隣り合うタイルの境目が端数pxになり、その1本が下地の色で抜けて見える
-   * （ユーザー指摘、2026-08-24）。**わずかに拡大して重ねる**ことで埋める。 */
+   * （ユーザー指摘、2026-08-24）。
+   *
+   * ⚠️ **背景だけ広げても直らない。** 隙間は**箱と箱の間**にできるので、
+   * 箱（div）自体を大きくして隣へ重ねる必要がある。背景の大きさと位置も
+   * 同じ割合で合わせること（ずらさないと絵が動く）。 */
   const FLOOD_BLEED = 1
+  /** 箱・背景ともに掛ける拡大率 */
+  const FLOOD_BLEED_SCALE = (256 + FLOOD_BLEED) / 256
 
   function makeFloodType(url: string, minz: number, maxz: number, target: number) {
     const plan = paintPlan(target)
@@ -332,7 +338,8 @@ export function createGoogleAdapter(): MapAdapter {
       }
       getTile(coord: any, zoom: number, doc: Document) {
         const div = doc.createElement('div')
-        div.style.width = div.style.height = '256px'
+        // ⚠️ 256pxのままだと、隣の箱との間に端数pxの隙間ができる
+        div.style.width = div.style.height = `${256 * FLOOD_BLEED_SCALE}px`
         div.style.opacity = String(this._opacity)
         this._tiles.add(div)
 
@@ -365,9 +372,9 @@ export function createGoogleAdapter(): MapAdapter {
         //    描画側で濃くする。**色そのものは変えていない。**
         const src = `url(${tpl(z, x, y)})`
         // ⚠️ 拡大したぶん、位置も同じ割合でずらす（ずらさないと絵が右下へ動く）
-        const size = 256 * scale + FLOOD_BLEED
-        const shiftX = -(256 * cx) * (size / (256 * scale))
-        const shiftY = -(256 * cy) * (size / (256 * scale))
+        const size = 256 * scale * FLOOD_BLEED_SCALE
+        const shiftX = -(256 * cx) * FLOOD_BLEED_SCALE
+        const shiftY = -(256 * cy) * FLOOD_BLEED_SCALE
         div.style.backgroundImage = Array(plan.paints).fill(src).join(', ')
         div.style.backgroundSize = Array(plan.paints).fill(`${size}px ${size}px`).join(', ')
         div.style.backgroundPosition = Array(plan.paints).fill(`${shiftX}px ${shiftY}px`).join(', ')

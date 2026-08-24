@@ -402,11 +402,13 @@ describe('adapter_google（スタブ）', () => {
       // z19 → 親 z17。shift=2, scale=4。116417>>2=29104, 51571>>2=12892
       const t = created.overlays[0].getTile({ x: 116417, y: 51571 }, 19, document)
       expect(t.style.backgroundImage).toContain('/17/29104/12892.png')
-      expect(t.style.backgroundSize.split(', ')[0]).toBe('1025px 1025px')
+      // ⚠️ 箱も背景も同じ割合（257/256）で広げて隣へ重ねる
+      const bleed = 257 / 256
+      expect(t.style.backgroundSize.split(', ')[0]).toBe(`${1024 * bleed}px ${1024 * bleed}px`)
       // 116417%4=1, 51571%4=3。拡大したぶん位置も同じ割合でずらす
       const [px, py] = t.style.backgroundPosition.split(', ')[0].split(' ')
-      expect(Number.parseFloat(px)).toBeCloseTo(-256 * (1025 / 1024), 1)
-      expect(Number.parseFloat(py)).toBeCloseTo(-768 * (1025 / 1024), 1)
+      expect(Number.parseFloat(px)).toBeCloseTo(-256 * bleed, 1)
+      expect(Number.parseFloat(py)).toBeCloseTo(-768 * bleed, 1)
     })
 
     it('範囲外は空タイル / 経度をラップする', async () => {
@@ -433,13 +435,16 @@ describe('adapter_google（スタブ）', () => {
     })
 
     // ⚠️ 小数ズームだとタイルの境目が端数pxになり、下地の色が細く抜けて見える
-    it('隣り合うタイルの隙間を埋める（わずかに拡大して重ねる）', async () => {
+    it('隣り合うタイルの隙間を埋める（箱ごと重ねる）', async () => {
       const a = await makeAdapter()
       a.addRasterLayer('flood', url, { minzoom: 10, maxzoom: 15, opacity: 1 })
       const t = created.overlays[0].getTile({ x: 14552, y: 6446 }, 14, document)
-      const size = Number.parseFloat(t.style.backgroundSize)
-      expect(size).toBeGreaterThan(256)
-      expect(size).toBeLessThanOrEqual(258) // 埋める以上に伸ばさない
+      // ⚠️ **背景だけ広げても直らない。** 隙間は箱と箱の間にできる
+      const box = Number.parseFloat(t.style.width)
+      expect(box).toBeGreaterThan(256)
+      expect(box).toBeLessThanOrEqual(258) // 埋める以上に伸ばさない
+      // 背景も同じ割合で広げる（ずれると絵が動く）
+      expect(Number.parseFloat(t.style.backgroundSize) / box).toBeCloseTo(1, 3)
     })
 
     // ⚠️ 地震の面は指定した値がそのまま濃さになる。浸水はPNGに焼かれているぶんを
