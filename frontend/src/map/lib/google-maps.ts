@@ -16,6 +16,24 @@
 
 let mapsScript: Promise<void> | null = null
 
+export const GOOGLE_MAPS_UNAVAILABLE_EVENT = 'safe:google-maps-unavailable'
+
+export type GoogleMapsUnavailableReason = 'auth' | 'initialization' | 'missing-key' | 'script'
+
+/** Google地図を継続利用できないことをアプリへ通知する。
+ * アダプタ自身は画面遷移を決めず、AppがMapLibreへ切り替える。 */
+export function reportGoogleMapsUnavailable(
+  reason: GoogleMapsUnavailableReason,
+  error?: unknown,
+): void {
+  console.warn(`[map] Google Mapsを利用できません (${reason})`, error)
+  window.dispatchEvent(
+    new CustomEvent<GoogleMapsUnavailableReason>(GOOGLE_MAPS_UNAVAILABLE_EVENT, {
+      detail: reason,
+    }),
+  )
+}
+
 /** ビルド時に埋め込まれるキー。無ければ空文字 */
 export function mapsApiKey(): string {
   return ((import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string) || '').trim()

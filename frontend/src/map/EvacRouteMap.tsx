@@ -75,7 +75,12 @@ function shelterPlace(feature: ShelterFeature): Place {
   }
 }
 
-export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform }) {
+interface EvacRouteMapProps {
+  mapNotice?: string | null
+  platform?: Platform
+}
+
+export function EvacRouteMap({ mapNotice = null, platform = 'maplibre' }: EvacRouteMapProps) {
   const { status: authStatus, user } = useAuth()
   const { adapter, ready } = useMapAdapter(platform, 'safe-map', CENTER, 13)
   const mobile = useMobileLayout()
@@ -169,7 +174,14 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
    */
   const suggestionList = (
     <>
-      <p className="px-3 pt-2 pb-1 text-[9px] text-slate-500">候補</p>
+      <div className="px-3 pt-2 pb-1 text-[9px] text-slate-500">
+        <p>候補</p>
+        {geocode.source === 'gsi' && (
+          <p className="mt-1 rounded bg-amber-50 px-2 py-1.5 leading-normal text-amber-800">
+            Googleの地点検索を利用できないため、国土地理院の住所検索を使用しています
+          </p>
+        )}
+      </div>
       {geocode.loading && <p className="p-4 text-center text-[11px] text-slate-500">検索中…</p>}
       {geocode.error && (
         <p className="p-4 text-center text-[11px] text-slate-500">{geocode.error}</p>
@@ -806,6 +818,14 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         aria-busy={search.loading}
       >
         <div id="safe-map" className="absolute inset-0" />
+        {mapNotice && (
+          <p
+            className="absolute top-[72px] left-1/2 z-[4] m-0 w-max max-w-[calc(100%-32px)] -translate-x-1/2 rounded-lg bg-slate-900/90 px-3 py-2 text-center text-[10px] leading-normal text-white shadow-md"
+            role="status"
+          >
+            {mapNotice}
+          </p>
+        )}
         {state.screen === 'home' && (
           <button
             type="button"

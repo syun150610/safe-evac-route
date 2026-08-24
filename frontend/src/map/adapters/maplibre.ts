@@ -1,6 +1,6 @@
 /** MapLibre GL（地理院タイル）用アダプタ。
  *
- * `frontend/adapter_maplibre.js`（素のHTML版）からの移植。**ロジックは変えていない。**
+ * `frontend/adapter_maplibre.js`（素のHTML版）からの移植を起点にした実装。
  * 契約は ./types.ts。Google版と対になっているので、片方だけ直さないこと。
  */
 // maplibre-gl は名前付き export（default は無い）
@@ -22,6 +22,7 @@ import mlWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 
 import type { RouteStyle } from '../constants'
 import type { RouteId } from '../types'
+import { metersPerPixel, offsetRouteCollection } from './route-offset'
 import type {
   AreaClick,
   BBox,
@@ -106,6 +107,8 @@ export function createMapLibreAdapter(): MapAdapter {
   const markers: Marker[] = []
   const shelterMarkers: Marker[] = []
   const callouts: Popup[] = [] // 出しっぱなしの要約
+  let routeGeojson: FeatureCollection | null = null
+  let routeStyles: Record<RouteId, RouteStyle> | null = null
 
   const handler = (n: string) => (map as unknown as Record<string, Handler>)[n]
 
@@ -127,6 +130,18 @@ export function createMapLibreAdapter(): MapAdapter {
     if (!force && key === lastViewportKey) return
     lastViewportKey = key
     viewportChangeCb(current)
+  }
+
+  /** MapLibreの `line-offset` は鋭い折返しで長い三角形の突起を作る。
+   * Google版と同じく、現在の縮尺に応じて安全な範囲で座標をずらし直す。 */
+  function reoffsetRoutes() {
+    if (!routeGeojson || !routeStyles) return
+    const source = map.getSource('demo') as GeoJSONSource | undefined
+    if (!source) return
+    const center = map.getCenter()
+    source.setData(
+      offsetRouteCollection(routeGeojson, routeStyles, metersPerPixel(map.getZoom(), center.lat)),
+    )
   }
 
   /** ハザードの面は**経路より下**に入れる。返り値を addLayer の第2引数に渡す。
@@ -163,6 +178,7 @@ export function createMapLibreAdapter(): MapAdapter {
       map.addControl(new ScaleControl({}))
       popup = new Popup({ closeButton: false })
       map.on('moveend', () => emitViewport())
+      map.on('zoomend', reoffsetRoutes)
 
       const canvas = map.getCanvas()
       let longPressTimer: ReturnType<typeof setTimeout> | null = null
@@ -363,12 +379,20 @@ export function createMapLibreAdapter(): MapAdapter {
     // 経路は1つの geojson ソースにまとめ、レイヤ側の filter で振り分ける。
     // 5本 × 数百区間を個別の線にすると重いので、ここは1ソース方式のまま
     setRoutes(geojson, styleMap: Record<RouteId, RouteStyle>, drawOrder: RouteId[]) {
+      routeGeojson = geojson as FeatureCollection
+      routeStyles = styleMap
+      const center = map.getCenter()
+      const rendered = offsetRouteCollection(
+        routeGeojson,
+        routeStyles,
+        metersPerPixel(map.getZoom(), center.lat),
+      )
       const src = map.getSource('demo') as GeoJSONSource | undefined
       if (src) {
-        src.setData(geojson as FeatureCollection)
+        src.setData(rendered)
         return
       }
-      map.addSource('demo', { type: 'geojson', data: geojson as FeatureCollection })
+      map.addSource('demo', { type: 'geojson', data: rendered })
 
       const isRoute = (id: RouteId) => [
         'all',
@@ -389,7 +413,6 @@ export function createMapLibreAdapter(): MapAdapter {
               'line-color': '#ffffff',
               'line-width': s.width + 3.5,
               'line-opacity': 0.9,
-              'line-offset': s.offset,
             },
           })
         }
@@ -402,7 +425,6 @@ export function createMapLibreAdapter(): MapAdapter {
           paint: {
             'line-color': s.color,
             'line-width': s.width,
-            'line-offset': s.offset,
             ...(s.dash ? { 'line-dasharray': s.dash } : {}),
           },
         })
@@ -417,7 +439,6 @@ export function createMapLibreAdapter(): MapAdapter {
             'line-color': s.color,
             'line-width': 18,
             'line-opacity': 0.01,
-            'line-offset': s.offset,
           },
         })
         map.on('mouseenter', `hit-${id}`, () => {
