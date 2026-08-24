@@ -151,7 +151,7 @@ export function RouteTable({ bundle, shown, alt, altRoutes, risk, hazard, onTogg
   const primaryFirst = !alt || shelter?.type === 'urgent'
 
   const primaryColumn = (
-    <div className="min-w-[150px] flex-1">
+    <div className="min-w-0" data-shelter-kind={shelter?.type}>
       {alt && shelter && (
         <ColumnHead
           dot={shelter.type === 'urgent' ? 'text-green-600' : 'text-amber-500'}
@@ -179,7 +179,7 @@ export function RouteTable({ bundle, shown, alt, altRoutes, risk, hazard, onTogg
   //    経路1本だけで、遠回りなのかどうかを言えなかった（2026-08-24の指摘）
   const altColumn =
     alt && altRoutes?.length ? (
-      <div className="min-w-[150px] flex-1">
+      <div className="min-w-0" data-shelter-kind={alt.type}>
         <ColumnHead
           dot={alt.type === 'urgent' ? 'text-green-600' : 'text-amber-500'}
           name={alt.name}
@@ -206,7 +206,7 @@ export function RouteTable({ bundle, shown, alt, altRoutes, risk, hazard, onTogg
       <h3 className="mt-5 mb-2 text-[13px]">経路を比較</h3>
       {/* ⚠️ **2種類を両方選んでいるときは、避難先ごとに列を分ける。**
           1つの表に混ぜると、どの数字がどちらの避難先のものか分からない */}
-      <div className="mb-2 flex flex-wrap items-start gap-3">
+      <div className={`mb-2 grid items-start gap-2 ${altColumn ? 'grid-cols-2' : ''}`}>
         {primaryFirst ? primaryColumn : altColumn}
         {primaryFirst ? altColumn : primaryColumn}
       </div>

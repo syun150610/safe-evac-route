@@ -181,7 +181,7 @@ describe('ShelterResult（対応の登録と危険の断り）', () => {
       id: 'd',
       basis: 'length',
       hazard_match: false,
-      type: 'designated',
+      type: 'urgent',
     })
     const html = render([chosen, noMatch], QUERY, chosen)
     expect(html).toContain('この災害の登録なし')
@@ -219,8 +219,8 @@ describe('ShelterResult（対応の登録と危険の断り）', () => {
 
 describe('ShelterResult（もう一方の種類）', () => {
   const alt = {
-    ...candidate({ id: 'alt', type: 'urgent', type_label: '指定緊急避難場所' }),
-    name: '多摩川河川敷',
+    ...candidate({ id: 'alt', type: 'designated', type_label: '指定避難所' }),
+    name: '第一小学校',
     stats: stats(1477, 0),
   }
 
@@ -235,12 +235,44 @@ describe('ShelterResult（もう一方の種類）', () => {
         shelter={(({ stats: _s, ...rest }) => rest)(NEAR)}
       />,
     )
-    expect(html).toContain('多摩川河川敷')
+    expect(html).toContain('第一小学校')
     expect(html).toContain('指定緊急避難場所')
+    expect(html).toContain('指定避難所')
   })
 
   it('片方だけ選んでいるときは出さない', () => {
     const html = render([NEAR, FAR])
-    expect(html).not.toContain('多摩川河川敷')
+    expect(html).not.toContain('第一小学校')
+  })
+
+  it('両方の結果を左=緊急避難場所、右=避難所に分け、ほかの候補も混ぜない', () => {
+    const designatedOther = candidate({
+      id: 'designated-other',
+      name: '第二小学校',
+      type: 'designated',
+      type_label: '指定避難所',
+      hazard_match: false,
+    })
+    const html = renderToStaticMarkup(
+      <ShelterResult
+        alt={alt}
+        candidates={[NEAR, FAR, alt, designatedOther]}
+        onSelect={() => {}}
+        query={{ ...QUERY, type: 'all' }}
+        risk={RISK}
+        shelter={(({ stats: _s, ...rest }) => rest)(NEAR)}
+      />,
+    )
+    const urgentStart = html.indexOf('data-shelter-kind="urgent"')
+    const designatedStart = html.indexOf('data-shelter-kind="designated"')
+    expect(urgentStart).toBeGreaterThan(-1)
+    expect(designatedStart).toBeGreaterThan(urgentStart)
+
+    const urgentColumn = html.slice(urgentStart, designatedStart)
+    const designatedColumn = html.slice(designatedStart)
+    expect(urgentColumn).toContain(FAR.name)
+    expect(urgentColumn).not.toContain(designatedOther.name)
+    expect(designatedColumn).toContain(designatedOther.name)
+    expect(designatedColumn).not.toContain(FAR.name)
   })
 })
