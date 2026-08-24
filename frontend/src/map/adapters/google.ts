@@ -9,6 +9,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { SHELTER_KIND_STYLE } from '../constants'
 import { loadMapsScript, mapsApiKey, reportGoogleMapsUnavailable } from '../lib/google-maps'
+import { installLongPress } from './long-press'
 import { metersPerPixel, offsetPath } from './route-offset'
 import type {
   AreaClick,
@@ -190,6 +191,16 @@ export function createGoogleAdapter(): MapAdapter {
   const layers: Record<string, any> = {} // routeId -> { casing, main, hit, style, z }
   let mapInited = false
   let resolveReady: (() => void) | null = null
+  let lastLongPressAt = Number.NEGATIVE_INFINITY
+
+  function emitLongPress(lngLat: LngLatTuple) {
+    // DOMの長押しとMaps SDKのcontextmenuが同時に届く端末では1回だけ通知する。
+    if (!longPressCb) return
+    const now = Date.now()
+    if (now - lastLongPressAt < 500) return
+    lastLongPressAt = now
+    longPressCb(lngLat)
+  }
 
   function viewport(): MapViewport | null {
     const bounds = map?.getBounds()
@@ -479,6 +490,26 @@ export function createGoogleAdapter(): MapAdapter {
             isFractionalZoomEnabled: false,
           })
           infoWindow = new google.maps.InfoWindow()
+          // Maps SDKのcontextmenuはブラウザのDOM contextmenu由来で、タッチ端末では
+          // 発火しない場合がある。コンテナのPointerEventでも長押しを検出し、
+          // OverlayViewの投影を使って画面座標を緯度経度へ戻す。
+          const pointerProjection = new google.maps.OverlayView()
+          pointerProjection.onAdd = () => undefined
+          pointerProjection.draw = () => undefined
+          pointerProjection.onRemove = () => undefined
+          pointerProjection.setMap(map)
+          if (container) {
+            installLongPress(container, ({ x, y }) => {
+              const projection = pointerProjection.getProjection()
+              if (!projection) return
+              const rect = container?.getBoundingClientRect()
+              if (!rect) return
+              const point = projection.fromContainerPixelToLatLng(
+                new google.maps.Point(x - rect.left, y - rect.top),
+              )
+              if (point) emitLongPress([point.lng(), point.lat()])
+            })
+          }
           map.addListener('zoom_changed', queueReoffset)
           map.addListener('bounds_changed', queueViewport)
           map.addListener('idle', () => {
@@ -487,9 +518,7 @@ export function createGoogleAdapter(): MapAdapter {
             emitViewport()
           })
           map.addListener('contextmenu', (event: any) => {
-            if (event.latLng && longPressCb) {
-              longPressCb([event.latLng.lng(), event.latLng.lat()])
-            }
+            if (event.latLng) emitLongPress([event.latLng.lng(), event.latLng.lat()])
           })
           resolveReady?.()
         })

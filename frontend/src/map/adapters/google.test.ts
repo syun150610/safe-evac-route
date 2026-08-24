@@ -130,6 +130,14 @@ function installStub() {
           this.h = h
         }
       },
+      Point: class {
+        x: number
+        y: number
+        constructor(x: number, y: number) {
+          this.x = x
+          this.y = y
+        }
+      },
       LatLng: class {
         _lat: number
         _lng: number
@@ -192,6 +200,10 @@ function installStub() {
           return {
             fromLatLngToDivPixel: () => ({ x: created.point.x + 1000, y: created.point.y + 1000 }),
             fromLatLngToContainerPixel: () => ({ ...created.point }),
+            fromContainerPixelToLatLng: ({ x, y }: { x: number; y: number }) => ({
+              lat: () => 35 + y / 10_000,
+              lng: () => 139 + x / 10_000,
+            }),
           }
         }
       },
@@ -264,6 +276,15 @@ async function makeAdapter() {
   const a = createGoogleAdapter()
   await a.init('map', { center: [139.792, 35.733], zoom: 13 })
   return a
+}
+
+function pointer(type: string, x: number, y: number): Event {
+  const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y })
+  Object.defineProperties(event, {
+    isPrimary: { value: true },
+    pointerId: { value: 1 },
+  })
+  return event
 }
 
 describe('adapter_google（スタブ）', () => {
@@ -372,6 +393,18 @@ describe('adapter_google（スタブ）', () => {
     })
 
     expect(callback).toHaveBeenCalledWith([139.777, 35.714])
+  })
+
+  it('contextmenuが無いタッチ端末でもPointerEventの長押しを通知する', async () => {
+    vi.useFakeTimers()
+    const adapter = await makeAdapter()
+    const callback = vi.fn()
+    adapter.onLongPress(callback)
+
+    fakeMap.el.dispatchEvent(pointer('pointerdown', 70, 140))
+    await vi.advanceTimersByTimeAsync(650)
+
+    expect(callback).toHaveBeenCalledWith([139.007, 35.014])
   })
 
   // ⚠️ 小数ズームを許すと、浸水タイルが端数pxに置かれて境目に線が出る

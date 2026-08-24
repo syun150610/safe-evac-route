@@ -22,6 +22,7 @@ import mlWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 
 import { type RouteStyle, SHELTER_KIND_STYLE } from '../constants'
 import type { RouteId } from '../types'
+import { installLongPress } from './long-press'
 import { metersPerPixel, offsetRouteCollection } from './route-offset'
 import type {
   AreaClick,
@@ -181,35 +182,12 @@ export function createMapLibreAdapter(): MapAdapter {
       map.on('zoomend', reoffsetRoutes)
 
       const canvas = map.getCanvas()
-      let longPressTimer: ReturnType<typeof setTimeout> | null = null
-      let pointerStart: { x: number; y: number } | null = null
-      const cancelLongPress = () => {
-        if (longPressTimer) clearTimeout(longPressTimer)
-        longPressTimer = null
-        pointerStart = null
-      }
-      canvas.addEventListener('pointerdown', (event) => {
-        if (!event.isPrimary || event.button !== 0) return
-        pointerStart = { x: event.clientX, y: event.clientY }
-        longPressTimer = setTimeout(() => {
-          if (!pointerStart || !longPressCb) return
-          const rect = canvas.getBoundingClientRect()
-          const point = map.unproject([pointerStart.x - rect.left, pointerStart.y - rect.top])
-          longPressCb([point.lng, point.lat])
-          cancelLongPress()
-        }, 650)
+      installLongPress(canvas, ({ x, y }) => {
+        if (!longPressCb) return
+        const rect = canvas.getBoundingClientRect()
+        const point = map.unproject([x - rect.left, y - rect.top])
+        longPressCb([point.lng, point.lat])
       })
-      canvas.addEventListener('pointermove', (event) => {
-        if (
-          pointerStart &&
-          Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > 8
-        ) {
-          cancelLongPress()
-        }
-      })
-      canvas.addEventListener('pointerup', cancelLongPress)
-      canvas.addEventListener('pointercancel', cancelLongPress)
-      canvas.addEventListener('pointerleave', cancelLongPress)
 
       // ⚠️ 準備完了をイベントで取らない。2通り試して2回とも外している:
       //    ・load は発火しない（タイル取得が終わらないと来ない。loaded() も false のまま）

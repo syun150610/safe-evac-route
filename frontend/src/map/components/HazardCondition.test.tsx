@@ -61,6 +61,13 @@ describe('HazardCondition', () => {
     expect(onChange).toHaveBeenCalledWith({ hazard: 'quake' })
   })
 
+  it('災害ボタン自身に文字サイズ設定の対象クラスを付ける', () => {
+    render({ hazard: 'quake' }, vi.fn())
+
+    expect(button('地震').classList.contains('map-text-9')).toBe(true)
+    expect(button('浸水').classList.contains('map-text-9')).toBe(true)
+  })
+
   it('⚠️ 浸水想定は選ばせない（全河川固定）', () => {
     render({ hazard: 'flood' }, vi.fn())
     expect(container.querySelector('select')).toBeNull()
