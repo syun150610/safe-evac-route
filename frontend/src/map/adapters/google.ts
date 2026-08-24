@@ -302,18 +302,12 @@ export function createGoogleAdapter(): MapAdapter {
     const reachable = 1 - (1 - FLOOD_BAKED_ALPHA) ** paints
     return { paints, opacity: Math.min(1, t / reachable) }
   }
-  /** タイルを1枚あたり何px大きく描くか。
-   *
-   * ⚠️ **0にしてある。重ねても隙間は直らない。** 経緯（2026-08-24）:
-   *   1. 背景の絵だけ1px広げた → 箱の外へは出ないので効果なし
-   *   2. 箱ごと1px広げた → 隙間は埋まるが、**乗算で二重に色が乗って濃い線**が出た
-   *   3. 隙間の原因は**小数ズーム**（タイルが端数pxに置かれる）だったので、
-   *      そちらを切った（`isFractionalZoomEnabled: false`）。整数ズームなら
-   *      タイルはちょうど並ぶので、広げる必要が無い。
-   * ⚠️ ここを0以外に戻すと、乗算のせいで格子状の線が見える。 */
-  const FLOOD_BLEED = 0
-  /** 箱・背景ともに掛ける拡大率 */
-  const FLOOD_BLEED_SCALE = (256 + FLOOD_BLEED) / 256
+  // ⚠️ **タイルを広げて重ねない。** 2026-08-24に2回試して、どちらも外した:
+  //   1. 背景の絵だけ広げる → 箱の外へは出ないので効果が無い
+  //   2. 箱ごと広げる → 隙間は埋まるが、乗算で二重に色が乗って濃い格子が出る
+  //   継ぎ目の原因は**小数ズーム**（タイルが端数pxに置かれる）だったので、
+  //   そちらを切った（`isFractionalZoomEnabled: false`）。整数ズームなら
+  //   タイルはちょうど並ぶので、ここで細工する必要は無い。
 
   function makeFloodType(url: string, minz: number, maxz: number, target: number) {
     const plan = paintPlan(target)
@@ -338,7 +332,7 @@ export function createGoogleAdapter(): MapAdapter {
       getTile(coord: any, zoom: number, doc: Document) {
         const div = doc.createElement('div')
         // ⚠️ 256pxのままだと、隣の箱との間に端数pxの隙間ができる
-        div.style.width = div.style.height = `${256 * FLOOD_BLEED_SCALE}px`
+        div.style.width = div.style.height = '256px'
         div.style.opacity = String(this._opacity)
         this._tiles.add(div)
 
@@ -371,9 +365,9 @@ export function createGoogleAdapter(): MapAdapter {
         //    描画側で濃くする。**色そのものは変えていない。**
         const src = `url(${tpl(z, x, y)})`
         // ⚠️ 拡大したぶん、位置も同じ割合でずらす（ずらさないと絵が右下へ動く）
-        const size = 256 * scale * FLOOD_BLEED_SCALE
-        const shiftX = -(256 * cx) * FLOOD_BLEED_SCALE
-        const shiftY = -(256 * cy) * FLOOD_BLEED_SCALE
+        const size = 256 * scale
+        const shiftX = -(256 * cx)
+        const shiftY = -(256 * cy)
         div.style.backgroundImage = Array(plan.paints).fill(src).join(', ')
         div.style.backgroundSize = Array(plan.paints).fill(`${size}px ${size}px`).join(', ')
         div.style.backgroundPosition = Array(plan.paints).fill(`${shiftX}px ${shiftY}px`).join(', ')
