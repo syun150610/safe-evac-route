@@ -41,7 +41,7 @@ import {
 import { shelterPopupHtml } from './lib/shelter-popup'
 import { shelterIsVisible } from './lib/shelter-viewport'
 import { initialSafeState, type PlaceField, safeReducer } from './state/evac-route-state'
-import type { Rationale, ShelterCandidate, ShelterFeature } from './types'
+import type { ShelterCandidate, ShelterFeature } from './types'
 
 const CENTER: [number, number] = [139.792, 35.733]
 const EMPTY = { type: 'FeatureCollection' as const, features: [] }
@@ -251,6 +251,40 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       />
     )
   }, [altRationaleHazards[0], bundle?.alt_rationale?.distance])
+
+  const primaryRationaleColumn =
+    bundle?.shelter && bundle.rationale && consideredHazards.length > 0 ? (
+      <div className="min-w-0" data-shelter-kind={bundle.shelter.type}>
+        {bundle.alt_shelter && (
+          <p className="mt-2 mb-1 grid gap-0.5 text-[9px] text-slate-500">
+            <span>{bundle.shelter.type_label}</span>
+            <strong className="truncate text-[10px] text-slate-700" title={bundle.shelter.name}>
+              {bundle.shelter.name}
+            </strong>
+          </p>
+        )}
+        <RouteRationale
+          lead={compareLead}
+          rationale={{ ...bundle.rationale, hazards: consideredHazards }}
+        />
+      </div>
+    ) : null
+
+  const altRationaleColumn =
+    bundle?.alt_shelter && bundle.alt_rationale && altRationaleHazards.length > 0 ? (
+      <div className="min-w-0" data-shelter-kind={bundle.alt_shelter.type}>
+        <p className="mt-2 mb-1 grid gap-0.5 text-[9px] text-slate-500">
+          <span>{bundle.alt_shelter.type_label}</span>
+          <strong className="truncate text-[10px] text-slate-700" title={bundle.alt_shelter.name}>
+            {bundle.alt_shelter.name}
+          </strong>
+        </p>
+        <RouteRationale
+          lead={altCompareLead}
+          rationale={{ ...bundle.alt_rationale, hazards: altRationaleHazards }}
+        />
+      </div>
+    ) : null
 
   /** 畳んだ「検索の条件」に出す一行。文言と出し分けは `conditionSummary` が持つ */
   const hazardLabel = hazardMeta?.label ?? ''
@@ -1318,30 +1352,9 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   出るようになったので、同じ形で比べられる（2026-08-24の指摘）。
                   ⚠️ 根拠は**それぞれの避難先についてのもの**。片方の根拠を
                   もう一方に当てはめない */}
-              <div className="flex flex-wrap items-start gap-3">
-                {consideredHazards.length > 0 && (
-                  <div className="min-w-[240px] flex-1">
-                    {altRationaleHazards.length > 0 && bundle?.shelter && (
-                      <p className="mt-2 text-[10px] text-slate-500">{bundle.shelter.name}</p>
-                    )}
-                    <RouteRationale
-                      lead={compareLead}
-                      rationale={{
-                        ...(bundle?.rationale as Rationale),
-                        hazards: consideredHazards,
-                      }}
-                    />
-                  </div>
-                )}
-                {altRationaleHazards.length > 0 && bundle?.alt_rationale && (
-                  <div className="min-w-[240px] flex-1">
-                    <p className="mt-2 text-[10px] text-slate-500">{bundle.alt_shelter?.name}</p>
-                    <RouteRationale
-                      lead={altCompareLead}
-                      rationale={{ ...bundle.alt_rationale, hazards: altRationaleHazards }}
-                    />
-                  </div>
-                )}
+              <div className={`grid items-start gap-2 ${altRationaleColumn ? 'grid-cols-2' : ''}`}>
+                {bundle?.shelter?.type === 'urgent' ? primaryRationaleColumn : altRationaleColumn}
+                {bundle?.shelter?.type === 'urgent' ? altRationaleColumn : primaryRationaleColumn}
               </div>
               {/* 避難先探索のときだけ。推奨1件と比較材料。
                   ⚠️ 候補に通し番号の順位を振らないこと（ShelterResult 冒頭） */}

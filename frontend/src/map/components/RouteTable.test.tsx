@@ -163,6 +163,9 @@ describe('RouteTable（避難先が2つのとき）', () => {
     expect(html).toContain('指定避難所')
     expect(html).toContain('多摩川河川敷')
     expect(html).toContain('指定緊急避難場所')
+    expect(html.indexOf('data-shelter-kind="urgent"')).toBeLessThan(
+      html.indexOf('data-shelter-kind="designated"'),
+    )
   })
 
   // ⚠️ 「どちらの避難先の数字か」は要約へ移した（`CompareLead.test.tsx`）

@@ -28,7 +28,6 @@
  * ⚠️ **どれも危ないときに黙って推さない。** `all_candidates_dangerous` は
  * 「行き先は示すが、ここが安全だとは言っていない」状態。必ず断る。
  */
-import { STYLE } from '../constants'
 import type { HazardRisk, RouteStats, ShelterCandidate, ShelterInfo, ShelterQuery } from '../types'
 
 interface Props {
@@ -115,13 +114,133 @@ function CandidateRow({
   )
 }
 
-export function ShelterResult({ shelter, alt, candidates, query, risk, onSelect }: Props) {
-  const recommended = candidates.find((c) => c.id === shelter.id)
-  const others = candidates.filter((c) => c.id !== shelter.id)
+function KindHeader({ shelter }: { shelter: ShelterInfo }) {
+  return (
+    <header className="mb-2 flex min-h-8 items-center gap-1.5 border-slate-200 border-b pb-1.5">
+      <span
+        aria-hidden="true"
+        className={`size-2 shrink-0 rounded-full ${shelter.type === 'urgent' ? 'bg-green-600' : 'bg-amber-500'}`}
+      />
+      <strong className="text-[10px] leading-tight text-slate-700">{shelter.type_label}</strong>
+    </header>
+  )
+}
+
+function DestinationCard({
+  shelter,
+  stats,
+  featured,
+  risk,
+}: {
+  shelter: ShelterInfo
+  stats?: RouteStats
+  featured: boolean
+  risk?: HazardRisk
+}) {
+  const unevaluated = stats && risk ? num(stats, risk.coverage_key) : 0
+  return (
+    <article
+      className={`mb-3 grid gap-1 rounded-[10px] border p-2.5 ${
+        shelter.type === 'urgent'
+          ? 'border-green-300 bg-green-50/60'
+          : 'border-amber-300 bg-amber-50/60'
+      }`}
+    >
+      <em className="w-fit rounded-full bg-[#07156f] px-1.5 py-px text-[8px] font-bold text-white not-italic">
+        {featured ? 'おすすめ' : '種類別候補'}
+      </em>
+      <strong className="break-words text-[12px] leading-tight">{shelter.name}</strong>
+      <small className="break-words text-[9px] text-slate-600">{shelter.address}</small>
+      {stats && (
+        <span className="mt-0.5 text-[9px] text-slate-700">
+          {`徒歩約${Math.round(stats.duration_min_60)}分・${km(stats.distance_m)}`}
+          {risk && ` ・ ${risk.label} ${pct(num(stats, risk.ratio_key))}`}
+        </span>
+      )}
+      {unevaluated > 0 && (
+        <span className="text-[9px] text-amber-700">
+          {`※この経路の${pct(unevaluated)}は評価範囲外です（安全という意味ではありません）`}
+        </span>
+      )}
+      {/* ⚠️ 施設がその災害に対応しているかは、指定避難所のデータからは分からない */}
+      {!shelter.hazard_match && (
+        <span className="text-[9px] text-slate-600">
+          ※この施設にはこの災害への対応が登録されていません（対応していないという意味ではありません）
+        </span>
+      )}
+    </article>
+  )
+}
+
+function ResultColumn({
+  shelter,
+  stats,
+  featured,
+  candidates,
+  risk,
+  onSelect,
+}: {
+  shelter: ShelterInfo
+  stats?: RouteStats
+  featured: boolean
+  candidates: ShelterCandidate[]
+  risk?: HazardRisk
+  onSelect: (candidate: ShelterCandidate) => void
+}) {
   const groups = (['hazard', 'length'] as const)
-    .map((basis) => ({ basis, rows: others.filter((c) => c.basis === basis) }))
-    .filter((g) => g.rows.length > 0)
-  const unevaluated = recommended && risk ? num(recommended.stats, risk.coverage_key) : 0
+    .map((basis) => ({ basis, rows: candidates.filter((candidate) => candidate.basis === basis) }))
+    .filter((group) => group.rows.length > 0)
+
+  return (
+    <div className="min-w-0" data-shelter-kind={shelter.type}>
+      <KindHeader shelter={shelter} />
+      <DestinationCard featured={featured} risk={risk} shelter={shelter} stats={stats} />
+      {groups.map(({ basis, rows }) => (
+        <div className="mb-3" key={basis}>
+          <p className="mb-1 text-[10px] font-bold text-slate-500">
+            {`ほかの候補（${GROUP[basis].title}）`}
+          </p>
+          <p className="mb-1.5 text-[8px] text-slate-400">{GROUP[basis].note}</p>
+          <ul className="grid list-none gap-1.5 p-0">
+            {rows.map((candidate) => (
+              <CandidateRow
+                candidate={candidate}
+                key={`${candidate.type}:${candidate.id}`}
+                risk={risk}
+                onSelect={onSelect}
+              />
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function ShelterResult({ shelter, alt, candidates, query, risk, onSelect }: Props) {
+  const recommended = candidates.find(
+    (candidate) => candidate.id === shelter.id && candidate.type === shelter.type,
+  )
+  const selected = new Set([
+    `${shelter.type}:${shelter.id}`,
+    ...(alt ? [`${alt.type}:${alt.id}`] : []),
+  ])
+  const columns = [
+    {
+      shelter,
+      stats: recommended?.stats,
+      featured: true,
+    },
+    ...(alt
+      ? [
+          {
+            shelter: alt,
+            stats: alt.stats,
+            featured: false,
+          },
+        ]
+      : []),
+  ].sort((a, b) => (a.shelter.type === 'urgent' ? -1 : b.shelter.type === 'urgent' ? 1 : 0))
 
   return (
     <section className="mb-4">
@@ -129,66 +248,11 @@ export function ShelterResult({ shelter, alt, candidates, query, risk, onSelect 
           合わせる。どこに何があるか、見出しだけで分かるようにする */}
       <h3 className="mt-5 mb-2 text-[13px]">避難先の候補</h3>
 
-      <article className="mb-3 grid gap-1 rounded-[10px] border border-indigo-300 bg-indigo-50/60 p-3">
-        <span className="flex items-center gap-1.5">
-          <em className="rounded-full bg-[#07156f] px-1.5 py-px text-[8px] font-bold text-white not-italic">
-            おすすめ
-          </em>
-          <span className="rounded-full bg-white px-1.5 text-[8px] text-slate-600">
-            {shelter.type_label}
-          </span>
-        </span>
-        <strong className="text-[13px]">{shelter.name}</strong>
-        <small className="text-[9px] text-slate-600">{shelter.address}</small>
-        {recommended && (
-          <span className="mt-0.5 text-[10px] text-slate-700">
-            {`徒歩約${Math.round(recommended.stats.duration_min_60)}分・${km(recommended.stats.distance_m)}`}
-            {risk && ` ・ ${risk.label} ${pct(num(recommended.stats, risk.ratio_key))}`}
-          </span>
-        )}
-        {unevaluated > 0 && (
-          <span className="text-[9px] text-amber-700">
-            {`※この経路の${pct(unevaluated)}は評価範囲外です（安全という意味ではありません）`}
-          </span>
-        )}
-        {/* ⚠️ 施設がその災害に対応しているかは、指定避難所のデータからは分からない */}
-        {!shelter.hazard_match && (
-          <span className="text-[9px] text-slate-600">
-            ※この施設にはこの災害への対応が登録されていません（対応していないという意味ではありません）
-          </span>
-        )}
-      </article>
-
       {/* ⚠️ どれも危ないときに黙って推さない */}
       {query.all_candidates_dangerous && (
         <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-[9px] leading-relaxed text-red-800">
           {`近くの避難先はどこへ向かっても、経路の${pct(query.danger_ratio_limit)}以上が危険区間になります。いちばん危険の少ない先を出していますが、安全な経路がある状態ではありません。`}
         </p>
-      )}
-
-      {/* ⚠️ **もう一方の種類も出す。** 役割が違う2種類を両方選んでいるのに、
-          片方の線しか出ないと比べようがない。地図では別の線（橙の破線）で
-          描かれているので、ここでもその対応が分かるようにする */}
-      {alt && (
-        <article className="mb-3 grid gap-1 rounded-[10px] border border-amber-300 bg-amber-50/60 p-3">
-          <span className="flex items-center gap-1.5">
-            {/* ⚠️ 色は `STYLE` から引く（地図の線・吹き出しと揃える） */}
-            <span
-              aria-hidden="true"
-              className="h-0.5 w-5 shrink-0"
-              style={{ background: STYLE.shelter_alt.color }}
-            />
-            <em className="rounded-full bg-white px-1.5 text-[8px] text-slate-600 not-italic">
-              {alt.type_label}
-            </em>
-          </span>
-          <strong className="text-[12px]">{alt.name}</strong>
-          <small className="text-[9px] text-slate-600">{alt.address}</small>
-          <span className="text-[10px] text-slate-700">
-            {`徒歩約${Math.round(alt.stats.duration_min_60)}分・${km(alt.stats.distance_m)}`}
-            {risk && ` ・ ${risk.label} ${pct(num(alt.stats, risk.ratio_key))}`}
-          </span>
-        </article>
       )}
 
       {/* ⚠️ 足切りしたことを黙らない */}
@@ -203,29 +267,29 @@ export function ShelterResult({ shelter, alt, candidates, query, risk, onSelect 
         </p>
       )}
 
-      {groups.map(({ basis, rows }) => (
-        <div className="mb-3" key={basis}>
-          <p className="mb-1 text-[10px] font-bold text-slate-500">
-            {`ほかの候補（${GROUP[basis].title}）`}
-          </p>
-          <p className="mb-1.5 text-[8px] text-slate-400">{GROUP[basis].note}</p>
-          {/* ⚠️ **2列で並べる。** 候補は最大でも数件だが、1列だと1画面に
-              収まらず、近い順・危険が小さい順の比較がスクロール越しになる */}
-          <ul className="grid list-none grid-cols-2 gap-1.5 p-0">
-            {rows.map((candidate) => (
-              <CandidateRow
-                candidate={candidate}
-                key={candidate.id}
-                risk={risk}
-                onSelect={onSelect}
-              />
-            ))}
-          </ul>
-        </div>
-      ))}
+      {/* ⚠️ **両方を選んだときは、全結果を種類ごとの列に閉じ込める。**
+          左=まず逃げ込む緊急避難場所、右=その後生活する避難所。候補だけを
+          ものさし別に混ぜると、上の経路比較との対応が分からなくなる。 */}
+      <div className={`grid items-start gap-2 ${columns.length > 1 ? 'grid-cols-2' : ''}`}>
+        {columns.map((column) => (
+          <ResultColumn
+            candidates={candidates.filter(
+              (candidate) =>
+                candidate.type === column.shelter.type &&
+                !selected.has(`${candidate.type}:${candidate.id}`),
+            )}
+            featured={column.featured}
+            key={column.shelter.type}
+            onSelect={onSelect}
+            risk={risk}
+            shelter={column.shelter}
+            stats={column.stats}
+          />
+        ))}
+      </div>
 
       <p className="text-[8px] leading-relaxed text-slate-400">
-        {`${query.pool}件の指定緊急避難場所から、経路を引けた${query.reachable}件を比較しました。距離の上限は${km(query.detour_limit_m)}（いちばん近い避難先の${query.detour_ratio}倍＋${query.detour_slack_m}m）です。`}
+        {`${query.pool}件の${query.type === 'all' ? '避難場所・避難所' : shelter.type_label}から、経路を引けた${query.reachable}件を比較しました。距離の上限は${km(query.detour_limit_m)}（いちばん近い避難先の${query.detour_ratio}倍＋${query.detour_slack_m}m）です。`}
       </p>
     </section>
   )
