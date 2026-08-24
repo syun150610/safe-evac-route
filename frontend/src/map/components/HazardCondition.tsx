@@ -30,6 +30,8 @@ interface Props extends Condition {
   note?: string
   /** 再検索中。二重に投げさせない */
   busy?: boolean
+  /** APIから災害の定義を取得中 */
+  loading?: boolean
 }
 
 export function HazardCondition({
@@ -38,21 +40,34 @@ export function HazardCondition({
   title = '考慮する災害',
   note,
   busy = false,
+  loading = false,
 }: Props) {
+  const unavailable = busy || loading
   return (
     <section
-      aria-busy={busy}
+      aria-busy={unavailable}
       className="mb-2.5 flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 [&>div]:mr-auto"
     >
       <div>
         <strong className="block text-[10px]">{title}</strong>
         {note && <small className="mt-0.5 block text-[8px] text-slate-500">{note}</small>}
       </div>
-      <HazardPicker
-        compact
-        value={hazard}
-        onChange={(next) => !busy && onChange({ hazard: next })}
-      />
+      {loading ? (
+        <span className="flex items-center gap-1.5 text-[9px] text-slate-500" role="status">
+          <span
+            aria-hidden="true"
+            className="size-3 animate-spin rounded-full border-2 border-slate-300 border-t-[#07156f] motion-reduce:animate-none"
+          />
+          読み込み中…
+        </span>
+      ) : (
+        <HazardPicker
+          compact
+          disabled={busy}
+          value={hazard}
+          onChange={(next) => !busy && onChange({ hazard: next })}
+        />
+      )}
     </section>
   )
 }

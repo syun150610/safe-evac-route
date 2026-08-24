@@ -112,14 +112,14 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const quakeAdded = useRef(false)
   const toolButtonsRef = useRef<HTMLDivElement>(null)
   const toolPopoverRef = useRef<HTMLElement>(null)
-  const { catalog, error: hazardError } = useHazards()
-  const { area, error: areaError } = useArea()
+  const { catalog, error: hazardError, loading: hazardsLoading } = useHazards()
+  const { area, error: areaError, loading: areaLoading } = useArea()
   const search = useSearch()
   const {
     data: shelterData,
     error: shelterError,
     loading: sheltersLoading,
-  } = useShelters(true, area?.bbox)
+  } = useShelters(area !== null, area?.bbox)
 
   const active = state[state.activeField]
   // ⚠️ 探索範囲を渡す。Places は `locationRestriction` で範囲外をそもそも
@@ -147,9 +147,13 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const conditionLabel =
     bundle == null
       ? undefined
-      : bundle.selected_route === 'baseline' || !hazardMeta
+      : bundle.selected_route === 'baseline'
         ? '最短経路'
-        : `${hazardMeta.label}を考慮`
+        : hazardMeta
+          ? `${hazardMeta.label}を考慮`
+          : hazardsLoading
+            ? '検索条件を読み込み中…'
+            : '検索条件を確認できません'
 
   // ⚠️ **経路の重みに掛けた種別だけを見せる**（2026-08-22にユーザーと確認）。
   //    APIは登録済み種別を全部返し、`considered` で区別する。絞り込みはここで行い、
@@ -238,10 +242,16 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     ) : null
 
   /** 畳んだ「検索の条件」に出す一行。文言と出し分けは `conditionSummary` が持つ */
-  const hazardLabel = hazardMeta?.label ?? ''
-  const shelterConditionSummary = conditionSummary(hazardLabel, shelterKinds, true)
+  const hazardLabel = hazardMeta?.label ?? null
+  const searchConditionSummary = hazardError
+    ? '検索条件を取得できません'
+    : conditionSummary(hazardLabel, shelterKinds, false)
+  const shelterConditionSummary = hazardError
+    ? '検索条件を取得できません'
+    : conditionSummary(hazardLabel, shelterKinds, true)
 
   const [latestPost, setLatestPost] = useState<Post | null>(null)
+  const [latestPostLoading, setLatestPostLoading] = useState(true)
 
   useEffect(() => {
     void getPosts({ limit: 1, offset: 0, sort: 'recent', userId: 'anonymous' })
@@ -249,6 +259,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         setLatestPost(result.items[0] ?? null)
       })
       .catch(() => undefined)
+      .finally(() => setLatestPostLoading(false))
   }, [])
 
   const flash = useCallback((message: string) => {
@@ -759,6 +770,14 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   }, [adapter, ready, state.screen, state.activeField, search.clear, flash])
 
   const error = areaError ?? hazardError ?? shelterError
+  const shelterDataLoading = areaLoading || sheltersLoading
+  const initialLoadingItems = [
+    !ready ? '地図' : null,
+    hazardsLoading ? '災害情報' : null,
+    areaLoading ? '対応地域' : null,
+    shelterDataLoading ? '避難先' : null,
+  ].filter((item): item is string => item !== null)
+  const initialDataLoading = initialLoadingItems.length > 0
   const shelterSearchMode = state.searchPurpose === 'shelter'
   const searchFields: readonly PlaceField[] = shelterSearchMode
     ? ['origin']
@@ -828,9 +847,24 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       <section
         className="relative h-[calc(100dvh-54px)] bg-[#dce7e7] min-[900px]:col-start-2 min-[900px]:row-start-2 min-[900px]:h-auto min-[900px]:min-h-0"
         aria-label="地図"
-        aria-busy={search.loading}
+        aria-busy={search.loading || initialDataLoading}
       >
         <div id="safe-map" className="absolute inset-0" />
+        {initialDataLoading && (
+          <div
+            className="pointer-events-none absolute top-[72px] left-1/2 z-[4] flex max-w-[calc(100%-24px)] -translate-x-1/2 items-center gap-2 rounded-full bg-white/90 px-3 py-2 text-[10px] font-bold whitespace-nowrap text-slate-700 shadow-[0_4px_14px_rgb(15_23_42/16%)] backdrop-blur-sm"
+            role="status"
+            aria-live="polite"
+          >
+            <span
+              aria-hidden="true"
+              className="size-3.5 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-[#07156f] motion-reduce:animate-none"
+            />
+            <span className="overflow-hidden text-ellipsis">
+              {initialLoadingItems.join('・')}を読み込み中…
+            </span>
+          </div>
+        )}
         <RouteCalloutCards callouts={callouts} mobile={mobile} />
         <MapSearchControl
           compact={state.screen !== 'home'}
@@ -929,7 +963,15 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                 ×
               </button>
             </div>
-            {mapLegend ? (
+            {hazardsLoading ? (
+              <p className="flex items-center gap-2 text-[10px] text-slate-500" role="status">
+                <span
+                  aria-hidden="true"
+                  className="size-3 animate-spin rounded-full border-2 border-slate-300 border-t-[#07156f] motion-reduce:animate-none"
+                />
+                災害情報を読み込み中…
+              </p>
+            ) : mapLegend ? (
               <HazardLegend hazardLabel={mapLegend.label} items={mapLegend.items} />
             ) : (
               // ⚠️ 何も重ねていないときに空の箱を出さない。次の一手を示す
@@ -983,11 +1025,13 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         }
         onDesktopCollapsedChange={setDesktopSidebarCollapsed}
         collapsedLabel={
-          state.screen === 'home'
-            ? `近くの避難先 ${nearbyShelters.length}件`
-            : state.screen === 'search'
-              ? '地点を検索'
-              : '避難経路'
+          initialDataLoading
+            ? '地図と検索データを読み込み中…'
+            : state.screen === 'home'
+              ? `近くの避難先 ${nearbyShelters.length}件`
+              : state.screen === 'search'
+                ? '地点を検索'
+                : '避難経路'
         }
       >
         <section className="relative min-h-[calc(100dvh-346px)] bg-slate-50 min-[900px]:min-h-full">
@@ -1012,7 +1056,15 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   <h2>みんなの声</h2>
                   <a href="/timeline">もっと見る</a>
                 </div>
-                {latestPost ? (
+                {latestPostLoading ? (
+                  <p className="flex items-center gap-1.5 text-[9px] text-slate-500" role="status">
+                    <span
+                      aria-hidden="true"
+                      className="size-3 animate-spin rounded-full border-2 border-slate-300 border-t-[#07156f] motion-reduce:animate-none"
+                    />
+                    投稿を読み込み中…
+                  </p>
+                ) : latestPost ? (
                   <article className="rounded-lg border border-slate-200 bg-slate-100 p-2 text-[9px] [&>p]:my-1 [&>p]:pl-6 [&>p]:leading-normal">
                     <div className="flex items-center gap-1.5 text-[9px] [&_time]:ml-auto [&_time]:text-[8px] [&_time]:text-slate-400">
                       <span className="grid size-5 place-items-center rounded-full border border-slate-300 text-[9px] text-slate-500">
@@ -1051,7 +1103,9 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               <section className="rounded-xl bg-white p-3 shadow-[0_1px_3px_rgb(15_23_42/6%)]">
                 <div className="mb-1.5 flex items-center justify-between [&_h2]:m-0 [&_h2]:text-sm [&_span]:text-[9px] [&_span]:font-bold [&_span]:text-[#07156f]">
                   <h2>近くの避難先</h2>
-                  <span>{sheltersLoading ? '読込中…' : `${nearbyShelters.length}件表示`}</span>
+                  <span>
+                    {shelterDataLoading ? '読み込み中…' : `${nearbyShelters.length}件表示`}
+                  </span>
                 </div>
                 {/* ⚠️ **いまの出発地を画面に出す。** ここに出していなかった頃は、
                     前の検索の出発地が残っていることに気づけず、別の地点から
@@ -1083,11 +1137,20 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                     ⚠️ ホームは「何ができるか」を見せる場所。条件は畳んで場所を空け、
                     押してほしい2つ（投稿する・安全な避難先を探す）を目立たせる
                     （ユーザー指摘、2026-08-24） */}
-                <SearchOptions summary={shelterConditionSummary} title="検索の条件">
-                  <HazardCondition hazard={state.hazard} onChange={applyCondition} />
+                <SearchOptions
+                  loading={hazardsLoading}
+                  summary={shelterConditionSummary}
+                  title="検索の条件"
+                >
+                  <HazardCondition
+                    hazard={state.hazard}
+                    loading={hazardsLoading}
+                    onChange={applyCondition}
+                  />
                   <ShelterTypePicker onChange={applyShelterKinds} selected={shelterKinds} />
                 </SearchOptions>
                 <SafeShelterSearchButton
+                  disabled={hazardsLoading || areaLoading}
                   loading={shelterSearchLoading}
                   onSearch={runShelterSearch}
                 />
@@ -1147,7 +1210,11 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   安全な避難先を探すため、現在地または出発地を指定してください。
                 </p>
               )}
-              <HazardCondition hazard={state.hazard} onChange={applyCondition} />
+              <HazardCondition
+                hazard={state.hazard}
+                loading={hazardsLoading}
+                onChange={applyCondition}
+              />
               {shelterSearchMode && (
                 <ShelterTypePicker onChange={applyShelterKinds} selected={shelterKinds} />
               )}
@@ -1186,7 +1253,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               {shelterSearchMode ? (
                 <SafeShelterSearchButton
                   loading={shelterSearchLoading}
-                  disabled={state.origin.place === null}
+                  disabled={state.origin.place === null || hazardsLoading || areaLoading}
                   onSearch={runShelterSearch}
                 />
               ) : (
@@ -1196,6 +1263,8 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   disabled={
                     state.origin.place === null ||
                     state.destination.place === null ||
+                    hazardsLoading ||
+                    areaLoading ||
                     search.loading
                   }
                   onClick={() => {
@@ -1281,12 +1350,14 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               <SearchOptions
                 defaultOpen
                 key={state.destination.place?.title ?? 'route'}
-                summary={conditionSummary(hazardLabel, shelterKinds, Boolean(bundle?.shelter))}
+                loading={hazardsLoading}
+                summary={bundle?.shelter ? shelterConditionSummary : searchConditionSummary}
                 title="検索の条件"
               >
                 <HazardCondition
                   busy={search.loading}
                   hazard={state.hazard}
+                  loading={hazardsLoading}
                   note={
                     bundle?.shelter
                       ? '切り替えると避難先から探し直します'
