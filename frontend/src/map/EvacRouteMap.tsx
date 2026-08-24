@@ -75,12 +75,7 @@ function shelterPlace(feature: ShelterFeature): Place {
   }
 }
 
-interface EvacRouteMapProps {
-  mapNotice?: string | null
-  platform?: Platform
-}
-
-export function EvacRouteMap({ mapNotice = null, platform = 'maplibre' }: EvacRouteMapProps) {
+export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform }) {
   const { status: authStatus, user } = useAuth()
   const { adapter, ready } = useMapAdapter(platform, 'safe-map', CENTER, 13)
   const mobile = useMobileLayout()
@@ -818,14 +813,6 @@ export function EvacRouteMap({ mapNotice = null, platform = 'maplibre' }: EvacRo
         aria-busy={search.loading}
       >
         <div id="safe-map" className="absolute inset-0" />
-        {mapNotice && (
-          <p
-            className="absolute top-[72px] left-1/2 z-[4] m-0 w-max max-w-[calc(100%-32px)] -translate-x-1/2 rounded-lg bg-slate-900/90 px-3 py-2 text-center text-[10px] leading-normal text-white shadow-md"
-            role="status"
-          >
-            {mapNotice}
-          </p>
-        )}
         {state.screen === 'home' && (
           <button
             type="button"

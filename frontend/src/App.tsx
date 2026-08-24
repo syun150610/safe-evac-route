@@ -6,7 +6,8 @@
  *   /?platform=maplibre  地理院タイル + MapLibre（**キー不要**）
  *
  * ⚠️ Google はキーが要る（`frontend/.env.local` の `VITE_GOOGLE_MAPS_API_KEY`）。
- * 利用できない場合も地図機能全体を止めず、理由を表示してMapLibreへ切り替える。
+ * 利用できない場合も地図機能全体を止めずMapLibreへ切り替える。技術的な理由は
+ * consoleへ記録するが、利用者の操作を妨げる画面メッセージは出さない。
  *
  * ログインを求める範囲は `routing.ts` が単独で決める（画面ごとの分岐をここへ書かない）。
  */
@@ -16,11 +17,7 @@ import { AuthPage } from './auth/AuthPage'
 import { AuthProvider, useAuth } from './auth/AuthProvider'
 import { EvacRouteMap } from './map'
 import type { Platform } from './map/hooks/useMapAdapter'
-import {
-  GOOGLE_MAPS_UNAVAILABLE_EVENT,
-  type GoogleMapsUnavailableReason,
-  mapsApiKey,
-} from './map/lib/google-maps'
+import { GOOGLE_MAPS_UNAVAILABLE_EVENT, mapsApiKey } from './map/lib/google-maps'
 import { MyPage } from './mypage/MyPage'
 import { NewPostPage } from './posts/NewPostPage'
 import { TimelinePage } from './posts/TimelinePage'
@@ -31,28 +28,20 @@ function platformFromUrl(): Platform {
   return p === 'maplibre' ? 'maplibre' : 'google'
 }
 
-const GOOGLE_FALLBACK_MESSAGE = 'Google Mapsを利用できないため、地理院地図に切り替えました。'
-
 /** Googleの設定・通信・認証のどれかが欠けても、地図機能全体は止めない。 */
 function MapPage() {
   const requested = platformFromUrl()
   const missingKey = requested === 'google' && !mapsApiKey()
   const [platform, setPlatform] = useState<Platform>(missingKey ? 'maplibre' : requested)
-  const [notice, setNotice] = useState<string | null>(missingKey ? GOOGLE_FALLBACK_MESSAGE : null)
 
   useEffect(() => {
-    const fallback = (event: Event) => {
-      const reason = (event as CustomEvent<GoogleMapsUnavailableReason>).detail
-      console.warn(`[map] ${reason}のためMapLibreへ切り替えます`)
-      setNotice(GOOGLE_FALLBACK_MESSAGE)
-      setPlatform('maplibre')
-    }
+    const fallback = () => setPlatform('maplibre')
     window.addEventListener(GOOGLE_MAPS_UNAVAILABLE_EVENT, fallback)
     return () => window.removeEventListener(GOOGLE_MAPS_UNAVAILABLE_EVENT, fallback)
   }, [])
 
   // keyで地図画面を作り直し、利用不能になったGoogle MapのDOM・状態を引き継がない。
-  return <EvacRouteMap key={platform} mapNotice={notice} platform={platform} />
+  return <EvacRouteMap key={platform} platform={platform} />
 }
 
 /** ログインが要る画面へ来た未ログインの人に出す。

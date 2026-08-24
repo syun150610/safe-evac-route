@@ -377,6 +377,12 @@ describe('routeCallouts', () => {
       list[1].onDismiss?.()
       expect(onDismiss).toHaveBeenCalledWith('alt')
     })
+
+    it('×は地図カード共通の押しやすいスタイルを使う', () => {
+      const [callout] = routeCallouts(withAlt(), { shown: {} })
+      expect(callout.html).toContain('class="map-card-dismiss"')
+      expect(callout.html).not.toContain('width:18px')
+    })
   })
 
   it('地図を覆わないよう並べる経路は3本までにする', () => {

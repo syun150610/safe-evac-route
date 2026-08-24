@@ -20,6 +20,44 @@ body,
   inset: 0;
 }
 
+/* 地図上のカードを閉じる×。
+   経路要約は以前18px・端から2pxで、特にスマホでは押しにくかった。
+   MapLibre標準の詳細Popupも右上端に小さく置くため、共通して32px・内側6pxにする。
+   Googleの経路要約も .map-card-dismiss を使うので同じ見え方になる。 */
+.map-card-dismiss,
+.maplibregl-popup-content > .maplibregl-popup-close-button {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  cursor: pointer;
+  border: 0;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.map-card-dismiss {
+  /* 経路要約の外箱はクリックを下の経路へ通す。×だけ受け取る */
+  pointer-events: auto;
+}
+
+.map-card-dismiss:hover,
+.maplibregl-popup-content > .maplibregl-popup-close-button:hover {
+  background: #e2e8f0;
+}
+
+/* MapLibre標準Popupの本文を×の当たり判定へ潜り込ませない */
+.maplibregl-popup-content:has(> .maplibregl-popup-close-button) {
+  padding-right: 44px;
+}
+
 /* 「想定図の範囲外」の凡例。**塗りではなく斜線**で示す。
    浸水しないのではなく判断材料がない、という区別を色で表せないため。
    repeating-linear-gradient は Tailwind のユーティリティで書けない */

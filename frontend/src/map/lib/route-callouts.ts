@@ -88,10 +88,8 @@ function swatch({ color, dashed }: CalloutRow): string {
  * 片方だけ見たい場合に困る。
  * ⚠️ 戻す道は**行先のピン**（押すと出し直す）と、地図レイヤーのメニュー。 */
 const DISMISS =
-  '<button type="button" data-action="dismiss" aria-label="この要約を閉じる（行先のピンで戻せます）" ' +
-  'style="pointer-events:auto;position:absolute;top:2px;right:2px;width:18px;height:18px;' +
-  'cursor:pointer;border:0;border-radius:999px;background:#f1f5f9;color:#475569;' +
-  'font-size:11px;line-height:1;padding:0">×</button>'
+  '<button type="button" class="map-card-dismiss" data-action="dismiss" ' +
+  'aria-label="この要約を閉じる（行先のピンで戻せます）">×</button>'
 
 function render(typeLabel: string | null, name: string, rows: CalloutRow[]): string {
   const head = [
@@ -112,8 +110,8 @@ function render(typeLabel: string | null, name: string, rows: CalloutRow[]): str
         `</div>`,
     )
     .join('')
-  // ×のぶんだけ右に余白を空ける（見出しに重ならないように）
-  return `<div style="position:relative;min-width:118px;max-width:186px;padding-right:16px">${DISMISS}${head}${body}</div>`
+  // 32pxの×と内側の余白ぶん、見出しの右を空ける
+  return `<div style="position:relative;min-width:118px;max-width:186px;padding-right:40px">${DISMISS}${head}${body}</div>`
 }
 
 /** 吹き出しの向きを決めるとき、経路の終端から何点さかのぼって見るか。
