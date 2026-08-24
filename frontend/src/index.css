@@ -11,6 +11,15 @@ body,
   margin: 0;
 }
 
+/* MapLibre は初期化時に #safe-map へ .maplibregl-map を付け、ライブラリ本体の
+   unlayered CSS で position: relative にする。Tailwind v4 の .absolute は cascade
+   layer 内なので負け、地図コンテナが高さ0になっていた。地図基盤に関係なく親を
+   埋めるレイアウト契約を、同じ unlayered CSS で固定する。 */
+#safe-map {
+  position: absolute;
+  inset: 0;
+}
+
 /* 「想定図の範囲外」の凡例。**塗りではなく斜線**で示す。
    浸水しないのではなく判断材料がない、という区別を色で表せないため。
    repeating-linear-gradient は Tailwind のユーティリティで書けない */
