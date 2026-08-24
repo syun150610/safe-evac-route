@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 interface FakeMapHandle {
   listeners: Record<string, () => void>
   zoom: number
   bounds: { west: number; south: number; east: number; north: number }
+  canvas: HTMLCanvasElement
 }
 
 const stub = vi.hoisted(() => ({ map: null as FakeMapHandle | null }))
@@ -23,6 +24,9 @@ vi.mock('maplibre-gl', () => {
     addControl() {}
     getCanvas() {
       return this.canvas
+    }
+    unproject([x, y]: [number, number]) {
+      return { lng: 139 + x / 10_000, lat: 35 + y / 10_000 }
     }
     isStyleLoaded() {
       return true
@@ -72,6 +76,8 @@ describe('MapLibre viewport通知', () => {
     stub.map = null
   })
 
+  afterEach(() => vi.useRealTimers())
+
   it('登録時とmoveend後に現在のbbox・ズームを通知する', async () => {
     const adapter = createMapLibreAdapter()
     await adapter.init('map', { center: [139.792, 35.733], zoom: 13 })
@@ -113,5 +119,28 @@ describe('MapLibre viewport通知', () => {
     unsubscribe()
     fakeMap().listeners.moveend()
     expect(callback).not.toHaveBeenCalled()
+  })
+
+  it('PointerEventの長押しを地図座標へ変換して通知する', async () => {
+    vi.useFakeTimers()
+    const adapter = createMapLibreAdapter()
+    await adapter.init('map', { center: [139.792, 35.733], zoom: 13 })
+    const callback = vi.fn()
+    adapter.onLongPress(callback)
+    const event = new MouseEvent('pointerdown', {
+      bubbles: true,
+      button: 0,
+      clientX: 70,
+      clientY: 140,
+    })
+    Object.defineProperties(event, {
+      isPrimary: { value: true },
+      pointerId: { value: 1 },
+    })
+
+    fakeMap().canvas.dispatchEvent(event)
+    await vi.advanceTimersByTimeAsync(650)
+
+    expect(callback).toHaveBeenCalledWith([139.007, 35.014])
   })
 })

@@ -772,7 +772,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       }
       dispatch({ type: 'select_place', field, place })
       search.clear()
-      if (state.screen === 'home') flash('目的地を設定しました')
+      flash(`${field === 'origin' ? '出発地' : '目的地'}を設定しました`)
     })
   }, [adapter, ready, state.screen, state.activeField, search.clear, flash])
 
