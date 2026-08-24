@@ -24,8 +24,16 @@ const stats: RouteStats = {
   out_of_coverage_ratio: 0,
 }
 
-const rationaleSummary = {
-  hazards: [{ considered: true, verdict: 'avoided', unevaluated_stage: 'none' }],
+const API_RATIONALE_TEXT = '+400m の遠回りで、危険度4以上を 120m → 0m に'
+const rationale = {
+  hazards: [
+    {
+      considered: true,
+      verdict: 'avoided',
+      unevaluated_stage: 'none',
+      text: API_RATIONALE_TEXT,
+    },
+  ],
 } as unknown as Bundle['rationale']
 
 function route(overrides: Partial<RouteInfo>): RouteInfo {
@@ -46,7 +54,7 @@ describe('sheetSummary', () => {
   it('探索時は選択された経路とベースラインとの差を返す', () => {
     const bundle = {
       selected_route: 'quake',
-      rationale: rationaleSummary,
+      rationale,
       routes: [
         route({}),
         route({
@@ -64,7 +72,7 @@ describe('sheetSummary', () => {
       label: '地震のみ',
       distance: '5.40km',
       minutes: 90,
-      evaluation: '評価対象の危険区間を回避しました',
+      evaluation: API_RATIONALE_TEXT,
       baselineDelta: 7,
       baselineDistanceDelta: 400,
     })
@@ -299,7 +307,7 @@ describe('畳んだシートの見出し', () => {
   // ⚠️ 距離と所要は同じ速度から出るので、片方だけ動かした固定値は現実に無い
   const bundle = {
     selected_route: 'quake',
-    rationale: rationaleSummary,
+    rationale,
     routes: [
       route({}),
       route({
@@ -317,9 +325,9 @@ describe('畳んだシートの見出し', () => {
     expect(html).not.toContain('①')
   })
 
-  it('数値の比較ではなく短い評価を出す', () => {
+  it('APIが返した評価文をそのまま出す', () => {
     const html = renderCollapsed(bundle)
-    expect(html).toContain('評価対象の危険区間を回避しました')
+    expect(html).toContain(API_RATIONALE_TEXT)
     expect(html).not.toContain('最短経路と比べて')
   })
 
@@ -331,7 +339,7 @@ describe('畳んだシートの見出し', () => {
 
   it('評価が無い旧レスポンスでは余計な比較文を出さない', () => {
     const withoutRationale = { ...bundle, rationale: undefined } as Bundle
-    expect(renderCollapsed(withoutRationale)).not.toContain('評価対象の危険区間を回避しました')
+    expect(renderCollapsed(withoutRationale)).not.toContain(API_RATIONALE_TEXT)
     expect(renderCollapsed(withoutRationale)).not.toContain('最短経路と同じ')
   })
 })
