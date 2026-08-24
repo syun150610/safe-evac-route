@@ -850,7 +850,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         {state.screen === 'home' && (
           <button
             type="button"
-            className="absolute top-3 left-3 z-[3] flex min-h-12 w-[calc(100%-24px)] cursor-pointer items-center gap-2.5 rounded-[13px] border border-slate-100 bg-white px-4 text-left text-slate-500 shadow-[0_5px_16px_rgb(15_23_42/14%)] [&>span:last-child]:overflow-hidden [&>span:last-child]:text-ellipsis [&>span:last-child]:whitespace-nowrap"
+            className="absolute top-3 right-16 left-3 z-[3] flex min-h-12 cursor-pointer items-center gap-2.5 rounded-[13px] border border-slate-100 bg-white px-4 text-left text-slate-500 shadow-[0_5px_16px_rgb(15_23_42/14%)] [&>span:last-child]:overflow-hidden [&>span:last-child]:text-ellipsis [&>span:last-child]:whitespace-nowrap"
             onClick={() => openScreen('search')}
           >
             <span aria-hidden="true">⌕</span>
@@ -1177,6 +1177,15 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                     active={state.activeField === field}
                     onActivate={() => dispatch({ type: 'activate_field', field })}
                     onQueryChange={(query) => dispatch({ type: 'edit_field', field, query })}
+                    currentLocation={
+                      field === 'origin'
+                        ? {
+                            loading: locating,
+                            selected: value.place?.source === 'current-location',
+                            onSelect: () => void requestLocation(),
+                          }
+                        : undefined
+                    }
                     onClear={() => {
                       search.clear()
                       dispatch({ type: 'clear_place', field })
@@ -1188,15 +1197,6 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   />
                 )
               })}
-              <button
-                type="button"
-                className="mb-2 ml-[66px] cursor-pointer border-0 bg-transparent text-[10px] text-[#07156f]"
-                aria-busy={locating}
-                disabled={locating}
-                onClick={() => void requestLocation()}
-              >
-                {locating ? '◎ 現在地を取得しています…' : '◎ 現在地を出発地にする'}
-              </button>
               {shelterSearchMode ? (
                 <SafeShelterSearchButton
                   loading={shelterSearchLoading}

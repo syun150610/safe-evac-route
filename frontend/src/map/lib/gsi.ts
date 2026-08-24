@@ -19,6 +19,8 @@ export interface Place {
   title: string
   lat: number
   lon: number
+  /** 端末の位置情報から得た地点。単なる「現在地」という検索文字列と区別する */
+  source?: 'current-location'
 }
 
 interface GsiFeature {
@@ -53,7 +55,13 @@ export function currentPosition(): Promise<Place> {
       return
     }
     navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ title: '現在地', lat: p.coords.latitude, lon: p.coords.longitude }),
+      (p) =>
+        resolve({
+          title: '現在地',
+          lat: p.coords.latitude,
+          lon: p.coords.longitude,
+          source: 'current-location',
+        }),
       (e) =>
         reject(
           new Error(

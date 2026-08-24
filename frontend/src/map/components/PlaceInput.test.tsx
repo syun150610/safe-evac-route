@@ -45,6 +45,10 @@ function render(props: Partial<Parameters<typeof PlaceInput>[0]> = {}) {
 const clearButton = () => container.querySelector('button')
 const list = () => container.querySelector('[role="listbox"]')
 const input = () => container.querySelector('input')
+const currentButton = () =>
+  container.querySelector<HTMLButtonElement>(
+    '[aria-label="現在地を出発地にする"], [aria-label="現在地を取得中"]',
+  )
 
 describe('PlaceInput', () => {
   it('入力があってクリアできるときだけ×を出す', () => {
@@ -134,5 +138,42 @@ describe('PlaceInput', () => {
   it('×はラベル付き（何を消すのか分かるようにする）', () => {
     render({ query: '上野駅', label: '目的地', onClear: () => {} })
     expect(clearButton()?.getAttribute('aria-label')).toBe('目的地を消す')
+  })
+
+  describe('現在地', () => {
+    it('出発地入力のそばにボタンとして置き、押すと取得を始める', () => {
+      const onSelect = vi.fn()
+      render({ currentLocation: { loading: false, selected: false, onSelect } })
+      expect(currentButton()?.textContent).toContain('現在地を使う')
+      act(() => currentButton()?.click())
+      expect(onSelect).toHaveBeenCalledTimes(1)
+    })
+
+    it('取得中は二重に押せない', () => {
+      render({ currentLocation: { loading: true, selected: false, onSelect: () => {} } })
+      expect(currentButton()?.textContent).toContain('取得中')
+      expect(currentButton()?.disabled).toBe(true)
+    })
+
+    it('取得後は文字入力ではなく、端末の位置情報を使っている選択表示にする', () => {
+      render({
+        currentLocation: { loading: false, selected: true, onSelect: () => {} },
+        onClear: () => {},
+        query: '現在地',
+      })
+      expect(input()).toBeNull()
+      expect(container.textContent).toContain('端末の位置情報を使用中')
+      expect(container.querySelector('[aria-label="端末の現在地を選択中"]')).not.toBeNull()
+      expect(container.querySelector('[aria-label="出発地を消す"]')).not.toBeNull()
+    })
+
+    it('同じ文字列でも端末から取得していなければ通常の入力として扱う', () => {
+      render({
+        currentLocation: { loading: false, selected: false, onSelect: () => {} },
+        query: '現在地',
+      })
+      expect(input()).not.toBeNull()
+      expect(container.textContent).not.toContain('端末の位置情報を使用中')
+    })
   })
 })
