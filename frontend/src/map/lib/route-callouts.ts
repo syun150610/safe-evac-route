@@ -23,7 +23,7 @@
  * ⚠️ **施設名はエスケープしてから埋める。** アダプタへは HTML を文字列で渡す。
  */
 import type { CalloutAnchor, CalloutSpec } from '../adapters/types'
-import { STYLE } from '../constants'
+import { type RouteStyle, SHELTER_KIND_STYLE, STYLE } from '../constants'
 import type { Bundle, FeatureProps, HazardRisk, RouteId, RouteStats } from '../types'
 import { altRouteLabel, km, pct } from './format'
 
@@ -51,8 +51,14 @@ function num(stats: RouteStats, key: string): number {
   return typeof v === 'number' ? v : 0
 }
 
-function rowOf(id: RouteId, label: string, stats: RouteStats, risk?: HazardRisk): CalloutRow {
-  const style = STYLE[id]
+function rowOf(
+  id: RouteId,
+  label: string,
+  stats: RouteStats,
+  styles: Record<RouteId, RouteStyle>,
+  risk?: HazardRisk,
+): CalloutRow {
+  const style = styles[id]
   const unevaluated = risk ? num(stats, risk.coverage_key) : 0
   return {
     color: style.color,
@@ -80,10 +86,16 @@ function swatch({ color, dashed }: CalloutRow): string {
   return `<span style="display:inline-block;width:14px;height:3px;flex:none;border-radius:2px;background:${background}"></span>`
 }
 
-function render(typeLabel: string | null, name: string, rows: CalloutRow[]): string {
+function render(
+  typeLabel: string | null,
+  type: 'urgent' | 'designated' | null,
+  name: string,
+  rows: CalloutRow[],
+): string {
+  const badge = type ? SHELTER_KIND_STYLE[type] : null
   const head = [
-    typeLabel
-      ? `<div class="map-text-8" style="color:#64748b;line-height:1.3">${escapeHtml(typeLabel)}</div>`
+    typeLabel && badge
+      ? `<div class="map-text-8" style="display:inline-flex;align-items:center;margin-bottom:2px;padding:1px 5px;border:1px solid ${badge.badgeBorder};border-radius:999px;background:${badge.badgeBackground};color:${badge.badgeText};font-weight:700;line-height:1.3">${escapeHtml(typeLabel)}</div>`
       : '',
     `<div class="map-text-11" style="font-weight:700;color:#0f172a;line-height:1.3">${escapeHtml(name)}</div>`,
   ].join('')
@@ -279,11 +291,13 @@ interface Options {
   onDismiss?: (id: string) => void
   /** 閉じられている吹き出しのID。ここにあるものは出さない */
   hidden?: string[]
+  /** 地図・一覧と同じ経路色。避難先探索ではピンの色へ動的に合わせる */
+  styles?: Record<RouteId, RouteStyle>
 }
 
 export function routeCallouts(bundle: Bundle | null, options: Options): CalloutSpec[] {
   if (!bundle) return []
-  const { risk, shown, hazardLabel, onDismiss, hidden = [] } = options
+  const { risk, shown, hazardLabel, onDismiss, hidden = [], styles = STYLE } = options
   const list: CalloutSpec[] = []
 
   // ⚠️ **選ばれた経路を先頭にする。** APIの並びは最短が先だが、吹き出しは
@@ -311,8 +325,9 @@ export function routeCallouts(bundle: Bundle | null, options: Options): CalloutS
       ),
       html: render(
         shelter?.type_label ?? null,
+        shelter?.type ?? null,
         shelter?.name ?? bundle.od.dest.display,
-        routes.map((route) => rowOf(route.id, route.label, route.stats, risk)),
+        routes.map((route) => rowOf(route.id, route.label, route.stats, styles, risk)),
       ),
     })
   }
@@ -328,9 +343,9 @@ export function routeCallouts(bundle: Bundle | null, options: Options): CalloutS
     .sort((a, b) => Number(b.id === 'shelter_alt') - Number(a.id === 'shelter_alt'))
     .slice(0, MAX_ROWS)
   const altRows = altRoutes.length
-    ? altRoutes.map((route) => rowOf(route.id, route.label, route.stats, risk))
+    ? altRoutes.map((route) => rowOf(route.id, route.label, route.stats, styles, risk))
     : shown.shelter_alt !== false && alt
-      ? [rowOf('shelter_alt', altRouteLabel(hazardLabel), alt.stats, risk)]
+      ? [rowOf('shelter_alt', altRouteLabel(hazardLabel), alt.stats, styles, risk)]
       : []
   if (alt && altRows.length && !hidden.includes('alt')) {
     const at: [number, number] = [alt.latlon[1], alt.latlon[0]]
@@ -346,7 +361,7 @@ export function routeCallouts(bundle: Bundle | null, options: Options): CalloutS
         ),
         towardOrigin(bundle, at),
       ),
-      html: render(alt.type_label, alt.name, altRows),
+      html: render(alt.type_label, alt.type, alt.name, altRows),
     })
   }
 

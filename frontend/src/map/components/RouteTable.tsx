@@ -9,7 +9,7 @@
  * 閾値の判定はAPI（`rationale.hazards[].unevaluated_stage`）に任せ、
  * **ここで割合と閾値を比べ直さない。**
  */
-import { STYLE } from '../constants'
+import { type RouteStyle, SHELTER_KIND_STYLE, STYLE } from '../constants'
 import type { Bundle, HazardRisk, Rationale, RouteId, RouteInfo, RouteStats } from '../types'
 
 interface Props {
@@ -26,6 +26,8 @@ interface Props {
    * `lead` に1つへまとめた。2026-08-24）。もう一方の経路名と未評価の強調に使う */
   hazard: Rationale['hazards'][number] | null
   onToggle: (id: RouteId, shown: boolean) => void
+  /** 地図と同じ経路色。避難先探索では行き先のピン色へ合わせる */
+  styles?: Record<RouteId, RouteStyle>
 }
 
 /** APIが配るキー名（`hazards[].risk`）で `stats` を引く。
@@ -46,7 +48,15 @@ const km = (m: number) => `${(m / 1000).toFixed(2)} km`
  * ⚠️ これが無いと、2種類を両方選んだときに「経路を比較」の数字がどちらの
  * 避難先のものか分からない（2026-08-23の指摘）。
  */
-function ColumnHead({ typeLabel, name, dot }: { typeLabel: string; name: string; dot: string }) {
+function ColumnHead({
+  typeLabel,
+  name,
+  color,
+}: {
+  typeLabel: string
+  name: string
+  color: string
+}) {
   return (
     <div className="mb-1.5 grid gap-0.5">
       <span className="flex items-center gap-1.5">
@@ -56,7 +66,8 @@ function ColumnHead({ typeLabel, name, dot }: { typeLabel: string; name: string;
             「凡例と色が違う」と読まれた（ユーザー指摘、2026-08-24） */}
         <svg
           aria-hidden="true"
-          className={`shrink-0 ${dot}`}
+          className="shrink-0"
+          style={{ color }}
           viewBox="0 0 24 36"
           width="8"
           height="12"
@@ -87,6 +98,7 @@ function RouteRow({
   selected,
   warnUnevaluated,
   onToggle,
+  styles,
 }: {
   route: RouteInfo
   shown: Partial<Record<RouteId, boolean>>
@@ -94,10 +106,11 @@ function RouteRow({
   selected: boolean
   warnUnevaluated: boolean
   onToggle: (id: RouteId, shown: boolean) => void
+  styles: Record<RouteId, RouteStyle>
 }) {
   const unevaluated = risk ? num(route.stats, risk.coverage_key) : 0
   // 破線かどうかも `STYLE` に従う（地図の線と同じ見え方にする）
-  const dashed = STYLE[route.id].dash !== null
+  const dashed = styles[route.id].dash !== null
   return (
     <label
       className={`grid min-w-[150px] flex-1 grid-cols-[auto_18px_1fr] items-center gap-2 rounded-lg border p-3 transition-opacity [&_span>em]:block [&_span>em]:text-[9px] [&_span>em]:font-bold [&_span>em]:text-[#07156f] [&_span>em]:not-italic [&_span>small]:my-1 [&_span>small]:block [&_span>small]:text-[9px] [&_span>small]:text-slate-500 [&_span>strong]:block [&_span>strong]:text-[11px] ${selected ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-200'} ${shown[route.id] === false ? 'opacity-45' : ''}`}
@@ -115,9 +128,9 @@ function RouteRow({
         style={
           dashed
             ? {
-                backgroundImage: `repeating-linear-gradient(90deg,${STYLE[route.id].color} 0 5px,transparent 5px 8px)`,
+                backgroundImage: `repeating-linear-gradient(90deg,${styles[route.id].color} 0 5px,transparent 5px 8px)`,
               }
-            : { background: STYLE[route.id].color }
+            : { background: styles[route.id].color }
         }
       />
       <span>
@@ -143,7 +156,16 @@ function RouteRow({
   )
 }
 
-export function RouteTable({ bundle, shown, alt, altRoutes, risk, hazard, onToggle }: Props) {
+export function RouteTable({
+  bundle,
+  shown,
+  alt,
+  altRoutes,
+  risk,
+  hazard,
+  onToggle,
+  styles = STYLE,
+}: Props) {
   // ⚠️ 閾値はAPI側。ここで unevaluated_ratio を閾値と比べ直さない
   const warnUnevaluated = hazard?.unevaluated_stage === 'warn'
   const shelter = bundle.shelter
@@ -154,7 +176,7 @@ export function RouteTable({ bundle, shown, alt, altRoutes, risk, hazard, onTogg
     <div className="min-w-0" data-shelter-kind={shelter?.type}>
       {alt && shelter && (
         <ColumnHead
-          dot={shelter.type === 'urgent' ? 'text-green-600' : 'text-amber-500'}
+          color={SHELTER_KIND_STYLE[shelter.type].color}
           name={shelter.name}
           typeLabel={shelter.type_label}
         />
@@ -168,6 +190,7 @@ export function RouteTable({ bundle, shown, alt, altRoutes, risk, hazard, onTogg
             route={route}
             selected={route.id === bundle.selected_route}
             shown={shown}
+            styles={styles}
             warnUnevaluated={warnUnevaluated}
           />
         ))}
@@ -181,7 +204,7 @@ export function RouteTable({ bundle, shown, alt, altRoutes, risk, hazard, onTogg
     alt && altRoutes?.length ? (
       <div className="min-w-0" data-shelter-kind={alt.type}>
         <ColumnHead
-          dot={alt.type === 'urgent' ? 'text-green-600' : 'text-amber-500'}
+          color={SHELTER_KIND_STYLE[alt.type].color}
           name={alt.name}
           typeLabel={alt.type_label}
         />
@@ -194,6 +217,7 @@ export function RouteTable({ bundle, shown, alt, altRoutes, risk, hazard, onTogg
               route={route}
               selected={route.id === 'shelter_alt'}
               shown={shown}
+              styles={styles}
               warnUnevaluated={warnUnevaluated}
             />
           ))}

@@ -20,7 +20,7 @@ import {
 // ⚠️ Vite に「これは Worker だ」と教えて束ねさせる（`?worker&url`）。理由は下の setWorkerUrl
 import mlWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 
-import type { RouteStyle } from '../constants'
+import { type RouteStyle, SHELTER_KIND_STYLE } from '../constants'
 import type { RouteId } from '../types'
 import { metersPerPixel, offsetRouteCollection } from './route-offset'
 import type {
@@ -498,7 +498,7 @@ export function createMapLibreAdapter(): MapAdapter {
       for (const m of shelterMarkers) m.remove()
       shelterMarkers.length = 0
       for (const m of list) {
-        const color = m.shelterType === 'urgent' ? '#16a34a' : '#ca8a04'
+        const color = SHELTER_KIND_STYLE[m.shelterType].color
         // ⚠️ **押しても経路探索は始めない。** まず詳細を出し、その中の
         //    「ここへ行く」を押したときだけ `onGo` を呼ぶ
         const popup = new Popup()

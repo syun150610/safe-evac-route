@@ -7,6 +7,7 @@
  * 使っていない機能まで型が要求される）。境界だけ any にしてある。
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { SHELTER_KIND_STYLE } from '../constants'
 import { loadMapsScript, mapsApiKey, reportGoogleMapsUnavailable } from '../lib/google-maps'
 import { metersPerPixel, offsetPath } from './route-offset'
 import type {
@@ -747,7 +748,7 @@ export function createGoogleAdapter(): MapAdapter {
       }
       while (shelterMarkers.length) shelterMarkers.pop().setMap(null)
       for (const m of list) {
-        const color = m.shelterType === 'urgent' ? '#16a34a' : '#ca8a04'
+        const color = SHELTER_KIND_STYLE[m.shelterType].color
         const svg = encodeURIComponent(
           `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="36" viewBox="0 0 24 36"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="${color}" stroke="white" stroke-width="1.5"/><circle cx="12" cy="12" r="5" fill="white"/></svg>`,
         )

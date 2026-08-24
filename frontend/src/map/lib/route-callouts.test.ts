@@ -7,6 +7,7 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 
+import { SHELTER_KIND_STYLE, STYLE } from '../constants'
 import type { Bundle, HazardRisk, RouteId, RouteStats } from '../types'
 import { calloutPadding, mergePadding, pickAnchor, routeCallouts } from './route-callouts'
 
@@ -127,6 +128,17 @@ describe('routeCallouts', () => {
     const [callout] = routeCallouts(bundle({ shelter }), { shown: {} })
     expect(callout.html).toContain('指定避難所')
     expect(callout.html).toContain('第一小学校')
+    expect(callout.html).toContain(SHELTER_KIND_STYLE.designated.badgeText)
+    expect(callout.html).toContain(SHELTER_KIND_STYLE.designated.badgeBorder)
+  })
+
+  it('吹き出しの経路色を地図と同じ動的配色にできる', () => {
+    const styles = {
+      ...STYLE,
+      flood: { ...STYLE.flood, color: SHELTER_KIND_STYLE.designated.color },
+    }
+    const [callout] = routeCallouts(bundle({ shelter }), { shown: {}, styles })
+    expect(callout.html).toContain(SHELTER_KIND_STYLE.designated.color)
   })
 
   it('地図画面の文字サイズ設定を経路要約にも反映できる', () => {
