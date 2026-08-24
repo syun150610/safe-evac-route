@@ -16,6 +16,7 @@ const callout: CalloutSpec = {
 const alternateCallout: CalloutSpec = {
   ...callout,
   id: 'alternate',
+  lngLat: [139.7, 35.8],
   html: '<strong>第二小学校</strong>',
 }
 
@@ -66,6 +67,19 @@ describe('RouteCalloutCards', () => {
 
     await act(async () => root.unmount())
     host.remove()
+  })
+
+  it('上側の目的地に上側のカードを対応させる', () => {
+    // APIの配列順では南側が先でも、画面上の位置関係を優先する。
+    const html = renderToStaticMarkup(
+      <RouteCalloutCards callouts={[callout, alternateCallout]} mobile />,
+    )
+    const host = document.createElement('div')
+    host.innerHTML = html
+    const south = host.querySelector<HTMLElement>('[data-callout-id="dest"]')
+    const north = host.querySelector<HTMLElement>('[data-callout-id="alternate"]')
+    expect(north?.style.top).toBe('72px')
+    expect(south?.style.bottom).toBe('104px')
   })
 
   it('ドラッグ位置を画面内へ収める', () => {

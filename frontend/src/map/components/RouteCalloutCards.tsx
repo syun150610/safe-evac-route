@@ -70,6 +70,13 @@ export function RouteCalloutCards({
   const dragRef = useRef<DragState | null>(null)
   const [positions, setPositions] = useState<Record<string, Point>>({})
   const [frontCalloutId, setFrontCalloutId] = useState<string | null>(null)
+  // 地図は北が上。上側の目的地には上側のカードを対応させ、カードとピンを
+  // 直感的に追えるようにする（APIのおすすめ順を画面位置へ流用しない）。
+  const topCalloutId = callouts.reduce<string | null>((topId, callout) => {
+    if (!topId) return callout.id
+    const top = callouts.find((candidate) => candidate.id === topId)
+    return !top || callout.lngLat[1] > top.lngLat[1] ? callout.id : topId
+  }, null)
 
   useEffect(() => {
     const valid = new Set(callouts.map((callout) => callout.id))
@@ -132,10 +139,10 @@ export function RouteCalloutCards({
 
   return (
     <div ref={rootRef} className="pointer-events-none absolute inset-0 z-[4]" aria-live="polite">
-      {callouts.map((callout, index) => {
+      {callouts.map((callout) => {
         const position = positions[callout.id]
         const initial =
-          index === 0
+          callout.id === topCalloutId
             ? { top: TOP_LEFT_CONTROL_CLEARANCE, left: CARD_MARGIN }
             : { right: CARD_MARGIN, bottom: mobile ? MOBILE_BOTTOM_INSET : CARD_MARGIN }
         return (

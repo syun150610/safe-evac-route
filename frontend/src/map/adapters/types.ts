@@ -50,7 +50,7 @@ export interface ShelterMarkerSpec {
   lngLat: LngLatTuple
   /** ピンのタイトル（読み上げ・ホバー用） */
   label: string
-  /** urgent = 指定緊急避難場所（緑）/ designated = 指定避難所（黄） */
+  /** urgent = 指定緊急避難場所（緑）/ designated = 指定避難所（橙） */
   shelterType: 'urgent' | 'designated'
   /** ピンを押したときに出す詳細のHTML。
    *
@@ -148,7 +148,7 @@ export interface MapAdapter {
   setLineWidth(routeId: RouteId, w: number): void
 
   setMarkers(list: MarkerSpec[]): void
-  /** 避難所・避難場所ピン。urgent=緑、designated=黄。空配列で全消し */
+  /** 避難所・避難場所ピン。urgent=緑、designated=橙。空配列で全消し */
   setShelterMarkers(list: ShelterMarkerSpec[]): void
   showPopup(lngLat: LngLatTuple, html: string): void
   /** 経路の要約を出しっぱなしにする吹き出し。空配列で全消し */

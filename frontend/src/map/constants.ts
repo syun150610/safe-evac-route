@@ -5,6 +5,26 @@
  */
 import type { RouteId } from './types'
 
+/** 避難先の種類を、地図上で一貫して見分けるための配色。
+ *
+ * 国土地理院の標準図記号はどちらも緑色で、形の違いによって区別する。本アプリでは
+ * 小さいピンと経路でも見分けられるよう、指定緊急避難場所は標準に近い緑、指定避難所は
+ * 補助色の橙を使う。ラベル・ピン・回避経路は必ずこの表から色を引く。 */
+export const SHELTER_KIND_STYLE = {
+  urgent: {
+    color: '#00843d',
+    badgeText: '#166534',
+    badgeBorder: '#86efac',
+    badgeBackground: '#f0fdf4',
+  },
+  designated: {
+    color: '#d97706',
+    badgeText: '#9a3412',
+    badgeBorder: '#fdba74',
+    badgeBackground: '#fff7ed',
+  },
+} as const
+
 export interface RouteStyle {
   color: string
   width: number
@@ -19,9 +39,10 @@ export interface RouteStyle {
  * どれがどれだか対応づけられない。**ここが単一の出所**で、シート側も
  * この表から色を引く（`RouteTable` の `RouteRow`）。
  *
- *   紺  … 選んだ条件で引いた経路（浸水・地震・掛け合わせ。**同時に1本しか出ない**）
+ *   紺  … 指定した目的地へ、選んだ条件で引いた経路
+ *   避難先の色 … 避難先探索で選んだ条件の経路（`shelterRouteStyles` が上書き）
  *   灰の破線 … 最短経路
- *   橙  … もう一方の避難先への経路（行き先が違う）
+ *   避難先の色 … もう一方の避難先への経路（行き先が違う）
  *   紫  … minimax（距離を無視した下限。既定OFF）
  *
  * ⚠️ 太さ・破線の刻み・オフセットは地図側の都合なので、シートは色だけ使う。
@@ -32,7 +53,8 @@ export const STYLE: Record<RouteId, RouteStyle> = {
   combined: { color: '#07156f', width: 5.5, offset: -5, dash: null, casing: true },
   quake: { color: '#07156f', width: 4.0, offset: 10, dash: null, casing: true },
   minimax: { color: '#7c3aed', width: 3.5, offset: -10, dash: [1.8, 1.5], casing: false },
-  // ⚠️ **行き先が違う線。** 避難先の種類を両方選んだときの「もう一方」
+  // ⚠️ **行き先が違う線。** 避難先の種類を両方選んだときの「もう一方」。
+  // 実表示では `shelterRouteStyles` がその避難先の色へ上書きする
   shelter_alt: { color: '#b45309', width: 4.0, offset: 15, dash: null, casing: true },
   // もう一方の避難先への最短。⚠️ 灰の破線は `baseline` と同じ意味なので色を揃え、
   // 行き先の違いはオフセットで分ける

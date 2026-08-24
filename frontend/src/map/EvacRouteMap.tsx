@@ -20,7 +20,7 @@ import { SearchOptions } from './components/SearchOptions'
 import { ShelterResult } from './components/ShelterResult'
 import { type ShelterKind, ShelterTypePicker, toParam } from './components/ShelterTypePicker'
 import { TextSizeSettings } from './components/TextSizeSettings'
-import { DRAW_ORDER, STYLE } from './constants'
+import { DRAW_ORDER } from './constants'
 import { inArea, outOfAreaMessage, useArea } from './hooks/useArea'
 import { useGeocode } from './hooks/useGeocode'
 import { tileUrlOf, useHazards, vectorUrlOf } from './hooks/useHazards'
@@ -42,6 +42,7 @@ import {
   FLOOD_SCENARIO,
 } from './lib/search-request'
 import { shelterPopupHtml } from './lib/shelter-popup'
+import { shelterRouteStyles } from './lib/shelter-route-styles'
 import { shelterIsVisible } from './lib/shelter-viewport'
 import { readMapTextSize, saveMapTextSize } from './lib/text-size'
 import { initialSafeState, type PlaceField, safeReducer } from './state/evac-route-state'
@@ -598,6 +599,10 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     ])
   }, [adapter, ready, area])
 
+  // 避難先探索では、回避経路をその行き先のピンと同じ色にする。
+  // 最短経路は比較基準なので灰色の破線のまま。
+  const routeStyles = useMemo(() => shelterRouteStyles(bundle), [bundle])
+
   // 地図に出す要約。⚠️ **消した経路の数字を残さない**ので `shownRoutes` も見る
   const callouts = useMemo(
     () =>
@@ -612,6 +617,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
             //    地図レイヤーのメニュー
             onDismiss: (id: string) => dispatch({ type: 'hide_callout', id }),
             hidden: state.hiddenCallouts,
+            styles: routeStyles,
           })
         : [],
     [
@@ -621,6 +627,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
       state.shownRoutes,
       state.showCallouts,
       state.hiddenCallouts,
+      routeStyles,
     ],
   )
   /** 避難先ピンのハンドラから読む最新の結果。
@@ -639,7 +646,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   useEffect(() => {
     const a = adapter.current
     if (!a || !ready) return
-    a.setRoutes(bundle?.geojson ?? EMPTY, STYLE, DRAW_ORDER)
+    a.setRoutes(bundle?.geojson ?? EMPTY, routeStyles, DRAW_ORDER)
     if (!bundle) return
     a.onClick(({ lngLat, route }) => {
       const segment = nearestSegment(bundle, route, lngLat)
@@ -663,7 +670,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         duration: 400,
       })
     }
-  }, [adapter, ready, bundle])
+  }, [adapter, ready, bundle, routeStyles])
 
   useEffect(() => {
     const a = adapter.current
@@ -1399,6 +1406,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   shown={state.shownRoutes}
                   risk={hazardMeta?.risk}
                   hazard={primaryHazard}
+                  styles={routeStyles}
                   onToggle={(route, shown) => dispatch({ type: 'show_route', route, shown })}
                 />
               )}
