@@ -177,6 +177,49 @@ describe('BottomSheet', () => {
     await act(async () => root.unmount())
   })
 
+  it('モバイルで地点入力中はシート全体を展開する', async () => {
+    const adapter = {
+      current: { lockGestures: vi.fn(), reserveBottom: vi.fn() } as unknown as MapAdapter,
+    }
+    host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    await act(async () =>
+      root.render(
+        createElement(
+          BottomSheet,
+          { adapter, bundle: null, mobile: true, open: true, onOpenChange: vi.fn() },
+          createElement('div', { className: 'place-input', 'data-editing': 'false' }, '入力'),
+        ),
+      ),
+    )
+
+    const sheet = host.querySelector('.route-bottom-sheet') as HTMLDivElement
+    const input = host.querySelector('.place-input') as HTMLDivElement
+    await act(async () => {
+      input.dataset.editing = 'true'
+      await Promise.resolve()
+    })
+
+    expect(sheet.className).toContain('top-0')
+    expect(host.querySelector('#route-sheet-body')?.className).toContain('max-h-none')
+
+    await act(async () => {
+      input.dataset.editing = 'false'
+      await Promise.resolve()
+    })
+    expect(sheet.className).not.toContain('top-0')
+
+    await act(async () => {
+      input.dataset.editing = 'true'
+      await Promise.resolve()
+      input.replaceWith(Object.assign(document.createElement('div'), { className: 'place-input' }))
+      await Promise.resolve()
+    })
+    expect(sheet.className).not.toContain('top-0')
+    await act(async () => root.unmount())
+  })
+
   it('PCサイドバーの境界は左右キーでも幅を変えられる', async () => {
     const onDesktopResize = vi.fn()
     const adapter = {

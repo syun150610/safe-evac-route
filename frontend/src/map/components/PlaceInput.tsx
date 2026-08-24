@@ -5,8 +5,7 @@ const SUGGESTION_MAX_HEIGHT = 248
 const SUGGESTION_MIN_BELOW = 160
 const SUGGESTION_MIN_HEIGHT = 72
 const SUGGESTION_GAP = 4
-const MOBILE_INPUT_QUERY = '(max-width: 899px)'
-const MOBILE_KEYBOARD_GAP = 12
+const MOBILE_QUERY = '(max-width: 700px)'
 
 export interface SuggestionLayout {
   above: boolean
@@ -31,21 +30,6 @@ export function suggestionLayout(
     maxHeight: Math.max(
       SUGGESTION_MIN_HEIGHT,
       Math.min(SUGGESTION_MAX_HEIGHT, Math.floor(available)),
-    ),
-  }
-}
-
-/** 入力欄を画面上端へ固定したときは、候補を反転せずキーボード直前まで使う。 */
-export function editingSuggestionLayout(
-  inputBottom: number,
-  viewportTop: number,
-  viewportHeight: number,
-): SuggestionLayout {
-  return {
-    above: false,
-    maxHeight: Math.max(
-      0,
-      Math.floor(viewportTop + viewportHeight - inputBottom - MOBILE_KEYBOARD_GAP),
     ),
   }
 }
@@ -110,6 +94,8 @@ export function PlaceInput({
   const open = active && suggestions !== undefined
   const currentSelected = currentLocation?.selected === true
   const [editing, setEditing] = useState(false)
+  const mobileEditing =
+    editing && (window.matchMedia?.(MOBILE_QUERY).matches ?? window.innerWidth <= 700)
   const [listLayout, setListLayout] = useState<SuggestionLayout>({
     above: false,
     maxHeight: SUGGESTION_MAX_HEIGHT,
@@ -125,12 +111,7 @@ export function PlaceInput({
       const viewport = window.visualViewport
       const viewportTop = viewport?.offsetTop ?? 0
       const viewportHeight = viewport?.height ?? window.innerHeight
-      const mobile = window.matchMedia?.(MOBILE_INPUT_QUERY).matches ?? window.innerWidth < 900
-      setListLayout(
-        editing && mobile
-          ? editingSuggestionLayout(rect.bottom, viewportTop, viewportHeight)
-          : suggestionLayout(rect.top, rect.bottom, viewportTop, viewportHeight),
-      )
+      setListLayout(suggestionLayout(rect.top, rect.bottom, viewportTop, viewportHeight))
     }
 
     update()
@@ -143,7 +124,7 @@ export function PlaceInput({
       viewport?.removeEventListener('scroll', update)
       window.removeEventListener('resize', update)
     }
-  }, [open, editing])
+  }, [open])
 
   const options = () =>
     Array.from(listRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])
@@ -181,15 +162,10 @@ export function PlaceInput({
 
   return (
     <>
-      {editing && <div aria-hidden="true" className="mb-2 hidden h-12 max-[899px]:block" />}
       <div
         ref={rootRef}
         data-editing={editing ? 'true' : 'false'}
-        className={`relative mb-2 ${
-          editing
-            ? 'max-[899px]:fixed max-[899px]:top-2 max-[899px]:right-3 max-[899px]:left-3 max-[899px]:z-[60] max-[899px]:mb-0 max-[899px]:rounded-xl max-[899px]:bg-white max-[899px]:p-1 max-[899px]:shadow-[0_12px_32px_rgb(15_23_42/28%)]'
-            : ''
-        }`}
+        className="place-input relative mb-2"
         onBlurCapture={(event) =>
           finishEditingAfterFocusMove(event.currentTarget, event.relatedTarget)
         }
@@ -285,9 +261,12 @@ export function PlaceInput({
             aria-label={`${label}の候補`}
             data-placement={listLayout.above ? 'above' : 'below'}
             onKeyDown={onListKeyDown}
-            style={{ maxHeight: listLayout.maxHeight }}
-            className={`absolute inset-x-0 z-20 overflow-auto rounded-xl border border-slate-200 bg-white shadow-[0_12px_32px_rgb(15_23_42/22%)] ${
-              listLayout.above ? 'bottom-[calc(100%+4px)]' : 'top-[calc(100%+4px)]'
+            onClick={() => setEditing(false)}
+            style={mobileEditing ? undefined : { maxHeight: listLayout.maxHeight }}
+            className={`inset-x-0 z-20 overflow-auto rounded-xl border border-slate-200 bg-white shadow-[0_12px_32px_rgb(15_23_42/22%)] ${
+              mobileEditing
+                ? 'relative mt-1'
+                : `absolute ${listLayout.above ? 'bottom-[calc(100%+4px)]' : 'top-[calc(100%+4px)]'}`
             }`}
           >
             {suggestions}
