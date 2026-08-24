@@ -312,6 +312,14 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     setSheetOpen(screen !== 'home')
   }
 
+  function closeSearch() {
+    const returnTo = state.searchReturnScreen
+    changingOrigin.current = null
+    setOpenTool(null)
+    dispatch({ type: 'close_search' })
+    setSheetOpen(returnTo === 'route')
+  }
+
   const toggleTool = (tool: 'layers' | 'legend') =>
     setOpenTool((open) => (open === tool ? null : tool))
 
@@ -1151,7 +1159,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
           {state.screen === 'search' && (
             <section className={SHEET_SCREEN_CLASS}>
               <div className="mb-4 flex items-center gap-3 [&>button]:grid [&>button]:size-[34px] [&>button]:cursor-pointer [&>button]:place-items-center [&>button]:rounded-full [&>button]:border-0 [&>button]:bg-slate-100 [&_h2]:m-0 [&_h2]:text-base">
-                <button type="button" onClick={() => openScreen('home')} aria-label="戻る">
+                <button type="button" onClick={closeSearch} aria-label="戻る">
                   ←
                 </button>
                 <h2>{shelterSearchMode ? '安全な避難先を探す' : '目的地を検索'}</h2>

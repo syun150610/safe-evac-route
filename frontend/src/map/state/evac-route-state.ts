@@ -15,6 +15,9 @@ export interface FieldState {
 export interface SafeState {
   screen: Screen
   returnScreen: Exclude<Screen, 'layers'>
+  /** 地点検索を閉じたときの戻り先。結果画面から出発地を変更する場合は、
+   * ホームではなく直前の結果へ戻す */
+  searchReturnScreen: 'home' | 'route'
   searchPurpose: SearchPurpose
   activeField: PlaceField
   origin: FieldState
@@ -48,6 +51,7 @@ export interface SafeState {
 export const initialSafeState: SafeState = {
   screen: 'home',
   returnScreen: 'home',
+  searchReturnScreen: 'home',
   searchPurpose: 'route',
   activeField: 'destination',
   origin: { query: '', place: null },
@@ -66,6 +70,7 @@ export const initialSafeState: SafeState = {
 export type SafeAction =
   | { type: 'open'; screen: Exclude<Screen, 'layers' | 'search'> }
   | { type: 'open_search'; purpose: SearchPurpose }
+  | { type: 'close_search' }
   | { type: 'open_layers' }
   | { type: 'close_layers' }
   | { type: 'activate_field'; field: PlaceField }
@@ -95,8 +100,21 @@ export function safeReducer(state: SafeState, action: SafeAction): SafeState {
       return {
         ...state,
         screen: 'search',
+        // 検索画面の中で開き直した場合は、最初に来た画面を失わない
+        searchReturnScreen:
+          state.screen === 'search'
+            ? state.searchReturnScreen
+            : state.screen === 'route'
+              ? 'route'
+              : 'home',
         searchPurpose: action.purpose,
         activeField: action.purpose === 'shelter' ? 'origin' : state.activeField,
+      }
+    case 'close_search':
+      return {
+        ...state,
+        screen: state.searchReturnScreen,
+        searchPurpose: 'route',
       }
     case 'open_layers':
       return {
@@ -158,6 +176,7 @@ export function safeReducer(state: SafeState, action: SafeAction): SafeState {
       return {
         ...state,
         screen: 'home',
+        searchReturnScreen: 'home',
         searchPurpose: 'route',
         destination: { query: '', place: null },
         activeField: 'destination',
