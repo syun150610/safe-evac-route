@@ -20,6 +20,16 @@ const BASE = {
   strokeLinejoin: 'round',
 } as const
 
+/** 地点検索。虫眼鏡 */
+export function SearchIcon({ className }: IconProps) {
+  return (
+    <svg aria-hidden="true" className={className} viewBox="0 0 24 24" width="20" height="20">
+      <circle cx="10.5" cy="10.5" r="6.5" {...BASE} />
+      <path d="m15.4 15.4 5.1 5.1" {...BASE} />
+    </svg>
+  )
+}
+
 /** 現在地。十字と中心の点（GPSの照準） */
 export function LocateIcon({ className }: IconProps) {
   return (
