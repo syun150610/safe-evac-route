@@ -170,6 +170,8 @@ def area(scenario: str = DEFAULT_SCENARIO) -> dict:
     return {
         "data_profile": get_settings().hazard_data_profile,
         "scenario": scenario,
+        # 利用者向けの対応地域名。フロントへ文字列を書き写させない。
+        "label": runtime_scope().label,
         "bbox": [left, bottom, right, top],
         "center": [(bottom + top) / 2, (left + right) / 2],
         "graph": _graph_ref(p),
@@ -196,8 +198,9 @@ def _check_area(bbox, origin, dest=None):
     if outside:
         label = {"origin": "出発地", "dest": "目的地"}
         raise OutOfArea(
-            "・".join(label[w] for w in outside) + "が対象エリアの外です。"
-            f"いま経路を引けるのは{runtime_scope().label}だけです。",
+            "・".join(label[w] for w in outside)
+            + "が検索対象外です。"
+            + f"{runtime_scope().label}以外は未対応です。",
             outside,
             bbox,
         )

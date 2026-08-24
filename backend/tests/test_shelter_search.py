@@ -309,6 +309,9 @@ def test_api_rejects_a_point_outside_the_area():
     detail = r.json()["detail"]
     assert detail["error"] == "out_of_area"
     assert detail["which"] == ["origin"]
+    assert detail["message"] == (
+        "出発地が検索対象外です。23区＋多摩の市街化区域以外は未対応です。"
+    )
 
 
 def test_api_rejects_an_unknown_hazard():
