@@ -5,7 +5,7 @@
  * 行き先ごとに1つか / 消した経路が残らないか / 未評価区間が落ちないか /
  * 施設名がエスケープされているか / 座標の順が [lon, lat] か。
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { Bundle, HazardRisk, RouteId, RouteStats } from '../types'
 import { calloutPadding, mergePadding, pickAnchor, routeCallouts } from './route-callouts'
@@ -343,6 +343,39 @@ describe('routeCallouts', () => {
         { top: 130, right: 0, bottom: 0, left: 200 },
       )
       expect(merged).toEqual({ top: 130, right: 64, bottom: 64, left: 480 })
+    })
+  })
+
+  // ⚠️ 2つ出ているとき、×でまとめて消えると片方だけ見たい場合に困る
+  describe('1つずつ閉じる', () => {
+    const withAlt = () =>
+      bundle({
+        shelter,
+        alt_shelter: {
+          ...shelter,
+          id: 'urgent-2',
+          name: '多摩川河川敷',
+          stats: stats(1490, 0),
+          route: 'shelter_alt',
+        },
+      } as unknown as Partial<Bundle>)
+
+    it('閉じたものだけ出さない', () => {
+      const list = routeCallouts(withAlt(), { shown: {}, hidden: ['dest'] })
+      expect(list.map((c) => c.id)).toEqual(['alt'])
+    })
+
+    it('閉じていなければ両方出す', () => {
+      const list = routeCallouts(withAlt(), { shown: {}, hidden: [] })
+      expect(list.map((c) => c.id)).toEqual(['dest', 'alt'])
+    })
+
+    // ⚠️ どちらの×が押されたか分からないと、片方だけ閉じられない
+    it('×はどの吹き出しかを伝える', () => {
+      const onDismiss = vi.fn()
+      const list = routeCallouts(withAlt(), { shown: {}, onDismiss })
+      list[1].onDismiss?.()
+      expect(onDismiss).toHaveBeenCalledWith('alt')
     })
   })
 

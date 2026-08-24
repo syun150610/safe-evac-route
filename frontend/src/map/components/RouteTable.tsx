@@ -9,6 +9,7 @@
  * 閾値の判定はAPI（`rationale.hazards[].unevaluated_stage`）に任せ、
  * **ここで割合と閾値を比べ直さない。**
  */
+import { STYLE } from '../constants'
 import type { Bundle, HazardRisk, Rationale, RouteId, RouteInfo, RouteStats } from '../types'
 
 interface Props {
@@ -49,7 +50,23 @@ function ColumnHead({ typeLabel, name, dot }: { typeLabel: string; name: string;
   return (
     <div className="mb-1.5 grid gap-0.5">
       <span className="flex items-center gap-1.5">
-        <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${dot}`} />
+        {/* ⚠️ **丸ではなくピンの形にする。** 丸だと下の行に並ぶ「線の色見本」と
+            同じ種類の印に見えるが、こちらが表すのは**地図のピンの色**（避難先の
+            種類）で、線の色（経路の色）とは別物。同時に2種類出したときに
+            「凡例と色が違う」と読まれた（ユーザー指摘、2026-08-24） */}
+        <svg
+          aria-hidden="true"
+          className={`shrink-0 ${dot}`}
+          viewBox="0 0 24 36"
+          width="8"
+          height="12"
+        >
+          <path
+            d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z"
+            fill="currentColor"
+          />
+          <circle cx="12" cy="12" r="5" fill="#fff" />
+        </svg>
         <em className="text-[8px] text-slate-500 not-italic">{typeLabel}</em>
       </span>
       <strong className="truncate text-[11px]" title={name}>
@@ -79,7 +96,8 @@ function RouteRow({
   onToggle: (id: RouteId, shown: boolean) => void
 }) {
   const unevaluated = risk ? num(route.stats, risk.coverage_key) : 0
-  const dashed = route.id === 'baseline' || route.id === 'shelter_alt_baseline'
+  // 破線かどうかも `STYLE` に従う（地図の線と同じ見え方にする）
+  const dashed = STYLE[route.id].dash !== null
   return (
     <label
       className={`grid min-w-[150px] flex-1 grid-cols-[auto_18px_1fr] items-center gap-2 rounded-lg border p-3 transition-opacity [&_span>em]:block [&_span>em]:text-[9px] [&_span>em]:font-bold [&_span>em]:text-[#07156f] [&_span>em]:not-italic [&_span>small]:my-1 [&_span>small]:block [&_span>small]:text-[9px] [&_span>small]:text-slate-500 [&_span>strong]:block [&_span>strong]:text-[11px] ${selected ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-200'} ${shown[route.id] === false ? 'opacity-45' : ''}`}
@@ -89,14 +107,18 @@ function RouteRow({
         checked={shown[route.id] !== false}
         onChange={(event) => onToggle(route.id, event.target.checked)}
       />
+      {/* ⚠️ **色は `STYLE` から引く**（2026-08-24）。ここで色名を書くと、
+          地図の線・吹き出しと食い違う */}
       <span
-        className={`h-1 rounded-full ${
+        aria-hidden="true"
+        className="h-1 rounded-full"
+        style={
           dashed
-            ? '[background:repeating-linear-gradient(90deg,#64748b_0_5px,transparent_5px_8px)]'
-            : route.id === 'shelter_alt'
-              ? 'bg-[#b45309]'
-              : 'bg-[#07156f]'
-        }`}
+            ? {
+                backgroundImage: `repeating-linear-gradient(90deg,${STYLE[route.id].color} 0 5px,transparent 5px 8px)`,
+              }
+            : { background: STYLE[route.id].color }
+        }
       />
       <span>
         {/* ⚠️ **経路番号（①⑤）を出さない。** 色の見本が隣にあるので
@@ -132,7 +154,7 @@ export function RouteTable({ bundle, shown, alt, altRoutes, risk, hazard, onTogg
     <div className="min-w-[150px] flex-1">
       {alt && shelter && (
         <ColumnHead
-          dot={shelter.type === 'urgent' ? 'bg-green-600' : 'bg-amber-500'}
+          dot={shelter.type === 'urgent' ? 'text-green-600' : 'text-amber-500'}
           name={shelter.name}
           typeLabel={shelter.type_label}
         />
@@ -159,7 +181,7 @@ export function RouteTable({ bundle, shown, alt, altRoutes, risk, hazard, onTogg
     alt && altRoutes?.length ? (
       <div className="min-w-[150px] flex-1">
         <ColumnHead
-          dot={alt.type === 'urgent' ? 'bg-green-600' : 'bg-amber-500'}
+          dot={alt.type === 'urgent' ? 'text-green-600' : 'text-amber-500'}
           name={alt.name}
           typeLabel={alt.type_label}
         />

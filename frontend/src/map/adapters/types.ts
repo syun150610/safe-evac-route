@@ -37,6 +37,10 @@ export interface MarkerSpec {
   lngLat: LngLatTuple
   label: string
   role?: 'origin' | 'destination'
+  /** ピンを押したとき。
+   * ⚠️ **閉じた要約を出し直す道**として使う（2026-08-24）。押せることが
+   * 分かるよう、呼び出し側は吹き出しの×に「ピンで戻せる」と書くこと。 */
+  onClick?: () => void
 }
 
 export interface ShelterMarkerSpec {
@@ -58,6 +62,9 @@ export interface ShelterMarkerSpec {
   detailHtml?: string
   /** 詳細の「ここに行く」を押したとき */
   onGo?: () => void
+  /** ピンを押したとき（詳細を出すのと同時に呼ぶ）。
+   * ⚠️ 閉じた経路の要約を出し直す道として使う（2026-08-24） */
+  onShow?: () => void
 }
 
 /** 地図に出しっぱなしにする吹き出し（経路の要約）。

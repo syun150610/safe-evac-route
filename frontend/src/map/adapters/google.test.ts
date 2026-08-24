@@ -227,6 +227,13 @@ function installStub() {
   vi.spyOn(document.head, 'appendChild').mockImplementation(((el: any) => el) as any)
 }
 
+/** タイルの見え方の強さ。焼き込みの 0.65 を n 枚重ね、CSSの不透明度を掛けたもの。
+ * ⚠️ 地震の面と**同じ意味の数字**になっていることを確かめるために使う */
+function effectiveAlpha(tile: HTMLElement): number {
+  const paints = tile.style.backgroundImage.split(', ').length
+  return Number(tile.style.opacity) * (1 - 0.35 ** paints)
+}
+
 const STYLE: Record<string, RouteStyle> = {
   baseline: { color: '#6b7280', width: 3.5, offset: 5, dash: [2, 1.6], casing: false },
   flood: { color: '#1f6fd0', width: 4.0, offset: 0, dash: null, casing: true },
@@ -385,7 +392,8 @@ describe('adapter_google（スタブ）', () => {
       const sizes = t.style.backgroundSize.split(', ')
       expect(new Set(sizes).size).toBe(1)
       expect(sizes[0]).toBe('257px 257px')
-      expect(t.style.opacity).toBe('0.7')
+      // ⚠️ 値は「見え方の強さ」。PNGに焼かれた 0.65 を吸収して枚数とCSSに割り振る
+      expect(effectiveAlpha(t)).toBeCloseTo(0.7, 2)
     })
 
     it('maxzoom超過は親タイルの象限を切り出す', async () => {
@@ -434,6 +442,22 @@ describe('adapter_google（スタブ）', () => {
       expect(size).toBeLessThanOrEqual(258) // 埋める以上に伸ばさない
     })
 
+    // ⚠️ 地震の面は指定した値がそのまま濃さになる。浸水はPNGに焼かれているぶんを
+    //    吸収しないと、同じ値でも薄く見えてスケールが揃わない
+    it('濃さの指定を、地震の面と同じ意味の数字として扱う', async () => {
+      const a = await makeAdapter()
+      a.addRasterLayer('flood', url, { minzoom: 10, maxzoom: 15, opacity: 0.5 })
+      const tile = created.overlays[0].getTile({ x: 14552, y: 6446 }, 14, document)
+      expect(effectiveAlpha(tile)).toBeCloseTo(0.5, 2)
+
+      // 焼き込み（0.65）より濃くしたいときは重ねて出す
+      a.setLayerOpacity('flood', 0.9)
+      const latest = created.overlays[created.overlays.length - 1]
+      const dark = latest?.getTile({ x: 14552, y: 6446 }, 14, document)
+      expect(dark && effectiveAlpha(dark)).toBeCloseTo(0.9, 2)
+      expect(dark?.style.backgroundImage.split(', ').length).toBeGreaterThan(1)
+    })
+
     // ⚠️ 焼かれた不透明度（浸水色 0.65）のままでは下地に負けて読めない
     it('浸水タイルを重ね塗りして濃くする', async () => {
       const a = await makeAdapter()
@@ -458,7 +482,7 @@ describe('adapter_google（スタブ）', () => {
       expect(after).not.toBe(before)
       const t = after.getTile({ x: 14552, y: 6446 }, 14, document)
       expect(t.style.backgroundImage).toContain('kandagawa')
-      expect(t.style.opacity).toBe('0.4')
+      expect(effectiveAlpha(t)).toBeCloseTo(0.4, 2)
     })
   })
 

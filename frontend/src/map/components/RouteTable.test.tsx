@@ -12,7 +12,7 @@
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-
+import { STYLE } from '../constants'
 import type { Bundle, HazardRisk, Rationale, RouteStats } from '../types'
 import { RouteTable } from './RouteTable'
 
@@ -142,6 +142,17 @@ describe('RouteTable', () => {
     const html = render({ hazard: null })
     expect(html).not.toContain('最短との差')
     expect(html).toContain('最短経路')
+  })
+})
+
+// ⚠️ シートの色見本と地図の線がずれると、どれがどれだか対応づけられない
+describe('RouteTable（色の出所）', () => {
+  it('色は STYLE から引く（ここで色名を書かない）', () => {
+    const html = render({ alt: ALT, altRoutes: ALT_ROUTES })
+    // 選んだ条件の経路＝紺 / 最短＝灰の破線 / もう一方＝橙
+    expect(html).toContain(STYLE.quake.color)
+    expect(html).toContain(STYLE.baseline.color)
+    expect(html).toContain(STYLE.shelter_alt.color)
   })
 })
 

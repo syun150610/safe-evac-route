@@ -22,8 +22,21 @@ export interface SafeState {
   hazard: HazardChoice
   scenario: string
   mapLayer: MapLayerChoice
-  opacity: number
+  /** 重ねた災害情報の濃さ。**種別ごとに覚える**（地震の面と浸水のラスタでは
+   * ちょうどよい濃さが違う）。
+   *
+   * ⚠️ **意味は「見え方の強さ 0〜1」で揃える。** 浸水タイルはPNGに不透明度が
+   * 焼かれているので、この値をそのままCSSの不透明度にしても地震と釣り合わない。
+   * 換算はアダプタ側が持つ（`google.ts` の `paintPlan`）。 */
+  opacity: Record<HazardChoice, number>
   shownRoutes: Partial<Record<RouteId, boolean>>
+  /** 閉じた吹き出しのID（`dest` / `alt`）。
+   *
+   * ⚠️ **1つずつ閉じる。** 以前は×で全部消していたが、2つ出ているとき片方だけ
+   * 見たい場合に困る（ユーザー指摘、2026-08-24）。
+   * ⚠️ **戻す道は行先のピン。** 消したままにしないよう、その避難先のピンを
+   * 押せば出し直せる。 */
+  hiddenCallouts: string[]
   /** 地図の上に経路の要約（吹き出し）を出すか。
    *
    * ⚠️ **消せるようにしておく。** 吹き出しは避難先のピンの近くに出るので、
@@ -42,9 +55,12 @@ export const initialSafeState: SafeState = {
   hazard: 'quake',
   scenario: 'envelope',
   mapLayer: 'none',
-  opacity: 0.65,
+  // ⚠️ 浸水は乗算で重ねるぶん強く出るので、地震より控えめから始める
+  //    （3回重ねた既定が「濃すぎる」という指摘。2026-08-24）
+  opacity: { flood: 0.5, quake: 0.65 },
   shownRoutes: { baseline: true },
   showCallouts: true,
+  hiddenCallouts: [],
 }
 
 export type SafeAction =
@@ -59,8 +75,10 @@ export type SafeAction =
   | { type: 'set_hazard'; hazard: HazardChoice }
   | { type: 'set_scenario'; scenario: string }
   | { type: 'set_layer'; layer: MapLayerChoice }
-  | { type: 'set_opacity'; opacity: number }
+  | { type: 'set_opacity'; layer: HazardChoice; opacity: number }
   | { type: 'show_callouts'; shown: boolean }
+  | { type: 'hide_callout'; id: string }
+  | { type: 'reveal_callout'; id: string }
   | { type: 'show_route'; route: RouteId; shown: boolean }
   | { type: 'route_ready'; routes: RouteId[] }
   | { type: 'end_route' }
@@ -111,9 +129,16 @@ export function safeReducer(state: SafeState, action: SafeAction): SafeState {
     case 'set_layer':
       return { ...state, mapLayer: action.layer }
     case 'set_opacity':
-      return { ...state, opacity: action.opacity }
+      return { ...state, opacity: { ...state.opacity, [action.layer]: action.opacity } }
     case 'show_callouts':
-      return { ...state, showCallouts: action.shown }
+      // ⚠️ まとめて出し直すときは、1つずつ閉じたぶんも戻す
+      return { ...state, showCallouts: action.shown, hiddenCallouts: [] }
+    case 'hide_callout':
+      return state.hiddenCallouts.includes(action.id)
+        ? state
+        : { ...state, hiddenCallouts: [...state.hiddenCallouts, action.id] }
+    case 'reveal_callout':
+      return { ...state, hiddenCallouts: state.hiddenCallouts.filter((id) => id !== action.id) }
     case 'show_route':
       return { ...state, shownRoutes: { ...state.shownRoutes, [action.route]: action.shown } }
     case 'route_ready':
@@ -122,6 +147,8 @@ export function safeReducer(state: SafeState, action: SafeAction): SafeState {
         screen: 'route',
         searchPurpose: 'route',
         shownRoutes: Object.fromEntries(action.routes.map((id) => [id, true])),
+        // ⚠️ 新しい結果では吹き出しを出し直す（前の検索で閉じたぶんを引きずらない）
+        hiddenCallouts: [],
       }
     case 'end_route':
       // ⚠️ **出発地は残す。** 一度は消していたが、経路を終了するたびに入力し直しに

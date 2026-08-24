@@ -29,6 +29,27 @@ describe('safeReducer', () => {
     expect(safeReducer(off, { type: 'show_callouts', shown: true }).showCallouts).toBe(true)
   })
 
+  // ⚠️ ×で全部消すのをやめた（2026-08-24）。2つ出ているとき片方だけ閉じたい
+  it('吹き出しは1つずつ閉じ、ピンから戻せる', () => {
+    const hidden = safeReducer(initialSafeState, { type: 'hide_callout', id: 'alt' })
+    expect(hidden.hiddenCallouts).toEqual(['alt'])
+    // 同じものを二重に覚えない
+    expect(safeReducer(hidden, { type: 'hide_callout', id: 'alt' }).hiddenCallouts).toEqual(['alt'])
+    expect(safeReducer(hidden, { type: 'reveal_callout', id: 'alt' }).hiddenCallouts).toEqual([])
+  })
+
+  it('まとめて出し直すと、1つずつ閉じたぶんも戻る', () => {
+    const hidden = safeReducer(initialSafeState, { type: 'hide_callout', id: 'dest' })
+    const shown = safeReducer(hidden, { type: 'show_callouts', shown: true })
+    expect(shown.hiddenCallouts).toEqual([])
+  })
+
+  it('新しい結果では吹き出しを出し直す', () => {
+    const hidden = safeReducer(initialSafeState, { type: 'hide_callout', id: 'dest' })
+    const ready = safeReducer(hidden, { type: 'route_ready', routes: ['baseline'] })
+    expect(ready.hiddenCallouts).toEqual([])
+  })
+
   it('レイヤーを閉じると元の画面へ戻る', () => {
     const route = safeReducer(initialSafeState, { type: 'open', screen: 'route' })
     const layers = safeReducer(route, { type: 'open_layers' })

@@ -28,6 +28,7 @@
  * ⚠️ **どれも危ないときに黙って推さない。** `all_candidates_dangerous` は
  * 「行き先は示すが、ここが安全だとは言っていない」状態。必ず断る。
  */
+import { STYLE } from '../constants'
 import type { HazardRisk, RouteStats, ShelterCandidate, ShelterInfo, ShelterQuery } from '../types'
 
 interface Props {
@@ -171,7 +172,12 @@ export function ShelterResult({ shelter, alt, candidates, query, risk, onSelect 
       {alt && (
         <article className="mb-3 grid gap-1 rounded-[10px] border border-amber-300 bg-amber-50/60 p-3">
           <span className="flex items-center gap-1.5">
-            <span aria-hidden="true" className="h-0.5 w-5 shrink-0 bg-amber-700" />
+            {/* ⚠️ 色は `STYLE` から引く（地図の線・吹き出しと揃える） */}
+            <span
+              aria-hidden="true"
+              className="h-0.5 w-5 shrink-0"
+              style={{ background: STYLE.shelter_alt.color }}
+            />
             <em className="rounded-full bg-white px-1.5 text-[8px] text-slate-600 not-italic">
               {alt.type_label}
             </em>

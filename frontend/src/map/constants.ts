@@ -14,19 +14,30 @@ export interface RouteStyle {
   casing: boolean
 }
 
+/** ⚠️ **色はボトムシートを正とする**（ユーザー指摘、2026-08-24）。
+ * 「経路を比較」のカードで見た色と、地図の線・吹き出しの色見本が違うと、
+ * どれがどれだか対応づけられない。**ここが単一の出所**で、シート側も
+ * この表から色を引く（`RouteTable` の `RouteRow`）。
+ *
+ *   紺  … 選んだ条件で引いた経路（浸水・地震・掛け合わせ。**同時に1本しか出ない**）
+ *   灰の破線 … 最短経路
+ *   橙  … もう一方の避難先への経路（行き先が違う）
+ *   紫  … minimax（距離を無視した下限。既定OFF）
+ *
+ * ⚠️ 太さ・破線の刻み・オフセットは地図側の都合なので、シートは色だけ使う。
+ */
 export const STYLE: Record<RouteId, RouteStyle> = {
-  baseline: { color: '#6b7280', width: 3.5, offset: 5, dash: [2, 1.6], casing: false },
-  flood: { color: '#1f6fd0', width: 4.0, offset: 0, dash: null, casing: true },
-  combined: { color: '#0b8a3d', width: 5.5, offset: -5, dash: null, casing: true },
-  quake: { color: '#d81e1e', width: 4.0, offset: 10, dash: [0.9, 1.1], casing: false },
+  baseline: { color: '#64748b', width: 3.5, offset: 5, dash: [2, 1.6], casing: false },
+  flood: { color: '#07156f', width: 4.0, offset: 0, dash: null, casing: true },
+  combined: { color: '#07156f', width: 5.5, offset: -5, dash: null, casing: true },
+  quake: { color: '#07156f', width: 4.0, offset: 10, dash: null, casing: true },
   minimax: { color: '#7c3aed', width: 3.5, offset: -10, dash: [1.8, 1.5], casing: false },
-  // ⚠️ **行き先が違う線。** 避難先の種類を両方選んだときの「もう一方」。
-  //    既存の5本と取り違えないよう、色も破線の刻みも変えてある
-  shelter_alt: { color: '#b45309', width: 4.0, offset: 15, dash: [3, 2.2], casing: true },
+  // ⚠️ **行き先が違う線。** 避難先の種類を両方選んだときの「もう一方」
+  shelter_alt: { color: '#b45309', width: 4.0, offset: 15, dash: null, casing: true },
   // もう一方の避難先への最短。⚠️ 灰の破線は `baseline` と同じ意味なので色を揃え、
   // 行き先の違いはオフセットで分ける
   shelter_alt_baseline: {
-    color: '#6b7280',
+    color: '#64748b',
     width: 3.5,
     offset: 20,
     dash: [2, 1.6],

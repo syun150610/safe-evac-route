@@ -464,12 +464,12 @@ export function createMapLibreAdapter(): MapAdapter {
       for (const m of markers) m.remove()
       markers.length = 0
       for (const m of list) {
-        markers.push(
-          new Marker({ color: m.role === 'destination' ? '#dc2626' : '#2563eb' })
-            .setLngLat(m.lngLat)
-            .setPopup(new Popup().setText(m.label))
-            .addTo(map),
-        )
+        const marker = new Marker({ color: m.role === 'destination' ? '#dc2626' : '#2563eb' })
+          .setLngLat(m.lngLat)
+          .setPopup(new Popup().setText(m.label))
+          .addTo(map)
+        if (m.onClick) marker.getElement().addEventListener('click', m.onClick)
+        markers.push(marker)
       }
     },
 
@@ -495,6 +495,7 @@ export function createMapLibreAdapter(): MapAdapter {
           popup.setDOMContent(el)
         } else popup.setText(m.label)
         const marker = new Marker({ color }).setLngLat(m.lngLat).setPopup(popup).addTo(map)
+        if (m.onShow) marker.getElement().addEventListener('click', m.onShow)
         shelterMarkers.push(marker)
       }
     },
