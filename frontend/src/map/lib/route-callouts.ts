@@ -333,7 +333,11 @@ export function routeCallouts(bundle: Bundle | null, options: Options): CalloutS
   const alt = bundle.alt_shelter
   // ⚠️ **もう一方の避難先にも最短経路が出るようになった**（2026-08-24）。
   //    おすすめ側と同じように、出ている経路をぜんぶ並べる
-  const altRoutes = (bundle.alt_routes ?? []).filter((route) => shown[route.id] !== false)
+  const altRoutes = (bundle.alt_routes ?? [])
+    .filter((route) => shown[route.id] !== false)
+    // おすすめ側と同じく、選ばれた回避経路を最短経路より先に見せる。
+    .sort((a, b) => Number(b.id === 'shelter_alt') - Number(a.id === 'shelter_alt'))
+    .slice(0, MAX_ROWS)
   const altRows = altRoutes.length
     ? altRoutes.map((route) => rowOf(route.id, route.label, route.stats, risk))
     : shown.shelter_alt !== false && alt

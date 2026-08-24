@@ -55,8 +55,10 @@ function render(hazards: RationaleHazard[]) {
 }
 
 describe('RouteRationale', () => {
-  it('短文をそのまま出す', () => {
-    expect(render([HAZARD])).toContain(HAZARD.text)
+  it('一覧では短い評価を出し、数値入りの説明は詳細へ送る', () => {
+    const html = render([HAZARD])
+    expect(html).toContain('危険を減らしました')
+    expect(html).not.toContain(HAZARD.text)
   })
 
   it('詳細4行は閉じているあいだ出さない', () => {
@@ -81,7 +83,8 @@ describe('RouteRationale', () => {
         unevaluated_note: note,
       },
     ])
-    expect(html).toContain('最短経路が最も安全でした（浸水30cm超なし）')
+    expect(html).toContain('評価範囲内では安全でした')
+    expect(html).not.toContain('最短経路が最も安全でした（浸水30cm超なし）')
     expect(html).toContain(note)
   })
 
@@ -99,10 +102,12 @@ describe('RouteRationale', () => {
   it('APIが並べた順をそのまま出す', () => {
     // 全区間評価済みの地震が先、未評価のある浸水が後
     const html = render([
-      { ...HAZARD, id: 'quake', risk_label: '危険度4以上', text: '地震の根拠' },
-      { ...HAZARD, unevaluated_stage: 'warn', text: '浸水の根拠' },
+      { ...HAZARD, id: 'quake', risk_label: '危険度4以上', verdict: 'avoided' },
+      { ...HAZARD, unevaluated_stage: 'warn', verdict: 'unavoidable' },
     ])
-    expect(html.indexOf('地震の根拠')).toBeLessThan(html.indexOf('浸水の根拠'))
+    expect(html.indexOf('危険を回避できました')).toBeLessThan(
+      html.indexOf('危険を避けきれませんでした'),
+    )
   })
 
   it('経路の重みに掛けていない種別はその旨を添える', () => {
@@ -113,10 +118,16 @@ describe('RouteRationale', () => {
   it('種別が増えても行が増えるだけ（種別IDを持たない）', () => {
     const html = render([
       HAZARD,
-      { ...HAZARD, id: 'landslide', label: '土砂', risk_label: '急傾斜地', text: '土砂の根拠' },
+      {
+        ...HAZARD,
+        id: 'landslide',
+        label: '土砂',
+        risk_label: '急傾斜地',
+        verdict: 'avoided',
+      },
     ])
-    expect(html).toContain(HAZARD.text)
-    expect(html).toContain('土砂の根拠')
+    expect(html).toContain('危険を減らしました')
+    expect(html).toContain('危険を回避できました')
     expect(html).toContain('aria-controls="rationale-detail-landslide"')
   })
 
