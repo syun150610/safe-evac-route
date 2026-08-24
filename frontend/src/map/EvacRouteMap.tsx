@@ -16,12 +16,7 @@ import { RouteTable } from './components/RouteTable'
 import { SafeShelterSearchButton } from './components/SafeShelterSearchButton'
 import { SearchOptions } from './components/SearchOptions'
 import { ShelterResult } from './components/ShelterResult'
-import {
-  kindsSummary,
-  type ShelterKind,
-  ShelterTypePicker,
-  toParam,
-} from './components/ShelterTypePicker'
+import { type ShelterKind, ShelterTypePicker, toParam } from './components/ShelterTypePicker'
 import { DRAW_ORDER, STYLE } from './constants'
 import { inArea, useArea } from './hooks/useArea'
 import { useGeocode } from './hooks/useGeocode'
@@ -30,6 +25,7 @@ import { type Platform, useMapAdapter } from './hooks/useMapAdapter'
 import { useSearch } from './hooks/useSearch'
 import { useShelters } from './hooks/useShelters'
 import { useVector } from './hooks/useVector'
+import { conditionSummary } from './lib/condition-summary'
 import { distanceKm } from './lib/distance'
 import { nearestSegment, routeBounds } from './lib/geo'
 import { currentPosition, type Place } from './lib/gsi'
@@ -249,8 +245,9 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
     )
   }, [altRationaleHazards[0], bundle?.alt_rationale?.distance])
 
-  /** 畳んだ「検索の条件」に出す一行。⚠️ **災害の呼び名はAPI由来**を使う */
-  const conditionSummary = `${hazardMeta?.label ?? ''}を考慮 ・ ${kindsSummary(shelterKinds)}`
+  /** 畳んだ「検索の条件」に出す一行。文言と出し分けは `conditionSummary` が持つ */
+  const hazardLabel = hazardMeta?.label ?? ''
+  const shelterConditionSummary = conditionSummary(hazardLabel, shelterKinds, true)
 
   const [latestPost, setLatestPost] = useState<Post | null>(null)
 
@@ -1059,7 +1056,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                     ⚠️ ホームは「何ができるか」を見せる場所。条件は畳んで場所を空け、
                     押してほしい2つ（投稿する・安全な避難先を探す）を目立たせる
                     （ユーザー指摘、2026-08-24） */}
-                <SearchOptions summary={conditionSummary} title="検索の条件">
+                <SearchOptions summary={shelterConditionSummary} title="検索の条件">
                   <HazardCondition hazard={state.hazard} onChange={applyCondition} />
                   <ShelterTypePicker onChange={applyShelterKinds} selected={shelterKinds} />
                 </SearchOptions>
@@ -1257,7 +1254,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               <SearchOptions
                 defaultOpen
                 key={state.destination.place?.title ?? 'route'}
-                summary={conditionSummary}
+                summary={conditionSummary(hazardLabel, shelterKinds, Boolean(bundle?.shelter))}
                 title="検索の条件"
               >
                 <HazardCondition
