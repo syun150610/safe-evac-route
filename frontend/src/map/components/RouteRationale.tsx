@@ -6,9 +6,9 @@
  * レイアウトを作り直すときは、置き場所を変えるだけでそのまま動く。
  * 分解して EvacRouteMap 側へ散らさないこと。
  *
- * ⚠️ **数値入りの説明と詳細4行をここで組み立てない。** APIが完成した文字列で返す
- * （`backend/app/services/evac_routes/rationale.py` が単一の出所）。一覧用の短い評価だけは
- * API契約を変えず、安定した判定値を `lib/rationale-summary.ts` で言い換える。
+ * ⚠️ **文言をここで組み立てない。** 短文も詳細4行もAPIが完成した文字列で返す
+ * （`backend/app/services/evac_routes/rationale.py` が単一の出所）。
+ * フロント側で判定値を言い換えると、UIとAPIで文言仕様が二重管理になる。
  * 数値を強調したくなったら `h.before_m` などを使う（文言は組み直さない）。
  *
  * ⚠️ **災害種別をここに書かない。** 「浸水30cm超」「危険度4以上」は
@@ -25,7 +25,6 @@
  */
 import { useState } from 'react'
 
-import { rationaleSummary } from '../lib/rationale-summary'
 import type { Rationale, RationaleHazard } from '../types'
 
 /** 回避できたことが伝わる状態か。色分けにだけ使う */
@@ -59,7 +58,7 @@ function HazardRow({ h }: { h: RationaleHazard }) {
         </span>
         <span className="flex-1">
           <span className={GOOD.has(h.verdict) ? 'text-green-800' : 'text-slate-800'}>
-            {rationaleSummary(h)}
+            {h.text}
           </span>
           {!h.considered && (
             <span className="ml-1 text-[10.5px] text-slate-500">
