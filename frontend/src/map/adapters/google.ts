@@ -827,6 +827,10 @@ export function createGoogleAdapter(): MapAdapter {
       if (map) google.maps.event.trigger(map, 'resize')
     },
 
+    resize() {
+      if (map) google.maps.event.trigger(map, 'resize')
+    },
+
     size() {
       const el = container || document.body
       return { w: el.clientWidth, h: el.clientHeight }

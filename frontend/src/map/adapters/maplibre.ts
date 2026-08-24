@@ -607,6 +607,10 @@ export function createMapLibreAdapter(): MapAdapter {
       document.documentElement.style.setProperty('--sheet-peek', `${px}px`)
     },
 
+    resize() {
+      map.resize()
+    },
+
     size() {
       const el = map.getContainer()
       return { w: el.clientWidth, h: el.clientHeight }

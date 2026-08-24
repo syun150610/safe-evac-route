@@ -167,5 +167,7 @@ export interface MapAdapter {
   lockGestures(on: boolean): void
   /** シートが下端を覆う高さ。地理院版は帰属表示を持ち上げ、Google版は地図を持ち上げる */
   reserveBottom(px: number): void
+  /** サイドバーの幅変更などでコンテナ寸法が変わったことを地図基盤へ通知する */
+  resize(): void
   size(): { w: number; h: number }
 }

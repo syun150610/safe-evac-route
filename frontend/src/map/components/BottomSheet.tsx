@@ -6,6 +6,17 @@ import { compareText, decideSheet, sheetSummary } from './bottomSheetLogic'
 
 const MOBILE_QUERY = '(max-width: 700px)'
 const DRAG_SLOP = 6
+export const DESKTOP_SIDEBAR_MIN = 320
+export const DESKTOP_SIDEBAR_MAX = 640
+const DESKTOP_MAP_MIN = 360
+
+export function clampDesktopSidebarWidth(width: number, viewportWidth: number): number {
+  const maximum = Math.max(
+    DESKTOP_SIDEBAR_MIN,
+    Math.min(DESKTOP_SIDEBAR_MAX, viewportWidth - DESKTOP_MAP_MIN),
+  )
+  return Math.round(Math.max(DESKTOP_SIDEBAR_MIN, Math.min(width, maximum)))
+}
 
 interface Props {
   adapter: RefObject<MapAdapter | null>
@@ -15,6 +26,11 @@ interface Props {
   onOpenChange: (open: boolean) => void
   /** PCでは従来の地図上オーバーレイか、新UIの左サイドバーとして表示する */
   desktopMode?: 'overlay' | 'sidebar'
+  /** PCサイドバーの幅と折り畳み操作。mobileでは使わない */
+  desktopWidth?: number
+  desktopCollapsed?: boolean
+  onDesktopResize?: (width: number) => void
+  onDesktopCollapsedChange?: (collapsed: boolean) => void
   /** 経路結果がないときに、折りたたみ部分へ表示する文言 */
   collapsedLabel?: ReactNode
   /** 折りたたみ部分の見出し（「地震を考慮」など）。
@@ -55,6 +71,10 @@ export function BottomSheet({
   open,
   onOpenChange,
   desktopMode = 'overlay',
+  desktopWidth = 420,
+  desktopCollapsed = false,
+  onDesktopResize,
+  onDesktopCollapsedChange,
   collapsedLabel = '避難経路の設定',
   conditionLabel,
   children,
@@ -64,6 +84,7 @@ export function BottomSheet({
   const travelRef = useRef(0)
   const shiftRef = useRef(0)
   const [dragging, setDragging] = useState(false)
+  const desktopResizePointer = useRef<number | null>(null)
   const drag = useRef<DragState>({
     pointerId: null,
     active: false,
@@ -186,6 +207,33 @@ export function BottomSheet({
     onOpenChange(!open)
   }
 
+  function beginDesktopResize(event: React.PointerEvent<HTMLHRElement>) {
+    if (mobile || desktopMode !== 'sidebar') return
+    desktopResizePointer.current = event.pointerId
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  function moveDesktopResize(event: React.PointerEvent<HTMLHRElement>) {
+    if (desktopResizePointer.current !== event.pointerId) return
+    onDesktopResize?.(event.clientX)
+  }
+
+  function endDesktopResize(event: React.PointerEvent<HTMLHRElement>) {
+    if (desktopResizePointer.current !== event.pointerId) return
+    desktopResizePointer.current = null
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    } catch {
+      // pointercancel 後など、既に解放済みなら何もしない
+    }
+  }
+
+  function resizeWithKeyboard(event: React.KeyboardEvent<HTMLHRElement>) {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+    event.preventDefault()
+    onDesktopResize?.(desktopWidth + (event.key === 'ArrowRight' ? 16 : -16))
+  }
+
   return (
     <div
       ref={rootRef}
@@ -193,10 +241,54 @@ export function BottomSheet({
         mobile
           ? `fixed right-0 bottom-0 left-0 z-10 overflow-visible rounded-t-[14px] border-t border-slate-300 bg-white/95 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-3px_16px_rgba(0,0,0,0.2)] ${dragging ? '' : 'transition-transform duration-200 ease-out motion-reduce:transition-none'}`
           : desktopMode === 'sidebar'
-            ? 'col-start-1 row-start-2 min-h-0 overflow-hidden bg-slate-50 [&_#route-sheet-body]:h-full [&_#route-sheet-body]:overflow-y-auto'
+            ? 'relative col-start-1 row-start-2 min-h-0 overflow-hidden border-r border-slate-200 bg-slate-50'
             : 'absolute top-3 left-3 z-10 max-h-[calc(100%-46px)] overflow-y-auto'
       }
     >
+      {!mobile && desktopMode === 'sidebar' && desktopCollapsed ? (
+        <button
+          type="button"
+          className="hidden h-full w-full cursor-pointer flex-col items-center gap-3 border-0 bg-white py-4 text-[10px] font-bold text-[#07156f] min-[900px]:flex"
+          aria-label="サイドバーを開く"
+          onClick={() => onDesktopCollapsedChange?.(false)}
+        >
+          <span className="grid size-7 place-items-center rounded-full bg-blue-50 text-base">
+            ›
+          </span>
+          <span className="[writing-mode:vertical-rl]">サイドバーを開く</span>
+        </button>
+      ) : (
+        !mobile &&
+        desktopMode === 'sidebar' && (
+          <div className="hidden h-8 items-center justify-between border-b border-slate-200 bg-white px-2 min-[900px]:flex">
+            <span className="text-[9px] text-slate-500">右端をドラッグして幅を変更</span>
+            <button
+              type="button"
+              className="min-h-6 cursor-pointer rounded-md border border-slate-200 bg-white px-2 text-[9px] font-bold text-[#07156f]"
+              onClick={() => onDesktopCollapsedChange?.(true)}
+              aria-label="サイドバーを畳む"
+            >
+              ‹ 畳む
+            </button>
+          </div>
+        )
+      )}
+      {!mobile && desktopMode === 'sidebar' && !desktopCollapsed && (
+        <hr
+          aria-label="サイドバーの幅を変更"
+          aria-orientation="vertical"
+          aria-valuemin={DESKTOP_SIDEBAR_MIN}
+          aria-valuemax={DESKTOP_SIDEBAR_MAX}
+          aria-valuenow={desktopWidth}
+          tabIndex={0}
+          className="absolute top-0 right-0 z-20 m-0 hidden h-full w-1.5 cursor-col-resize border-0 bg-transparent outline-none hover:bg-blue-400/40 focus:bg-blue-500/50 min-[900px]:block"
+          onKeyDown={resizeWithKeyboard}
+          onPointerDown={beginDesktopResize}
+          onPointerMove={moveDesktopResize}
+          onPointerUp={endDesktopResize}
+          onPointerCancel={endDesktopResize}
+        />
+      )}
       <button
         type="button"
         className={`relative z-10 min-h-[74px] w-full touch-none flex-col items-center justify-center gap-1 rounded-t-[14px] bg-white/95 px-3 py-2 select-none ${mobile ? 'flex' : 'hidden'}`}
@@ -230,9 +322,17 @@ export function BottomSheet({
         className={
           mobile
             ? `relative z-0 max-h-[calc(80dvh-74px)] overscroll-contain overflow-y-auto ${dragging ? 'overflow-hidden' : ''}`
-            : ''
+            : desktopMode === 'sidebar'
+              ? 'h-[calc(100%-32px)] overflow-y-auto'
+              : ''
         }
-        inert={mobile && !open && !dragging ? true : undefined}
+        hidden={!mobile && desktopMode === 'sidebar' && desktopCollapsed}
+        inert={
+          (mobile && !open && !dragging) ||
+          (!mobile && desktopMode === 'sidebar' && desktopCollapsed)
+            ? true
+            : undefined
+        }
       >
         {children}
       </div>

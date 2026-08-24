@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { getPosts } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 import type { Post } from '../posts/types'
-import { BottomSheet, useMobileLayout } from './components/BottomSheet'
+import { BottomSheet, clampDesktopSidebarWidth, useMobileLayout } from './components/BottomSheet'
 import { compareText, sheetOpenAfterSearch, sheetSummary } from './components/bottomSheetLogic'
 import { CompareLead } from './components/CompareLead'
 import { DataAttribution } from './components/DataAttribution'
@@ -81,6 +81,10 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const mobile = useMobileLayout()
   const [state, dispatch] = useReducer(safeReducer, initialSafeState)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [desktopSidebarWidth, setDesktopSidebarWidth] = useState(() =>
+    clampDesktopSidebarWidth(window.innerWidth * 0.34, window.innerWidth),
+  )
+  const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false)
   /** 右下の道具のうち、いま開いているパネル。
    * ⚠️ **同時に1つだけ**。凡例とレイヤーが同時に出ると地図が隠れる */
   const [openTool, setOpenTool] = useState<'layers' | 'legend' | null>(null)
@@ -820,8 +824,28 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
   const mapPoint =
     state.destination.place?.title === '地図上の指定地点' ? state.destination.place : null
 
+  useEffect(() => {
+    const resizeSidebar = () =>
+      setDesktopSidebarWidth((width) => clampDesktopSidebarWidth(width, window.innerWidth))
+    window.addEventListener('resize', resizeSidebar)
+    return () => window.removeEventListener('resize', resizeSidebar)
+  }, [])
+
+  useEffect(() => {
+    const mapContainer = document.getElementById('safe-map')
+    if (!mapContainer || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => adapter.current?.resize())
+    observer.observe(mapContainer)
+    return () => observer.disconnect()
+  }, [adapter])
+
   return (
-    <main className="relative min-h-dvh w-full overflow-hidden bg-slate-50 text-[#182035] shadow-[0_0_36px_rgb(15_23_42/14%)] min-[900px]:grid min-[900px]:h-dvh min-[900px]:min-h-0 min-[900px]:grid-cols-[clamp(360px,34vw,480px)_minmax(0,1fr)] min-[900px]:grid-rows-[54px_minmax(0,1fr)]">
+    <main
+      className="relative min-h-dvh w-full overflow-hidden bg-slate-50 text-[#182035] shadow-[0_0_36px_rgb(15_23_42/14%)] min-[900px]:grid min-[900px]:h-dvh min-[900px]:min-h-0 min-[900px]:grid-rows-[54px_minmax(0,1fr)]"
+      style={{
+        gridTemplateColumns: `${desktopSidebarCollapsed ? 44 : desktopSidebarWidth}px minmax(0, 1fr)`,
+      }}
+    >
       <header className="flex h-[54px] items-center justify-between border-b border-slate-200 bg-white/95 px-4 min-[900px]:col-span-2 min-[900px]:col-start-1 min-[900px]:row-start-1">
         <div className="flex items-center gap-2 text-sm tracking-[0.08em] text-[#07156f]">
           <span className="grid size-6 place-items-center rounded-lg bg-[#07156f] text-white">
@@ -1004,6 +1028,12 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         desktopMode="sidebar"
+        desktopWidth={desktopSidebarWidth}
+        desktopCollapsed={desktopSidebarCollapsed}
+        onDesktopResize={(width) =>
+          setDesktopSidebarWidth(clampDesktopSidebarWidth(width, window.innerWidth))
+        }
+        onDesktopCollapsedChange={setDesktopSidebarCollapsed}
         collapsedLabel={
           state.screen === 'home'
             ? `近くの避難先 ${nearbyShelters.length}件`

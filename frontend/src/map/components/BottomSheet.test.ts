@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { MapAdapter } from '../adapters/types'
 import type { Bundle, RouteInfo, RouteStats } from '../types'
-import { BottomSheet } from './BottomSheet'
+import { BottomSheet, clampDesktopSidebarWidth } from './BottomSheet'
 import { compareText, decideSheet, sheetOpenAfterSearch, sheetSummary } from './bottomSheetLogic'
 
 let host: HTMLDivElement | null = null
@@ -79,6 +79,14 @@ describe('decideSheet', () => {
   })
 })
 
+describe('PCサイドバー幅', () => {
+  it('狭くしすぎず、地図側にも最低幅を残す', () => {
+    expect(clampDesktopSidebarWidth(100, 1200)).toBe(320)
+    expect(clampDesktopSidebarWidth(900, 1200)).toBe(640)
+    expect(clampDesktopSidebarWidth(900, 900)).toBe(540)
+  })
+})
+
 describe('BottomSheet', () => {
   it('上方向のポインター操作で開き、地図ジェスチャを復帰する', async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -130,6 +138,68 @@ describe('BottomSheet', () => {
     expect(lockGestures).toHaveBeenNthCalledWith(1, true)
     expect(lockGestures).toHaveBeenLastCalledWith(false)
 
+    await act(async () => root.unmount())
+  })
+
+  it('PCサイドバーを畳める', async () => {
+    const onDesktopCollapsedChange = vi.fn()
+    const adapter = {
+      current: { lockGestures: vi.fn(), reserveBottom: vi.fn() } as unknown as MapAdapter,
+    }
+    host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    await act(async () =>
+      root.render(
+        createElement(BottomSheet, {
+          adapter,
+          bundle: null,
+          desktopMode: 'sidebar',
+          mobile: false,
+          onDesktopCollapsedChange,
+          open: true,
+          onOpenChange: vi.fn(),
+        }),
+      ),
+    )
+
+    const collapseButton = host.querySelector(
+      '[aria-label="サイドバーを畳む"]',
+    ) as HTMLButtonElement
+    await act(async () => collapseButton.click())
+    expect(onDesktopCollapsedChange).toHaveBeenCalledWith(true)
+    await act(async () => root.unmount())
+  })
+
+  it('PCサイドバーの境界は左右キーでも幅を変えられる', async () => {
+    const onDesktopResize = vi.fn()
+    const adapter = {
+      current: { lockGestures: vi.fn(), reserveBottom: vi.fn() } as unknown as MapAdapter,
+    }
+    host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    await act(async () =>
+      root.render(
+        createElement(BottomSheet, {
+          adapter,
+          bundle: null,
+          desktopMode: 'sidebar',
+          desktopWidth: 420,
+          mobile: false,
+          onDesktopResize,
+          open: true,
+          onOpenChange: vi.fn(),
+        }),
+      ),
+    )
+
+    await act(async () => {
+      host
+        ?.querySelector('[aria-label="サイドバーの幅を変更"]')
+        ?.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowRight' }))
+    })
+    expect(onDesktopResize).toHaveBeenCalledWith(436)
     await act(async () => root.unmount())
   })
 })
