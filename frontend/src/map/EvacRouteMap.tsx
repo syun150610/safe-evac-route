@@ -1177,6 +1177,15 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                     active={state.activeField === field}
                     onActivate={() => dispatch({ type: 'activate_field', field })}
                     onQueryChange={(query) => dispatch({ type: 'edit_field', field, query })}
+                    currentLocation={
+                      field === 'origin'
+                        ? {
+                            loading: locating,
+                            selected: value.place?.source === 'current-location',
+                            onSelect: () => void requestLocation(),
+                          }
+                        : undefined
+                    }
                     onClear={() => {
                       search.clear()
                       dispatch({ type: 'clear_place', field })
@@ -1188,15 +1197,6 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   />
                 )
               })}
-              <button
-                type="button"
-                className="mb-2 ml-[66px] cursor-pointer border-0 bg-transparent text-[10px] text-[#07156f]"
-                aria-busy={locating}
-                disabled={locating}
-                onClick={() => void requestLocation()}
-              >
-                {locating ? '◎ 現在地を取得しています…' : '◎ 現在地を出発地にする'}
-              </button>
               {shelterSearchMode ? (
                 <SafeShelterSearchButton
                   loading={shelterSearchLoading}
