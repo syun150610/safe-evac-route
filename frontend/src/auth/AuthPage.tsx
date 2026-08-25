@@ -4,11 +4,22 @@ import { AuthApiError } from './api'
 
 type Mode = 'login' | 'register'
 
+const NAME_PATTERN = /^[a-z0-9_-]{3,20}$/
+
+function validateRegister(name: string, password: string): string | null {
+  if (!NAME_PATTERN.test(name)) {
+    return 'ユーザー名は半角英数字・アンダースコア・ハイフンで3〜20文字にしてください'
+  }
+  if (password.length < 8) {
+    return 'パスワードは8文字以上で入力してください'
+  }
+  return null
+}
+
 function errorMessage(err: unknown): string {
   if (err instanceof AuthApiError) {
     if (err.status === 409) return 'このユーザー名はすでに使われています'
     if (err.status === 401) return 'ユーザー名またはパスワードが正しくありません'
-    if (err.status === 422) return '入力内容を確認してください'
   }
   return 'エラーが発生しました。もう一度お試しください'
 }
@@ -30,6 +41,15 @@ export function AuthPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
+
+    if (mode === 'register') {
+      const validationError = validateRegister(name, password)
+      if (validationError) {
+        setError(validationError)
+        return
+      }
+    }
+
     setLoading(true)
     try {
       if (mode === 'login') {
@@ -111,9 +131,9 @@ export function AuthPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={mode === 'register' ? '8文字以上' : ''}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
+              {mode === 'register' && <p className="mt-1 text-xs text-gray-400">8文字以上</p>}
             </div>
 
             {mode === 'register' && (
