@@ -56,7 +56,7 @@ export function HazardCondition({
         <span className="flex items-center gap-1.5 text-[9px] text-slate-500" role="status">
           <span
             aria-hidden="true"
-            className="size-3 animate-spin rounded-full border-2 border-slate-300 border-t-[#07156f] motion-reduce:animate-none"
+            className="size-3 animate-spin rounded-full border-2 border-slate-300 border-t-[#07156f] motion-reduce:animate-[spin_2s_linear_infinite]"
           />
           読み込み中…
         </span>

@@ -234,7 +234,7 @@ export function PlaceInput({
               {currentLocation.loading ? (
                 <span
                   aria-hidden="true"
-                  className="size-3 animate-spin rounded-full border-2 border-blue-200 border-t-[#07156f] motion-reduce:animate-none"
+                  className="size-3 animate-spin rounded-full border-2 border-blue-200 border-t-[#07156f] motion-reduce:animate-[spin_2s_linear_infinite]"
                 />
               ) : (
                 <LocateIcon className="size-4" />

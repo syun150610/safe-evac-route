@@ -42,7 +42,7 @@ export function SearchOptions({
           {loading && (
             <span
               aria-hidden="true"
-              className="size-3 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-[#07156f] motion-reduce:animate-none"
+              className="size-3 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-[#07156f] motion-reduce:animate-[spin_2s_linear_infinite]"
             />
           )}
           <span className="truncate">{summary}</span>

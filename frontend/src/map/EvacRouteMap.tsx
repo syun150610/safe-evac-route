@@ -865,7 +865,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
           >
             <span
               aria-hidden="true"
-              className="size-3.5 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-[#07156f] motion-reduce:animate-none"
+              className="size-3.5 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-[#07156f] motion-reduce:animate-[spin_2s_linear_infinite]"
             />
             <span className="overflow-hidden text-ellipsis">
               {initialLoadingItems.join('・')}を読み込み中…
@@ -974,7 +974,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
               <p className="flex items-center gap-2 text-[10px] text-slate-500" role="status">
                 <span
                   aria-hidden="true"
-                  className="size-3 animate-spin rounded-full border-2 border-slate-300 border-t-[#07156f] motion-reduce:animate-none"
+                  className="size-3 animate-spin rounded-full border-2 border-slate-300 border-t-[#07156f] motion-reduce:animate-[spin_2s_linear_infinite]"
                 />
                 災害情報を読み込み中…
               </p>
@@ -1067,7 +1067,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                   <p className="flex items-center gap-1.5 text-[9px] text-slate-500" role="status">
                     <span
                       aria-hidden="true"
-                      className="size-3 animate-spin rounded-full border-2 border-slate-300 border-t-[#07156f] motion-reduce:animate-none"
+                      className="size-3 animate-spin rounded-full border-2 border-slate-300 border-t-[#07156f] motion-reduce:animate-[spin_2s_linear_infinite]"
                     />
                     投稿を読み込み中…
                   </p>
@@ -1123,7 +1123,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                     {locating && !state.origin.place && (
                       <span
                         aria-hidden="true"
-                        className="size-2.5 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600 motion-reduce:animate-none"
+                        className="size-2.5 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600 motion-reduce:animate-[spin_2s_linear_infinite]"
                       />
                     )}
                     {state.origin.place?.title ?? (locating ? '現在地を取得しています…' : '未設定')}
