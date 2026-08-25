@@ -1008,7 +1008,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
           >
             <div className="flex items-center gap-3 rounded-xl bg-white/85 px-4 py-3 text-[11px] font-bold text-slate-700 shadow-[0_4px_16px_rgb(15_23_42/18%)] backdrop-blur-sm">
               <span
-                className="size-5 shrink-0 animate-spin rounded-full border-[3px] border-slate-300 border-t-[#07156f] motion-reduce:animate-none"
+                className="size-5 shrink-0 animate-spin rounded-full border-[3px] border-slate-300 border-t-[#07156f] motion-reduce:animate-[spin_2s_linear_infinite]"
                 aria-hidden="true"
               />
               {shelterSearchLoading ? '安全な避難先を検索中…' : '安全な経路を検索中…'}
