@@ -226,7 +226,11 @@ export function TimelinePage() {
             <p className="text-sm text-slate-500">該当する投稿はありません。</p>
           )}
           {posts.map((post) => (
-            <article className="timeline-card scroll-mt-[62px]" id={`post-${post.id}`} key={post.id}>
+            <article
+              className="timeline-card scroll-mt-[62px]"
+              id={`post-${post.id}`}
+              key={post.id}
+            >
               <div className="flex items-start gap-3">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#e9e9ed] text-lg font-bold text-slate-600">
                   {post.user_name.slice(0, 1).toUpperCase()}
