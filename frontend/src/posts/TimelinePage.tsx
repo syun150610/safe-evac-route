@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getPosts, markPostHelpful } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 import { reverseGeocode } from './geocode'
@@ -35,7 +35,32 @@ export function TimelinePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [locationNames, setLocationNames] = useState<Record<string, string>>({})
+  const [sharePostId, setSharePostId] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
   const geocodedIds = useRef(new Set<string>())
+  const sharePopupRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (sharePostId === null) return
+    function handleClickOutside(e: MouseEvent) {
+      if (sharePopupRef.current && !sharePopupRef.current.contains(e.target as Node)) {
+        setSharePostId(null)
+        setCopied(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [sharePostId])
+
+  const copyLink = useCallback(async (postId: string) => {
+    const url = `${window.location.origin}/timeline#post-${postId}`
+    await navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => {
+      setCopied(false)
+      setSharePostId(null)
+    }, 1500)
+  }, [])
 
   function load(reset: boolean) {
     setLoading(true)
@@ -72,6 +97,14 @@ export function TimelinePage() {
       .catch(() => setError('投稿を読み込めませんでした'))
       .finally(() => setLoading(false))
   }, [sort, position, userId])
+
+  useEffect(() => {
+    if (loading || posts.length === 0) return
+    const hash = window.location.hash
+    if (!hash) return
+    const el = document.querySelector(hash)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [posts, loading])
 
   useEffect(() => {
     const pending = posts.filter(
@@ -193,7 +226,11 @@ export function TimelinePage() {
             <p className="text-sm text-slate-500">該当する投稿はありません。</p>
           )}
           {posts.map((post) => (
-            <article className="timeline-card" key={post.id}>
+            <article
+              className="timeline-card scroll-mt-[62px]"
+              id={`post-${post.id}`}
+              key={post.id}
+            >
               <div className="flex items-start gap-3">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#e9e9ed] text-lg font-bold text-slate-600">
                   {post.user_name.slice(0, 1).toUpperCase()}
@@ -226,9 +263,32 @@ export function TimelinePage() {
                     >
                       {post.helpful ? '♥' : '♡'} 役に立った ({post.helpful_count})
                     </button>
-                    <button className="text-sm font-semibold text-slate-700" type="button">
-                      ⌯ 共有
-                    </button>
+                    <div className="relative">
+                      <button
+                        className="text-sm font-semibold text-slate-700"
+                        type="button"
+                        onClick={() => {
+                          setSharePostId(sharePostId === post.id ? null : post.id)
+                          setCopied(false)
+                        }}
+                      >
+                        ⌯ 共有
+                      </button>
+                      {sharePostId === post.id && (
+                        <div
+                          ref={sharePopupRef}
+                          className="absolute bottom-8 left-0 z-10 w-48 rounded-xl border border-slate-200 bg-white p-2 shadow-lg"
+                        >
+                          <button
+                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                            type="button"
+                            onClick={() => void copyLink(post.id)}
+                          >
+                            {copied ? '✓ コピーしました！' : '🔗 リンクをコピー'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
