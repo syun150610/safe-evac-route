@@ -104,7 +104,7 @@ export function NewPostPage() {
           <span className="grid size-6 place-items-center rounded-lg bg-[#07156f] text-white">
             ◇
           </span>
-          <strong>SAFE</strong>
+          <strong>Safe Evac Route</strong>
         </a>
         <div className="flex items-center gap-3">
           <a href="/mypage" aria-label="マイページ">

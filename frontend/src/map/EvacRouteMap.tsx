@@ -820,7 +820,7 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
           <span className="grid size-6 place-items-center rounded-lg bg-[#07156f] text-white">
             ◇
           </span>
-          <strong>SAFE</strong>
+          <strong>Safe Evac Route</strong>
         </div>
         {/* ⚠️ **未ログインでも地図は使える**ので、ここが唯一のログイン導線になる。
             「?」のアバターだけだと、押せばログインできると分からない。

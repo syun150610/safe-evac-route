@@ -38,7 +38,7 @@ export function MyPage() {
           <span className="grid size-6 place-items-center rounded-lg bg-[#07156f] text-white">
             ◇
           </span>
-          <strong>SAFE</strong>
+          <strong>Safe Evac Route</strong>
         </a>
         <span
           className="grid size-8 place-items-center rounded-full bg-[#07145f] text-xs font-bold text-white ring-2 ring-[#07145f] ring-offset-1"
