@@ -39,6 +39,7 @@ export function TimelinePage() {
   const [copied, setCopied] = useState(false)
   const geocodedIds = useRef(new Set<string>())
   const sharePopupRef = useRef<HTMLDivElement>(null)
+  const [expandedPosts, setExpandedPosts] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (sharePostId === null) return
@@ -225,75 +226,90 @@ export function TimelinePage() {
           {!loading && posts.length === 0 && (
             <p className="text-sm text-slate-500">該当する投稿はありません。</p>
           )}
-          {posts.map((post) => (
-            <article
-              className="timeline-card scroll-mt-[62px]"
-              id={`post-${post.id}`}
-              key={post.id}
-            >
-              <div className="flex items-start gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#e9e9ed] text-lg font-bold text-slate-600">
-                  {post.user_name.slice(0, 1).toUpperCase()}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h2 className="font-semibold text-slate-900">{post.user_name}</h2>
-                      <time className="text-sm text-slate-600">
-                        {relativeDate(post.created_at)}{' '}
-                        {locationNames[post.id] ?? (post.latitude != null ? '位置情報あり' : '')}
-                      </time>
+          {posts.map((post) => {
+            const isLong = post.content.split('\n').length > 4 || post.content.length > 150
+            const isExpanded = expandedPosts.has(post.id)
+            return (
+              <article
+                className="timeline-card scroll-mt-[62px]"
+                id={`post-${post.id}`}
+                key={post.id}
+              >
+                <div className="flex items-start gap-3">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#e9e9ed] text-lg font-bold text-slate-600">
+                    {post.user_name.slice(0, 1).toUpperCase()}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h2 className="font-semibold text-slate-900">{post.user_name}</h2>
+                        <time className="text-sm text-slate-600">
+                          {relativeDate(post.created_at)}{' '}
+                          {locationNames[post.id] ?? (post.latitude != null ? '位置情報あり' : '')}
+                        </time>
+                      </div>
                     </div>
-                  </div>
-                  <p className="mt-4 whitespace-pre-wrap text-[1.05rem] font-medium leading-8 text-slate-900">
-                    {post.content}
-                  </p>
-                  {post.image_url && (
-                    <img
-                      className="mt-4 max-h-80 w-full rounded-xl object-cover"
-                      src={post.image_url}
-                      alt="投稿画像"
-                    />
-                  )}
-                  <div className="mt-5 flex items-center gap-5 border-t border-slate-200 pt-4">
-                    <button
-                      className={`text-sm font-semibold ${post.helpful ? 'text-[#07145f]' : 'text-slate-700'}`}
-                      type="button"
-                      onClick={() => void helpful(post)}
+                    <p
+                      className={`mt-4 whitespace-pre-wrap text-[1.05rem] font-medium leading-8 text-slate-900 ${isLong && !isExpanded ? 'line-clamp-4' : ''}`}
                     >
-                      {post.helpful ? '♥' : '♡'} 役に立った ({post.helpful_count})
-                    </button>
-                    <div className="relative">
+                      {post.content}
+                    </p>
+                    {isLong && !isExpanded && (
                       <button
-                        className="text-sm font-semibold text-slate-700"
+                        className="mt-2 text-sm font-semibold text-[#07145f]"
                         type="button"
-                        onClick={() => {
-                          setSharePostId(sharePostId === post.id ? null : post.id)
-                          setCopied(false)
-                        }}
+                        onClick={() => setExpandedPosts((current) => new Set(current).add(post.id))}
                       >
-                        ⌯ 共有
+                        詳細を見る
                       </button>
-                      {sharePostId === post.id && (
-                        <div
-                          ref={sharePopupRef}
-                          className="absolute bottom-8 left-0 z-10 w-48 rounded-xl border border-slate-200 bg-white p-2 shadow-lg"
+                    )}
+                    {post.image_url && (
+                      <img
+                        className="mt-4 max-h-80 w-full rounded-xl object-cover"
+                        src={post.image_url}
+                        alt="投稿画像"
+                      />
+                    )}
+                    <div className="mt-5 flex items-center gap-5 border-t border-slate-200 pt-4">
+                      <button
+                        className={`text-sm font-semibold ${post.helpful ? 'text-[#07145f]' : 'text-slate-700'}`}
+                        type="button"
+                        onClick={() => void helpful(post)}
+                      >
+                        {post.helpful ? '♥' : '♡'} 役に立った ({post.helpful_count})
+                      </button>
+                      <div className="relative">
+                        <button
+                          className="text-sm font-semibold text-slate-700"
+                          type="button"
+                          onClick={() => {
+                            setSharePostId(sharePostId === post.id ? null : post.id)
+                            setCopied(false)
+                          }}
                         >
-                          <button
-                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-                            type="button"
-                            onClick={() => void copyLink(post.id)}
+                          ⌯ 共有
+                        </button>
+                        {sharePostId === post.id && (
+                          <div
+                            ref={sharePopupRef}
+                            className="absolute bottom-8 left-0 z-10 w-48 rounded-xl border border-slate-200 bg-white p-2 shadow-lg"
                           >
-                            {copied ? '✓ コピーしました！' : '🔗 リンクをコピー'}
-                          </button>
-                        </div>
-                      )}
+                            <button
+                              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                              type="button"
+                              onClick={() => void copyLink(post.id)}
+                            >
+                              {copied ? '✓ コピーしました！' : '🔗 リンクをコピー'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            )
+          })}
         </div>
         {hasMore && (
           <button
