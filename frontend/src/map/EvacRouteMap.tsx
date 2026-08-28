@@ -1092,11 +1092,21 @@ export function EvacRouteMap({ platform = 'maplibre' }: { platform?: Platform })
                         })()}
                       </time>
                     </div>
-                    <p className={latestPost.content.split('\n').length > 3 || latestPost.content.length > 120 ? 'line-clamp-3' : ''}>
+                    <p
+                      className={
+                        latestPost.content.split('\n').length > 3 || latestPost.content.length > 120
+                          ? 'line-clamp-3'
+                          : ''
+                      }
+                    >
                       {latestPost.content}
                     </p>
-                    {(latestPost.content.split('\n').length > 3 || latestPost.content.length > 120) && (
-                      <a href="/timeline" className="block pl-6 text-[8px] font-bold text-[#07156f] no-underline">
+                    {(latestPost.content.split('\n').length > 3 ||
+                      latestPost.content.length > 120) && (
+                      <a
+                        href="/timeline"
+                        className="block pl-6 text-[8px] font-bold text-[#07156f] no-underline"
+                      >
                         詳細を見る
                       </a>
                     )}

@@ -249,7 +249,9 @@ export function TimelinePage() {
                         </time>
                       </div>
                     </div>
-                    <p className={`mt-4 whitespace-pre-wrap text-[1.05rem] font-medium leading-8 text-slate-900 ${isLong && !isExpanded ? 'line-clamp-4' : ''}`}>
+                    <p
+                      className={`mt-4 whitespace-pre-wrap text-[1.05rem] font-medium leading-8 text-slate-900 ${isLong && !isExpanded ? 'line-clamp-4' : ''}`}
+                    >
                       {post.content}
                     </p>
                     {isLong && !isExpanded && (
