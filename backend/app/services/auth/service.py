@@ -104,6 +104,49 @@ class AuthService:
         if record and not record.revoked:
             await self._tokens.revoke(record.id)
 
+    async def update_me(
+        self,
+        user_id: str,
+        name: str | None,
+        email: str | None,
+        current_password: str | None,
+        new_password: str | None,
+    ) -> UserResponse:
+        user = await self._users.find_by_id(user_id)
+        if not user:
+            raise ValueError("user_not_found")
+
+        new_name: str | None = None
+        new_email: str | None = None
+        new_hash: str | None = None
+
+        if name is not None and name != user.name:
+            if await self._users.find_by_name(name):
+                raise ValueError("name_conflict")
+            new_name = name
+
+        if email is not None and email != user.email:
+            new_email = email
+
+        if new_password is not None:
+            if not current_password or not verify_password(
+                current_password, user.password_hash
+            ):
+                raise ValueError("wrong_password")
+            new_hash = hash_password(new_password)
+
+        await self._users.update(
+            user_id, name=new_name, email=new_email, password_hash=new_hash
+        )
+
+        return UserResponse(
+            id=user.id,
+            name=new_name if new_name is not None else user.name,
+            email=new_email if new_email is not None else user.email,
+            avatar_url=user.avatar_url,
+            created_at=user.created_at,
+        )
+
     async def get_me(self, user_id: str) -> UserResponse:
         user = await self._users.find_by_id(user_id)
         if not user:

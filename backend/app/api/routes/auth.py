@@ -16,6 +16,7 @@ from app.schemas.auth import (
     RegisterRequest,
     TokenResponse,
     UserResponse,
+    UserUpdateRequest,
 )
 from app.services.auth.service import AuthService
 from app.services.auth.token import verify_access_token
@@ -125,6 +126,48 @@ async def logout(
 ) -> None:
     await service.logout(refresh_token)
     _clear_refresh_cookie(response)
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_me(
+    body: UserUpdateRequest,
+    response: Response,
+    service: Annotated[AuthService, Depends(_get_auth_service)],
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+) -> UserResponse:
+    try:
+        user_id = verify_access_token(credentials.credentials)
+    except jwt.PyJWTError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="access tokenが無効または期限切れです",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+    try:
+        return await service.update_me(
+            user_id,
+            name=body.name,
+            email=body.email,
+            current_password=body.current_password,
+            new_password=body.new_password,
+        )
+    except ValueError as exc:
+        match str(exc):
+            case "name_conflict":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="このユーザー名はすでに使われています",
+                ) from exc
+            case "wrong_password":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="現在のパスワードが正しくありません",
+                ) from exc
+            case _:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="ユーザーが見つかりません",
+                ) from exc
 
 
 @router.get("/me", response_model=UserResponse)

@@ -49,3 +49,26 @@ class TokenResponse(BaseModel):
 class AccessTokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class UserUpdateRequest(BaseModel):
+    name: str | None = None
+    email: EmailStr | None = None
+    current_password: str | None = None
+    new_password: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str | None) -> str | None:
+        if v is not None and not re.match(r"^[a-z0-9_-]{3,20}$", v):
+            raise ValueError(
+                "nameは半角英数字・アンダースコア・ハイフンで3〜20文字にしてください"
+            )
+        return v
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v: str | None) -> str | None:
+        if v is not None and len(v) < 8:
+            raise ValueError("パスワードは8文字以上にしてください")
+        return v

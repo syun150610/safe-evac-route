@@ -6,6 +6,7 @@ import {
   refreshAccessToken,
   register as registerApi,
   type UserResponse,
+  updateMe as updateMeApi,
 } from './api'
 
 type AuthStatus = 'initializing' | 'unauthenticated' | 'authenticated'
@@ -17,6 +18,12 @@ interface AuthContextValue {
   login: (name: string, password: string) => Promise<void>
   register: (name: string, password: string, email?: string) => Promise<void>
   logout: () => Promise<void>
+  updateUser: (body: {
+    name?: string
+    email?: string
+    current_password?: string
+    new_password?: string
+  }) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -58,8 +65,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStatus('unauthenticated')
   }
 
+  const updateUser = async (body: {
+    name?: string
+    email?: string
+    current_password?: string
+    new_password?: string
+  }) => {
+    if (!accessToken) throw new Error('not authenticated')
+    const updated = await updateMeApi(accessToken, body)
+    setUser(updated)
+  }
+
   return (
-    <AuthContext.Provider value={{ status, user, accessToken, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ status, user, accessToken, login, register, logout, updateUser }}
+    >
       {children}
     </AuthContext.Provider>
   )

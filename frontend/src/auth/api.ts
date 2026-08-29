@@ -62,3 +62,13 @@ export const getMe = (accessToken: string) =>
   authFetch<UserResponse>('/auth/me', {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
+
+export const updateMe = (
+  accessToken: string,
+  body: { name?: string; email?: string; current_password?: string; new_password?: string },
+) =>
+  authFetch<UserResponse>('/auth/me', {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(body),
+  })
