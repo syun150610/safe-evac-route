@@ -45,6 +45,31 @@ class UserRepository:
         results = response.json()["results"]
         return UserRow.model_validate(results[0]) if results else None
 
+    async def update(
+        self,
+        user_id: str,
+        name: str | None = None,
+        password_hash: str | None = None,
+    ) -> None:
+        fields = []
+        params: list[str] = []
+        if name is not None:
+            fields.append("name = ?")
+            params.append(name)
+        if password_hash is not None:
+            fields.append("password_hash = ?")
+            params.append(password_hash)
+        if not fields:
+            return
+        params.append(user_id)
+        await self._d1.post(
+            "/execute",
+            {
+                "sql": f"UPDATE USERS SET {', '.join(fields)} WHERE id = ?",
+                "params": params,
+            },
+        )
+
     async def create(
         self,
         user_id: str,
