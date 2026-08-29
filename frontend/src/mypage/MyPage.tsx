@@ -16,6 +16,7 @@ export function MyPage() {
   const [loggingOut, setLoggingOut] = useState(false)
   const [editing, setEditing] = useState(false)
   const [newName, setNewName] = useState('')
+  const [newEmail, setNewEmail] = useState('')
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [saving, setSaving] = useState(false)
@@ -33,6 +34,7 @@ export function MyPage() {
 
   function openEdit() {
     setNewName(user?.name ?? '')
+    setNewEmail(user?.email ?? '')
     setCurrentPassword('')
     setNewPassword('')
     setEditError(null)
@@ -47,8 +49,14 @@ export function MyPage() {
 
   async function handleSave() {
     if (!user) return
-    const body: { name?: string; current_password?: string; new_password?: string } = {}
+    const body: {
+      name?: string
+      email?: string
+      current_password?: string
+      new_password?: string
+    } = {}
     if (newName && newName !== user.name) body.name = newName
+    if (newEmail !== (user.email ?? '')) body.email = newEmail
     if (newPassword) {
       body.current_password = currentPassword
       body.new_password = newPassword
@@ -142,6 +150,21 @@ export function MyPage() {
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="半角英数字・_ ・- で3〜20文字"
                 autoComplete="username"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-500" htmlFor="edit-email">
+                メールアドレス
+              </label>
+              <input
+                id="edit-email"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-[#07156f] focus:outline-none"
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="example@example.com"
+                autoComplete="email"
               />
             </div>
 

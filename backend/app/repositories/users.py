@@ -49,6 +49,7 @@ class UserRepository:
         self,
         user_id: str,
         name: str | None = None,
+        email: str | None = None,
         password_hash: str | None = None,
     ) -> None:
         fields = []
@@ -56,6 +57,9 @@ class UserRepository:
         if name is not None:
             fields.append("name = ?")
             params.append(name)
+        if email is not None:
+            fields.append("email = ?")
+            params.append(email)
         if password_hash is not None:
             fields.append("password_hash = ?")
             params.append(password_hash)

@@ -20,6 +20,7 @@ interface AuthContextValue {
   logout: () => Promise<void>
   updateUser: (body: {
     name?: string
+    email?: string
     current_password?: string
     new_password?: string
   }) => Promise<void>
@@ -66,6 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const updateUser = async (body: {
     name?: string
+    email?: string
     current_password?: string
     new_password?: string
   }) => {

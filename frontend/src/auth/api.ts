@@ -65,7 +65,7 @@ export const getMe = (accessToken: string) =>
 
 export const updateMe = (
   accessToken: string,
-  body: { name?: string; current_password?: string; new_password?: string },
+  body: { name?: string; email?: string; current_password?: string; new_password?: string },
 ) =>
   authFetch<UserResponse>('/auth/me', {
     method: 'PATCH',

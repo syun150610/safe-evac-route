@@ -147,6 +147,7 @@ async def update_me(
         return await service.update_me(
             user_id,
             name=body.name,
+            email=body.email,
             current_password=body.current_password,
             new_password=body.new_password,
         )

@@ -53,6 +53,7 @@ class AccessTokenResponse(BaseModel):
 
 class UserUpdateRequest(BaseModel):
     name: str | None = None
+    email: EmailStr | None = None
     current_password: str | None = None
     new_password: str | None = None
 
