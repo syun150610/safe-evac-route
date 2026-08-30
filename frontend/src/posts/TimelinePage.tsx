@@ -1,8 +1,60 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { getPosts, markPostHelpful } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 import { reverseGeocode } from './geocode'
 import type { Post } from './types'
+
+// 投稿カードのローディング中に表示するプレースホルダー。
+// animate-pulse で灰色ブロックがふわふわ点滅し、「読み込み中」をそれとなく伝える
+function PostSkeleton() {
+  return (
+    <div className="timeline-card animate-pulse">
+      <div className="flex items-start gap-3">
+        {/* アバター部分のプレースホルダー */}
+        <div className="h-11 w-11 shrink-0 rounded-full bg-slate-200" />
+        <div className="min-w-0 flex-1">
+          {/* ユーザー名のプレースホルダー */}
+          <div className="h-4 w-28 rounded bg-slate-200" />
+          {/* 投稿日時のプレースホルダー */}
+          <div className="mt-1 h-3 w-20 rounded bg-slate-200" />
+          {/* 本文のプレースホルダー（3行分） */}
+          <div className="mt-4 space-y-2">
+            <div className="h-4 w-full rounded bg-slate-200" />
+            <div className="h-4 w-full rounded bg-slate-200" />
+            <div className="h-4 w-3/4 rounded bg-slate-200" />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// 画像を遅延読み込みするコンポーネント。
+// memo でラップすることで、親が再レンダリングされても src が変わらない限り再描画しない
+const PostImage = memo(function PostImage({ src }: { src: string }) {
+  // 画像の読み込みが完了したか否かを管理するフラグ
+  const [loaded, setLoaded] = useState(false)
+  return (
+    // loaded=false の間はグレーの背景（プレースホルダー）を表示する
+    <div
+      className={`mt-4 overflow-hidden rounded-xl ${!loaded ? 'min-h-40 animate-pulse bg-slate-200' : ''}`}
+    >
+      <img
+        // loaded=false のうちは opacity-0 で不可視にし、完了後に opacity-100 でフェードイン
+        className={`max-h-80 w-full object-cover transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+        src={src}
+        alt="投稿画像"
+        // loading="lazy": 画面外の画像はスクロールして近づくまでダウンロードを遅らせる
+        loading="lazy"
+        // decoding="async": 画像のデコード処理をメインスレッドと非同期に行い描画をブロックしない
+        decoding="async"
+        // 読み込み完了・エラーどちらでも loaded=true にしてプレースホルダーを消す
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+      />
+    </div>
+  )
+})
 
 function relativeDate(value: string) {
   const iso = value.replace(' ', 'T')
@@ -222,7 +274,18 @@ export function TimelinePage() {
           <p className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
         )}
         <div className="mt-7 space-y-4">
-          {loading && posts.length === 0 && <p className="text-sm text-slate-500">読み込み中…</p>}
+          {/* 初回ロード中（まだ投稿が1件もない）: スケルトンカードを3枚並べる */}
+          {loading && posts.length === 0 && (
+            <>
+              <PostSkeleton />
+              <PostSkeleton />
+              <PostSkeleton />
+            </>
+          )}
+          {/* ソート切り替え中（既に投稿が表示されている）: 上部に小さく「更新中…」を出す */}
+          {loading && posts.length > 0 && (
+            <p className="text-center text-sm text-slate-400">更新中…</p>
+          )}
           {!loading && posts.length === 0 && (
             <p className="text-sm text-slate-500">該当する投稿はありません。</p>
           )}
@@ -263,13 +326,7 @@ export function TimelinePage() {
                         詳細を見る
                       </button>
                     )}
-                    {post.image_url && (
-                      <img
-                        className="mt-4 max-h-80 w-full rounded-xl object-cover"
-                        src={post.image_url}
-                        alt="投稿画像"
-                      />
-                    )}
+                    {post.image_url && <PostImage src={post.image_url} />}
                     <div className="mt-5 flex items-center gap-5 border-t border-slate-200 pt-4">
                       <button
                         className={`text-sm font-semibold ${post.helpful ? 'text-[#07145f]' : 'text-slate-700'}`}
