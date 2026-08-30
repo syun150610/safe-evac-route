@@ -1,5 +1,5 @@
 import { type ChangeEvent, type FormEvent, useState } from 'react'
-import { createPost } from '../api/client'
+import { createPost, invalidatePostsCache } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 import { reverseGeocode } from './geocode'
 import { compressPostImage, ImageCompressionError } from './image-compression'
@@ -83,6 +83,9 @@ export function NewPostPage() {
     setError(null)
     try {
       await createPost({ ...form, content: form.content.trim() })
+      // 新しい投稿がタイムラインに即反映されるよう、キャッシュを全消去してから遷移する
+      // これをしないと1分間キャッシュが残り、自分の投稿が見えない状態になる
+      invalidatePostsCache()
       location.href = '/timeline'
     } catch {
       setError('投稿を保存できませんでした')

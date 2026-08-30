@@ -111,7 +111,45 @@ export const getShelters = (params?: { bbox?: string; type?: string }) => {
   const qs = q.toString()
   return get<ShelterCollection>(`/shelters${qs ? `?${qs}` : ''}`)
 }
-/** 投稿一覧を取得する。 */
+// --- 投稿キャッシュ（ソート切り替え時の再フェッチを省略する） ---
+
+// キャッシュの1エントリの型。取得済みデータと有効期限（Unix ミリ秒）をセットで持つ
+interface PostsCacheEntry {
+  data: PostList
+  expiry: number // Date.now() と比較して期限切れを判定する
+}
+
+// ページを開いている間だけ生きるインメモリキャッシュ。
+// キー: ソート条件などを連結した文字列、値: PostsCacheEntry
+const _postsCache = new Map<string, PostsCacheEntry>()
+
+// キャッシュの有効期間。1分を超えたらミスとして再フェッチする
+const POSTS_CACHE_TTL_MS = 60 * 1000 // 1分
+
+// キャッシュのキーを生成する。同じ条件なら同じ文字列になる
+function _postsCacheKey(
+  sort: string,
+  latitude: number | null | undefined,
+  longitude: number | null | undefined,
+  offset: number,
+  limit: number,
+  userId: string,
+): string {
+  // nearbyソートでは小数3桁に丸めてGPSブレによるキャッシュミスを防ぐ（精度~100m）
+  // 例: 35.6812345... → "35.681"  微妙に位置がズレても同じキーになる
+  const lat = latitude != null ? latitude.toFixed(3) : ''
+  const lon = longitude != null ? longitude.toFixed(3) : ''
+  // 例: "recent::::10:user-abc" や "nearby:35.681:139.767:0:10:user-abc"
+  return `${sort}:${lat}:${lon}:${offset}:${limit}:${userId}`
+}
+
+// 新規投稿後など「キャッシュが古くなった」タイミングで呼び出す。
+// clear() で Map の中身を全消去し、次の getPosts で必ず再フェッチさせる
+export function invalidatePostsCache(): void {
+  _postsCache.clear()
+}
+
+/** 投稿一覧を取得する。同じ条件は1分間キャッシュする。 */
 export const getPosts = (params: {
   limit?: number
   offset?: number
@@ -119,11 +157,25 @@ export const getPosts = (params: {
   latitude?: number | null
   longitude?: number | null
   userId: string
-}) => {
+}): Promise<PostList> => {
+  const limit = params.limit ?? 10
+  const offset = params.offset ?? 0
+  const sort = params.sort ?? 'recent'
+
+  // 今回のリクエストに対応するキャッシュキーを組み立てる
+  const key = _postsCacheKey(sort, params.latitude, params.longitude, offset, limit, params.userId)
+  const cached = _postsCache.get(key)
+
+  // キャッシュが存在し、かつ有効期限内であればネットワーク通信をスキップして即返却する
+  if (cached && Date.now() < cached.expiry) {
+    return Promise.resolve(cached.data)
+  }
+
+  // キャッシュミス（初回 or 期限切れ）→ APIを叩く
   const query = new URLSearchParams({
-    limit: String(params.limit ?? 10),
-    offset: String(params.offset ?? 0),
-    sort: params.sort ?? 'recent',
+    limit: String(limit),
+    offset: String(offset),
+    sort,
     user_id: params.userId,
   })
 
@@ -132,7 +184,11 @@ export const getPosts = (params: {
     query.set('longitude', String(params.longitude))
   }
 
-  return get<PostList>(`/posts?${query}`)
+  return get<PostList>(`/posts?${query}`).then((result) => {
+    // 取得成功したらキャッシュに保存。expiry = 現在時刻 + TTL
+    _postsCache.set(key, { data: result, expiry: Date.now() + POSTS_CACHE_TTL_MS })
+    return result
+  })
 }
 
 /** 投稿を作成する。 */
