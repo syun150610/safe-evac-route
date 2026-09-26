@@ -1,51 +1,58 @@
 {
-  "name": "saigai-map-api",
-  "main": "src/index.ts",
-  "compatibility_date": "2026-08-01",
-  "vars": {
-    // backendのプリセット・探索NPZ・浸水タイルを同じ世代へ一括で切り替える。
-    // 変更後はWorkerを再デプロイし、Containerを新しい設定で起動する。
-    "HAZARD_DATA_PROFILE": "kensetsu"
-  },
-  "assets": {
-    "directory": "../frontend/dist",
-    "binding": "ASSETS",
-    "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/tiles/*", "/d1/*", "/r2/*"]
-  },
-  "d1_databases": [
-    {
-      "binding": "DATABASE",
-      "database_name": "safe-evac-route-db",
-      "database_id": "3b767e82-d3c6-47f3-b2b8-d9faa2dcbe2b"
-    }
-  ],
-  "r2_buckets": [
-    {
-      "binding": "STORAGE",
-      "bucket_name": "safe-evac-route-storage"
-    }
-  ],
-  "containers": [
-    {
-      "class_name": "FastAPIContainer",
-      "image": "../backend/Dockerfile",
-      "max_instances": 3,
-      "instance_type":"standard-2"
-    }
-  ],
-  "durable_objects": {
-    "bindings": [
-      {
-        "name": "FASTAPI_CONTAINER",
-        "class_name": "FastAPIContainer"
-      }
-    ]
-  },
-  "migrations": [
-    {
-      "tag": "v1",
-      "new_sqlite_classes": ["FastAPIContainer"]
-    }
-  ]
+	"name": "saigai-map-api",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-08-01",
+	"vars": {
+		// backendのプリセット・探索NPZ・浸水タイルを同じ世代へ一括で切り替える。
+		// 変更後はWorkerを再デプロイし、Containerを新しい設定で起動する。
+		"HAZARD_DATA_PROFILE": "kensetsu"
+	},
+	"assets": {
+		"directory": "../frontend/dist",
+		"binding": "ASSETS",
+		"not_found_handling": "single-page-application",
+		"run_worker_first": [
+			"/api/*",
+			"/tiles/*",
+			"/d1/*",
+			"/r2/*"
+		]
+	},
+	"d1_databases": [
+		{
+			"binding": "DATABASE",
+			"database_name": "safe-evac-route-db",
+			"database_id": "59a3dacd-33f2-42c6-b196-2847728a3ba9"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "STORAGE",
+			"bucket_name": "safe-evac-route-storage"
+		}
+	],
+	"containers": [
+		{
+			"class_name": "FastAPIContainer",
+			"image": "../backend/Dockerfile",
+			"max_instances": 3,
+			"instance_type": "standard-2"
+		}
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "FASTAPI_CONTAINER",
+				"class_name": "FastAPIContainer"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"FastAPIContainer"
+			]
+		}
+	]
 }
